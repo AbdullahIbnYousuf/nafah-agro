@@ -1,0 +1,165 @@
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  ShoppingBag,
+  MapPin,
+  Leaf,
+  Truck,
+  ShieldCheck,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import heroBg from "@/assets/hero-bg.jpg";
+import ProductCard from "@/components/ProductCard";
+import { getProducts } from "@/lib/api";
+import { Product } from "@/lib/types";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+
+const GOOGLE_MAP_URL = "https://maps.google.com/?q=Khamarbari+Organic+Farm";
+
+const features = [
+  {
+    icon: Leaf,
+    title: "১০০% অর্গানিক",
+    desc: "কোনো কেমিক্যাল বা কীটনাশক ব্যবহার করা হয় না",
+  },
+  {
+    icon: Truck,
+    title: "হোম ডেলিভারি",
+    desc: "সরাসরি খামার থেকে আপনার দোরগোড়ায়",
+  },
+  {
+    icon: ShieldCheck,
+    title: "গুণগত মান নিশ্চিত",
+    desc: "প্রতিটি পণ্য যত্ন সহকারে বাছাই করা",
+  },
+];
+
+const Index = () => {
+  const [featured, setFeatured] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getProducts({ featured: true, limit: 4 })
+      .then((page) => setFeatured(page.data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+
+      {/* Hero */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src={heroBg}
+            alt="খামারবাড়ি"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-primary/70" />
+        </div>
+        <div className="relative container mx-auto px-4 py-24 md:py-36 text-center">
+          <h1 className="text-4xl md:text-6xl font-bold text-primary-foreground mb-4 animate-fade-in">
+            খামারবাড়ি
+          </h1>
+          <p
+            className="text-lg md:text-xl text-primary-foreground/90 max-w-2xl mx-auto mb-8 animate-fade-in"
+            style={{ animationDelay: "0.15s" }}
+          >
+            সরাসরি খামার থেকে আপনার পরিবারের জন্য বিশুদ্ধ, অর্গানিক খাদ্যপণ্য।
+            স্বাস্থ্যকর জীবনের জন্য প্রকৃতির সেরা উপহার।
+          </p>
+          <div
+            className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in"
+            style={{ animationDelay: "0.3s" }}
+          >
+            <Button
+              asChild
+              size="lg"
+              className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold text-base px-8"
+            >
+              <Link to="/shop">
+                <ShoppingBag className="mr-2" size={20} />
+                অনলাইনে কিনুন
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold text-base px-8"
+            >
+              <a
+                href={GOOGLE_MAP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <MapPin className="mr-2" size={20} />
+                আমাদের দোকানে আসুন
+              </a>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-16 bg-card">
+        <div className="container mx-auto px-4">
+          <div className="grid md:grid-cols-3 gap-8">
+            {features.map((f, i) => (
+              <div key={i} className="text-center p-6 rounded-lg">
+                <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-secondary/10 flex items-center justify-center">
+                  <f.icon size={28} className="text-secondary" />
+                </div>
+                <h3 className="text-lg font-bold mb-2">{f.title}</h3>
+                <p className="text-muted-foreground text-sm">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Products */}
+      <section className="py-16">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold">জনপ্রিয় পণ্য</h2>
+            <p className="text-muted-foreground mt-2">
+              আমাদের সবচেয়ে বেশি বিক্রিত পণ্যসমূহ
+            </p>
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+              <Loader2 size={20} className="animate-spin" /> লোড হচ্ছে...
+            </div>
+          ) : featured.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {featured.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">
+              এখনো কোনো ফিচার্ড পণ্য নেই
+            </p>
+          )}
+          <div className="text-center mt-8">
+            <Button
+              asChild
+              variant="outline"
+              className="border-secondary text-secondary hover:bg-secondary hover:text-secondary-foreground"
+            >
+              <Link to="/shop">সব পণ্য দেখুন →</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <Footer />
+    </div>
+  );
+};
+
+export default Index;
