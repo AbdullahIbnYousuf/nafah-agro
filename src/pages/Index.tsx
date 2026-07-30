@@ -16,7 +16,7 @@ import { Product } from "@/lib/types";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-const GOOGLE_MAP_URL = "https://maps.google.com/?q=Khamarbari+Organic+Farm";
+const GOOGLE_MAP_URL = "https://maps.google.com/?q=Nafah+Agro";
 
 const features = [
   {
@@ -55,14 +55,14 @@ const Index = () => {
         <div className="absolute inset-0">
           <img
             src={heroBg}
-            alt="খামারবাড়ি"
+            alt="নাফাহ এগ্রো"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-primary/70" />
         </div>
         <div className="relative container mx-auto px-4 py-24 md:py-36 text-center">
           <h1 className="text-4xl md:text-6xl font-bold text-primary-foreground mb-4 animate-fade-in">
-            খামারবাড়ি
+            নাফাহ এগ্রো
           </h1>
           <p
             className="text-lg md:text-xl text-primary-foreground/90 max-w-2xl mx-auto mb-8 animate-fade-in"

@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
+dist-server/
 build/
 
 # Environment variables
@@ -31,6 +32,7 @@ Thumbs.db
 
 # Vite cache
 .vite/
+server/generated/prisma/
 
 # Test output
 coverage/

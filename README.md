@@ -1,191 +1,267 @@
-# Khamarbari E-Shop
+# Nafah Agro
 
-A production-ready ecommerce website for **Khamarbari**, an organic food shop. The UI is in Bangla.
+Nafah Agro is a Bangla React/Vite storefront with an Express API. Milestone 1
+adds a secure PostgreSQL/Supabase Auth foundation while retaining the existing
+MongoDB/Mongoose routes until each feature is replaced. Products, inventory,
+orders, and analytics have not yet been migrated to PostgreSQL.
 
-**Live repo:** https://github.com/version3-omnichannel/Ecommerce-Store-for-API-Endpoint.git
+## Stack
 
----
+- React 18, Vite, TypeScript, React Router, Tailwind CSS, and shadcn/ui
+- Express and TypeScript
+- PostgreSQL through Prisma 7 (`@prisma/adapter-pg`)
+- Supabase PostgreSQL and Supabase Auth
+- Existing MongoDB/Mongoose feature routes during the transition
+- Cloudinary for product images
+- Vitest and Supertest
+- Vercel for separate frontend and backend projects
 
-## Tech Stack
+## Requirements
 
-| Concern | Technology |
-|---|---|
-| Frontend | React 18 + Vite + TypeScript |
-| Styling | Tailwind CSS + shadcn/ui |
-| Backend | Express.js + TypeScript |
-| Database | MongoDB (Mongoose) |
-| Image Storage | Cloudinary |
-| Routing | React Router DOM v6 |
+- Node.js 22.12 or newer in the Node 22 line (`.nvmrc` records 22.22.3)
+- npm 10 or newer; npm and `package-lock.json` are the only package manager
+  and lockfile used by this repository
+- MongoDB for the existing feature routes
+- A Supabase project for the Milestone 1 PostgreSQL/Auth proof
+- Cloudinary credentials only when testing image uploads
 
----
-
-## Prerequisites
-
-- **Node.js** v18 or higher
-- **MongoDB** — local instance or MongoDB Atlas URI
-- **Cloudinary** account (free tier works)
-
----
-
-## Environment Setup
-
-Copy the example env file and fill in your values:
+## Install
 
 ```bash
+nvm use
+npm install
 cp .env.example .env
 ```
 
-Edit `.env`:
+Replace every placeholder needed by the service you are running. Never commit
+`.env` or real credentials.
 
-```env
-# Express server port
-PORT=4000
+## Run locally
 
-# MongoDB connection string
-MONGO_URI=mongodb://localhost:27017/khamarbari
-
-# Allowed frontend origin (for CORS)
-CLIENT_URL=http://localhost:8080
-
-# Cloudinary credentials (from cloudinary.com dashboard)
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-
-# Frontend API base URL (must match backend PORT)
-VITE_API_URL=http://localhost:4000
-```
-
----
-
-## Installation
+Use two terminals:
 
 ```bash
-npm install
-```
-
----
-
-## Running the App
-
-You need **two terminals** — one for the backend, one for the frontend.
-
-### Terminal 1 — Backend (Express API)
-
-```bash
+# Terminal 1: Express + the existing MongoDB routes
 npm run server
-```
 
-Starts the Express server with hot-reload on `http://localhost:4000`.
-
-### Terminal 2 — Frontend (Vite dev server)
-
-```bash
+# Terminal 2: Vite
 npm run dev
 ```
 
-Starts the React app on `http://localhost:8080`.
+The frontend runs at `http://localhost:8080`, proxies `/api` to
+`http://localhost:4000`, and the API health endpoint is
+`http://localhost:4000/api/v1/health`.
 
-The frontend proxies all `/api` requests to the backend automatically.
+The backend validates its environment before startup. The existing local server
+still connects to MongoDB because its product/order replacements are outside
+Milestone 1. PostgreSQL and Supabase variables are optional as a group; the
+foundation endpoint returns `503` until they are configured.
 
----
+## Environment
 
-## Seeding the Database
+Backend-only variables:
 
-To populate the database with sample products, categories, and data:
+| Variable | Required | Purpose |
+|---|---:|---|
+| `NODE_ENV` | No | `development`, `test`, or `production` |
+| `PORT` | No | Local Express port; default `4000` |
+| `MONGO_URI` | Yes, legacy | Existing Mongoose feature routes; remove after route replacement |
+| `FRONTEND_URL` | Yes | Exact allowed CORS origin |
+| `JSON_BODY_LIMIT` | No | Express JSON limit; default `100kb` |
+| `RATE_LIMIT_WINDOW_MS` | No | Rate-limit window; default 15 minutes |
+| `AUTH_RATE_LIMIT_MAX` | No | Authentication-route requests per IP/window; default 20 |
+| `PROTECTED_RATE_LIMIT_MAX` | No | Foundation-route requests per IP/window; default 60 |
+| `JWT_SECRET` | Yes, legacy | Temporary custom-JWT secret, minimum 32 characters |
+| `ADMIN_UNLOCK_CODE` | Yes, legacy | Temporary public legacy admin-setup code, minimum 12 characters |
+| `CLOUDINARY_CLOUD_NAME` | Together | Existing image uploads |
+| `CLOUDINARY_API_KEY` | Together | Existing image uploads |
+| `CLOUDINARY_API_SECRET` | Together | Existing image uploads |
+| `DATABASE_URL` | With `SUPABASE_URL` | Supabase pooled PostgreSQL runtime URL |
+| `DIRECT_URL` | For migrations | Supabase direct/session PostgreSQL URL |
+| `SUPABASE_URL` | With `DATABASE_URL` | JWT issuer/JWKS location |
+| `SUPABASE_JWT_AUDIENCE` | No | Default `authenticated` |
+
+Frontend-public variables:
+
+| Variable | Required | Purpose |
+|---|---:|---|
+| `VITE_API_URL` | No | API base; default `/api` |
+| `VITE_SUPABASE_URL` | Together | Public Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Together | Public publishable/anon key |
+
+Only `VITE_*` values are bundled into the frontend. Never add a database
+password, Supabase service-role key, Cloudinary secret, or legacy JWT secret to
+a `VITE_*` variable.
+
+`MONGO_URI`, `JWT_SECRET`, and `ADMIN_UNLOCK_CODE` remain mandatory only because
+the old routes still depend on them. They are scheduled for removal when all
+legacy MongoDB/custom-JWT routes have PostgreSQL/Supabase replacements.
+
+## Supabase values required
+
+Copy these values from the Supabase project dashboard:
+
+- `DATABASE_URL`: pooled transaction connection string for the backend runtime.
+- `DIRECT_URL`: direct/session connection string used by migrations, seed, and
+  the owner-creation command.
+- `SUPABASE_URL`: Project URL, such as `https://PROJECT_REF.supabase.co`.
+- `VITE_SUPABASE_URL`: the same public Project URL.
+- `VITE_SUPABASE_ANON_KEY`: the public publishable/anon key.
+- `SUPABASE_JWT_AUDIENCE=authenticated`: keep this literal unless the project
+  intentionally uses a different JWT audience.
+
+You also need the database password embedded in the two PostgreSQL URLs. A
+service-role key is not needed by the current foundation or owner workflow.
+
+## Apply the foundation and create the owner
+
+After creating the Supabase project and filling `.env`:
 
 ```bash
-npm run seed
+npm install
+npm run prisma:generate
+npm run prisma:validate
+npx prisma migrate deploy
+npx prisma db seed
 ```
 
-Run this **after** the backend is connected to MongoDB.
+Use `DIRECT_URL` for migration/seed administration and the Supabase pooled
+`DATABASE_URL` for the serverless runtime. The first migration creates only
+`profiles` and `foundation_records`; it intentionally does not implement
+products, inventory, orders, or analytics.
 
----
-
-## Building for Production
+Next, use Supabase Dashboard → Authentication → Users → Add user. Create and
+confirm the initial owner's login, copy its UUID, and run:
 
 ```bash
-# Build the frontend
+npm run owner:create -- \
+  --user-id "SUPABASE_AUTH_USER_UUID" \
+  --full-name "Owner Name" \
+  --phone "+8801XXXXXXXXX" \
+  --confirm
+```
+
+The command refuses to run without `--confirm`, refuses to replace an existing
+profile, and refuses to create a second owner. The database foreign key also
+requires the UUID to exist in `auth.users`. There is no owner-registration API.
+
+## Verify with a real token
+
+Start the API, then check database health:
+
+```bash
+curl --fail-with-body http://localhost:4000/api/v1/health
+```
+
+Obtain an access token through the application or Supabase password grant:
+
+```bash
+curl --fail-with-body \
+  --request POST \
+  --url "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+  --header "apikey: $VITE_SUPABASE_ANON_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"email":"OWNER_EMAIL","password":"OWNER_PASSWORD"}'
+```
+
+Copy the returned `access_token` into a temporary shell variable, then test the
+authenticated, admin-or-owner, and owner-only proof routes:
+
+```bash
+export SUPABASE_ACCESS_TOKEN="paste-access-token-here"
+
+curl \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  http://localhost:4000/api/v1/foundation
+
+curl \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  http://localhost:4000/api/v1/foundation/admin
+
+curl \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  http://localhost:4000/api/v1/foundation/owner
+```
+
+## Quality checks and builds
+
+```bash
+npm run typecheck
+npm run lint
+npm test
 npm run build
-
-# Preview the production build locally
-npm run preview
+npm run build:server
 ```
 
-The built frontend outputs to `dist/`. Serve `dist/` with a static host (e.g. Nginx, Vercel) and deploy the Express server separately.
+Frontend output is `dist/`; backend TypeScript output is `dist-server/`.
 
----
+## Vercel deployment
 
-## Project Structure
+The root `server.ts` default-exports the Express app, which is compatible with
+Vercel's Express entry convention, so this source layout does not require a
+`vercel.json`.
 
-```
-khamarbari-e-shop/
-├── server/                  # Express backend
-│   ├── models/              # Mongoose schemas (Product, Category, Order)
-│   ├── routes/              # API route handlers
-│   ├── index.ts             # Server entry point
-│   ├── seed.ts              # Database seeder
-│   └── env.ts               # Env validation
-├── src/                     # React frontend
-│   ├── components/          # Reusable UI components
-│   │   └── ui/              # shadcn/ui primitives
-│   ├── contexts/            # React context (CartContext)
-│   ├── hooks/               # Custom hooks
-│   ├── lib/                 # API client, types, utilities
-│   └── pages/               # Page components (Home, Shop, Admin, Cart, etc.)
-├── public/                  # Static assets
-├── .env.example             # Environment variable template
-└── instruction.md           # Original project spec
-```
+Create two Vercel projects from the same repository:
 
----
+1. Frontend: select the Vite preset, use `npm run build`, output `dist`, and set
+   `VITE_API_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`.
+2. Backend: select the Express preset/entry, keep root `server.ts`, and set
+   `NODE_ENV=production`, `FRONTEND_URL`, `DATABASE_URL`, `SUPABASE_URL`,
+   `SUPABASE_JWT_AUDIENCE`, rate-limit values, plus the temporary legacy
+   `MONGO_URI`, `JWT_SECRET`, and `ADMIN_UNLOCK_CODE`.
+3. Deploy the backend first, set frontend `VITE_API_URL` to its `/api` URL,
+   deploy the frontend, then update backend `FRONTEND_URL` to the final frontend
+   origin and redeploy.
 
-## API Endpoints
+The built-in rate-limit store is per serverless instance. It is basic abuse
+protection for this proof; use a shared durable store before higher traffic or
+security-sensitive production use.
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/products` | List all products |
-| POST | `/api/products` | Create a product (admin) |
-| PUT | `/api/products/:id` | Update a product (admin) |
-| DELETE | `/api/products/:id` | Delete a product (admin) |
-| GET | `/api/categories` | List all categories |
-| POST | `/api/categories` | Create a category (admin) |
-| GET | `/api/orders` | List all orders (admin) |
-| POST | `/api/orders` | Place an order |
-| PUT | `/api/orders/:id` | Update order status (admin) |
-| POST | `/api/upload` | Upload image to Cloudinary |
+## Git delivery
 
----
-
-## Pages
-
-| Route | Description |
-|---|---|
-| `/` | Homepage with hero and CTAs |
-| `/shop` | Product grid with search, filter, sort |
-| `/products/:slug` | Product detail with gallery, attributes, add to cart |
-| `/cart` | Cart with quantity management and totals |
-| `/admin` | Admin dashboard (products, categories, orders, stock) |
-
----
-
-## Running Tests
+The baseline tag and Milestone 1 commit are local until pushed. If GitHub
+credentials are not available in this environment, run these manually from an
+authenticated terminal:
 
 ```bash
-# Unit tests (Vitest)
-npm run test
-
-# Unit tests in watch mode
-npm run test:watch
+git push origin main
+git push origin pre-nafah-agro-v1-rebuild
 ```
 
----
+Do not recreate or move the existing baseline tag.
 
-## Color Palette
+## Accepted development-stage dependency risks
 
-| Role | Hex |
-|---|---|
-| Primary | `#004030` |
-| Secondary | `#4A9782` |
-| Accent | `#DCD0A8` |
-| Background | `#FFF9E5` |
+No breaking audit upgrade is applied in Milestone 1. The production-tree audit
+currently identifies:
+
+- `react-router-dom` / `react-router`: browser runtime advisories requiring a
+  major migration to clear completely.
+- `tailwindcss-animate`'s Tailwind build chain:
+  `tailwindcss → sucrase → glob/minimatch/brace-expansion`. This is build-time
+  tooling and is not shipped as executable application code in the browser
+  bundle.
+
+The full development audit also includes Vite/esbuild and ESLint/minimatch.
+These are accepted temporarily and must be reassessed before production launch.
+
+## Repository structure
+
+```text
+src/                 React application and public environment validation
+server/
+  app.ts             Express composition, security, health, and API routes
+  index.ts           Local long-running server plus legacy MongoDB connection
+  env.ts             Strict backend environment validation
+  lib/               Prisma and Supabase Auth clients
+  middleware/        Legacy JWT and new Supabase middleware
+  models/, routes/   Existing MongoDB feature implementation
+  services/          PostgreSQL foundation queries
+prisma/              Prisma schema, seed, and SQL migrations
+docs/                Agreed V1 scope, system design, plan, and status
+server.ts            Vercel-compatible Express default export
+API.md               Foundation and legacy endpoint reference
+```
+
+The authoritative implementation boundaries and current verification status are
+in `docs/IMPLEMENTATION_PLAN.md` and `docs/PROJECT_STATUS.md`.

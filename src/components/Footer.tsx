@@ -3,7 +3,7 @@ const Footer = () => (
     <div className="container mx-auto px-4 py-8">
       <div className="grid md:grid-cols-3 gap-8">
         <div>
-          <h3 className="text-lg font-bold mb-3 text-accent">খামারবাড়ি</h3>
+          <h3 className="text-lg font-bold mb-3 text-accent">নাফাহ এগ্রো</h3>
           <p className="text-sm opacity-80">
             আমরা সরাসরি খামার থেকে আপনার ঘরে পৌঁছে দিই বিশুদ্ধ, অর্গানিক খাদ্যপণ্য।
           </p>
@@ -18,11 +18,11 @@ const Footer = () => (
         <div>
           <h3 className="text-lg font-bold mb-3 text-accent">যোগাযোগ</h3>
           <p className="text-sm opacity-80">ফোন: ০১৭XXXXXXXX</p>
-          <p className="text-sm opacity-80">ইমেইল: info@khamarbari.com</p>
+          <p className="text-sm opacity-80">ইমেইল: info@nafahagro.com</p>
         </div>
       </div>
       <div className="border-t border-secondary/30 mt-6 pt-4 text-center text-sm opacity-60">
-        © {new Date().getFullYear()} খামারবাড়ি। সর্বস্বত্ব সংরক্ষিত।
+        © {new Date().getFullYear()} নাফাহ এগ্রো। সর্বস্বত্ব সংরক্ষিত।
       </div>
     </div>
   </footer>

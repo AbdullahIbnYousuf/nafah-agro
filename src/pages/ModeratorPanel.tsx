@@ -10,6 +10,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import AddProductForm from '@/components/AddProductForm';
+import { getErrorMessage } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -258,7 +259,7 @@ function ModCategories() {
         toast.success('যোগ করা হয়েছে');
       }
       closeForm();
-    } catch (err: any) { toast.error(err.message ?? 'ব্যর্থ'); } finally { setSaving(false); }
+    } catch (error: unknown) { toast.error(getErrorMessage(error, 'ব্যর্থ')); } finally { setSaving(false); }
   }
 
   return (

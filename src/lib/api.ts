@@ -1,6 +1,7 @@
 import { Product, ProductsPage, Category, Order, AuthResponse, User, Moderator } from './types';
+import { frontendEnv } from './env';
 
-const BASE = import.meta.env.VITE_API_URL ?? '/api';
+const BASE = frontendEnv.VITE_API_URL;
 
 // ── Token management ────────────────────────────────────────────────────────────
 export function getStoredToken(): string | null {

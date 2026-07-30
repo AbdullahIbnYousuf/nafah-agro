@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { registerAdmin } from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { getErrorMessage } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Lock, ShieldCheck } from 'lucide-react';
 
@@ -45,10 +46,10 @@ const AdminSetup = () => {
       setAuthData(res.token, res.user);
       toast.success('অ্যাডমিন অ্যাকাউন্ট তৈরি হয়েছে!');
       navigate('/admin');
-    } catch (err: any) {
-      toast.error(err.message || 'অ্যাডমিন তৈরি ব্যর্থ হয়েছে');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'অ্যাডমিন তৈরি ব্যর্থ হয়েছে'));
       // If unlock code was wrong, go back to unlock step
-      if (err.message?.includes('unlock code')) {
+      if (error instanceof Error && error.message.includes('unlock code')) {
         setStep('unlock');
         setUnlockCode('');
       }

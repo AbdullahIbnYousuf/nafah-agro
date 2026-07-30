@@ -1,7 +1,10 @@
-# Khamarbari E-Shop — Build Instructions
+# Nafah Agro — Build Instructions
+
+> **Legacy reference only:** this is the original MVP brief. The agreed V1
+> scope and implementation rules are in `docs/`.
 
 You are a senior full-stack engineer.
-Build a production-ready ecommerce website for an organic food shop called **"Khamarbari"**.
+Build a production-ready ecommerce website for an organic food shop called **"Nafah Agro"**.
 
 ---
 

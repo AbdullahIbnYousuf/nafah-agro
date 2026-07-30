@@ -28,8 +28,8 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-lg">
       <div className="container mx-auto flex items-center justify-between py-3 px-4">
         <Link to="/" className="flex items-center gap-2">
-          <img src={logo} alt="খামারবাড়ি" className="h-10 w-10 rounded-full bg-primary-foreground/10" />
-          <span className="text-xl font-bold tracking-wide">খামারবাড়ি</span>
+          <img src={logo} alt="নাফাহ এগ্রো" className="h-10 w-10 rounded-full bg-primary-foreground/10" />
+          <span className="text-xl font-bold tracking-wide">নাফাহ এগ্রো</span>
         </Link>
 
         {/* Desktop */}

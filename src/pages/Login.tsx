@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { getErrorMessage } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const Login = () => {
@@ -19,8 +20,8 @@ const Login = () => {
       await login(email, password);
       toast.success('সফলভাবে লগইন হয়েছে!');
       navigate('/');
-    } catch (err: any) {
-      toast.error(err.message || 'লগইন ব্যর্থ হয়েছে');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'লগইন ব্যর্থ হয়েছে'));
     } finally {
       setLoading(false);
     }

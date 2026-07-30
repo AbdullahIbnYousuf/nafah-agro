@@ -1,10 +1,92 @@
-# Khamarbari E-Shop — API Documentation
+# Nafah Agro — API Documentation
+
+> **Milestone 1 status:** `/api/v1/health` and `/api/v1/foundation` are the new
+> Express/PostgreSQL/Supabase Auth foundation. The remaining endpoints in this
+> document describe the preserved MongoDB/custom-JWT MVP and are not the target
+> V1 contract. They remain available only until each feature is replaced.
 
 > **Base URL:** `http://localhost:4000/api`
 >
 > **Content-Type:** All request/response bodies use `application/json` unless otherwise noted (image uploads use `multipart/form-data`).
 >
 > **ID normalization:** All MongoDB `_id` fields are returned as `id` (string) in every response.
+
+---
+
+## Milestone 1 foundation endpoints
+
+### `GET /api/v1/health`
+
+Public. Confirms Express readiness and runs `SELECT 1` through Prisma when
+`DATABASE_URL` and `SUPABASE_URL` are configured.
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "ok",
+    "services": {
+      "api": "ready",
+      "postgres": "ready"
+    }
+  }
+}
+```
+
+When PostgreSQL is not configured, `postgres` is `not_configured`. A failed
+configured database check returns `503` with code `DATABASE_UNAVAILABLE`.
+
+### `GET /api/v1/foundation`
+
+Protected by a Supabase access token:
+
+```http
+Authorization: Bearer <supabase-access-token>
+```
+
+The middleware verifies the JWT signature against the Supabase JWKS plus its
+issuer and `authenticated` audience, loads the matching PostgreSQL profile, and
+rejects missing or inactive profiles. A valid request reads the seeded
+`foundation_records.key = "milestone-1"` row through Prisma:
+
+```json
+{
+  "success": true,
+  "data": {
+    "authenticatedUser": {
+      "id": "supabase-user-uuid",
+      "email": "owner@example.com",
+      "role": "OWNER",
+      "fullName": "Owner Name"
+    },
+    "record": {
+      "key": "milestone-1",
+      "value": "Nafah Agro PostgreSQL foundation is ready",
+      "updatedAt": "2026-07-30T00:00:00.000Z"
+    }
+  }
+}
+```
+
+Responses include:
+
+- `401 AUTHENTICATION_REQUIRED` or `INVALID_ACCESS_TOKEN`
+- `403 PROFILE_REQUIRED`, `PROFILE_INACTIVE`, or `INSUFFICIENT_ROLE`
+- `404 FOUNDATION_RECORD_NOT_FOUND`
+- `429 RATE_LIMIT_EXCEEDED`
+- `503 FOUNDATION_NOT_CONFIGURED`
+
+### Role proof routes
+
+| Method | Route | Required profile |
+|---|---|---|
+| GET | `/api/v1/foundation` | Active `OWNER`, `ADMIN`, or `CUSTOMER` |
+| GET | `/api/v1/foundation/admin` | Active `OWNER` or `ADMIN` |
+| GET | `/api/v1/foundation/owner` | Active `OWNER` |
+
+`requireAuthenticated` resolves the access token to an active profile.
+`requireAdminOrOwner` and `requireOwner` then enforce the role. Protected proof
+routes are rate limited per IP. No public owner-registration endpoint exists.
 
 ---
 
@@ -23,11 +105,14 @@
 
 ---
 
-## Authentication & Authorization
+## Legacy Authentication & Authorization
 
 ### Overview
 
-The system uses **JWT (JSON Web Token)** Bearer authentication. Tokens are issued on login/registration and expire after **7 days**.
+The endpoints below still use the old custom **JWT (JSON Web Token)** flow.
+`MONGO_URI`, `JWT_SECRET`, and `ADMIN_UNLOCK_CODE` are retained only for these
+legacy routes and will be removed after their replacements exist. Tokens are
+issued on legacy login/registration and expire after **7 days**.
 
 ### Three Roles
 
@@ -837,7 +922,7 @@ Upload a single image.
 
 ```json
 {
-  "url": "https://res.cloudinary.com/xxx/image/upload/v1234/khamarbari/abc.jpg"
+  "url": "https://res.cloudinary.com/xxx/image/upload/v1234/nafah-agro/abc.jpg"
 }
 ```
 
@@ -856,8 +941,8 @@ Upload up to 10 images at once.
 ```json
 {
   "urls": [
-    "https://res.cloudinary.com/xxx/image/upload/v1234/khamarbari/abc.jpg",
-    "https://res.cloudinary.com/xxx/image/upload/v1234/khamarbari/def.jpg"
+    "https://res.cloudinary.com/xxx/image/upload/v1234/nafah-agro/abc.jpg",
+    "https://res.cloudinary.com/xxx/image/upload/v1234/nafah-agro/def.jpg"
   ]
 }
 ```

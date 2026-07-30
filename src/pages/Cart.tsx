@@ -18,7 +18,7 @@ const SHIPPING_OUTSIDE = 130;
 // Demo coupons — replace with API call if needed
 const COUPONS: Record<string, number> = {
   SAVE50: 50,
-  KHAMARBARI10: 10,
+  NAFAH10: 10,
 };
 
 type PaymentMethod = 'cod' | 'mobilebank' | 'sslcommerz';
@@ -52,9 +52,7 @@ const Cart = () => {
 
   // Auto-fill customer name from logged-in user
   useEffect(() => {
-    if (user?.name && !customerName) {
-      setCustomerName(user.name);
-    }
+    if (user?.name) setCustomerName(current => current || user.name);
   }, [user]);
 
   useEffect(() => {

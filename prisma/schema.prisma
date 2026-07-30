@@ -1,0 +1,39 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../server/generated/prisma"
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  CUSTOMER
+}
+
+model Profile {
+  id          String   @id @db.Uuid
+  role        Role
+  fullName    String   @map("full_name")
+  phoneNumber String?  @map("phone_number")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("profiles")
+}
+
+model FoundationRecord {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("foundation_records")
+}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { getErrorMessage } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const Register = () => {
@@ -29,8 +30,8 @@ const Register = () => {
       await register(name, email, password);
       toast.success('রেজিস্ট্রেশন সফল হয়েছে!');
       navigate('/');
-    } catch (err: any) {
-      toast.error(err.message || 'রেজিস্ট্রেশন ব্যর্থ হয়েছে');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'রেজিস্ট্রেশন ব্যর্থ হয়েছে'));
     } finally {
       setLoading(false);
     }

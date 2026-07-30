@@ -1,4 +1,8 @@
-# Khamarbari E-Shop — Free Deployment Guide
+# Nafah Agro E-Shop — Free Deployment Guide
+
+> **Legacy reference only:** this MongoDB/Render guide documents the preserved
+> MVP. Nafah Agro V1 uses separate Vercel frontend/API projects plus Supabase;
+> follow `README.md` and `docs/SYSTEM_DESIGN.md` for new work.
 
 ## TL;DR — You Don't Need Separate Repos
 
@@ -23,12 +27,12 @@ Both **Vercel** and **Render** can deploy from the **same GitHub repository**. Y
 2. Click **"Build a Database"** → Select **M0 FREE** (Shared)
 3. Choose AWS, region closest to your users (e.g., `ap-southeast-1` for Bangladesh)
 4. Create a database user:
-   - Username: `khamarbari_user`
+   - Username: `nafah-agro_user`
    - Password: generate a strong one, **save it**
 5. **Network Access** → **"Add IP Address"** → **"Allow Access from Anywhere"** (`0.0.0.0/0`)
 6. Get connection string: Click **"Connect"** → **"Drivers"** → Copy string
-   - Replace `<password>` with actual password, `<dbname>` with `khamarbari`
-   - Final: `mongodb+srv://khamarbari_user:PASSWORD@cluster0.xxxxx.mongodb.net/khamarbari?retryWrites=true&w=majority`
+   - Replace `<password>` with actual password, `<dbname>` with `nafah-agro`
+   - Final: `mongodb+srv://nafah-agro_user:PASSWORD@cluster0.xxxxx.mongodb.net/nafah-agro?retryWrites=true&w=majority`
 
 ---
 
@@ -40,7 +44,7 @@ Both **Vercel** and **Render** can deploy from the **same GitHub repository**. Y
 
 | Setting           | Value                                            |
 | ----------------- | ------------------------------------------------ |
-| **Name**          | `khamarbari-api`                                 |
+| **Name**          | `nafah-agro-api`                                 |
 | **Branch**        | `main`                                           |
 | **Runtime**       | Node                                             |
 | **Build Command** | `npm install && npx tsc -p server/tsconfig.json` |
@@ -66,14 +70,14 @@ Both **Vercel** and **Render** can deploy from the **same GitHub repository**. Y
 > You do NOT need to set `PORT` — Render automatically provides it via `process.env.PORT`, and your `server/index.ts` already reads from `process.env.PORT || 4000`.
 
 5. Click **"Create Web Service"** → Wait for build
-6. Your API is live at: `https://khamarbari-api.onrender.com`
+6. Your API is live at: `https://nafah-agro-api.onrender.com`
 
 #### Mitigate Cold Starts (Optional)
 
 Render free tier sleeps after 15min → ~30-60s cold start on next request.
 
 1. Go to [uptimerobot.com](https://uptimerobot.com) → Free sign up
-2. **"Add New Monitor"** → HTTP(s) → URL: `https://khamarbari-api.onrender.com/api/health`
+2. **"Add New Monitor"** → HTTP(s) → URL: `https://nafah-agro-api.onrender.com/api/health`
 3. Interval: **5 minutes**
 
 ---
@@ -95,7 +99,7 @@ Render free tier sleeps after 15min → ~30-60s cold start on next request.
 
 | Key            | Value                                     |
 | -------------- | ----------------------------------------- |
-| `VITE_API_URL` | `https://khamarbari-api.onrender.com/api` |
+| `VITE_API_URL` | `https://nafah-agro-api.onrender.com/api` |
 
 > [!IMPORTANT]
 > This is the key connection. Your `src/lib/api.ts` already reads `import.meta.env.VITE_API_URL ?? '/api'`. In production, Vite bakes this env var into the built JS at build time, so all API calls go to your Render backend.

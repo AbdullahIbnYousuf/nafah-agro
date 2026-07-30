@@ -1,20 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+import { getBackendEnv } from '../env.js';
 
 export interface AuthPayload {
   id: string;
   role: 'admin' | 'moderator' | 'customer';
 }
 
-// Extend Express Request to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: AuthPayload;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: AuthPayload;
   }
 }
 
@@ -33,7 +29,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
+    const decoded = jwt.verify(token, getBackendEnv().JWT_SECRET) as AuthPayload;
 
     // Check that the user is still active in the database
     const user = await User.findById(decoded.id).select('isActive role').lean();
@@ -76,5 +72,5 @@ export function authorize(...roles: string[]) {
  * Generate a JWT for a user.
  */
 export function generateToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, getBackendEnv().JWT_SECRET, { expiresIn: '7d' });
 }

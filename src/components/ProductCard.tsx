@@ -18,7 +18,7 @@ const ProductCard = ({ product }: Props) => {
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Leaf size={40} className="text-secondary" />
-            <span className="text-sm">খামারবাড়ি</span>
+            <span className="text-sm">নাফাহ এগ্রো</span>
           </div>
         )}
       </div>

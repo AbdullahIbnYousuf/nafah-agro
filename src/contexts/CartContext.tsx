@@ -13,7 +13,7 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | null>(null);
 
-const CART_KEY = 'khamarbari-cart';
+const CART_KEY = 'nafah-agro-cart';
 
 function getItemKey(productId: string, attrs: Record<string, string>) {
   return `${productId}_${Object.values(attrs).sort().join('_')}`;

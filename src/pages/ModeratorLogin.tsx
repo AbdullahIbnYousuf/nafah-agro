@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginModerator, requestModeratorPasswordReset } from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { getErrorMessage } from '@/lib/utils';
 import { ShieldCheck, KeyRound, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,8 +27,8 @@ const ModeratorLogin = () => {
       setAuthData(res.token, res.user);
       toast.success('মডারেটর হিসেবে লগইন সফল!');
       navigate('/moderator');
-    } catch (err: any) {
-      toast.error(err.message || 'লগইন ব্যর্থ হয়েছে');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'লগইন ব্যর্থ হয়েছে'));
     } finally {
       setLoading(false);
     }
@@ -43,8 +44,8 @@ const ModeratorLogin = () => {
     try {
       await requestModeratorPasswordReset(resetEmail.trim());
       setResetSent(true);
-    } catch (err: any) {
-      toast.error(err.message || 'রিকুয়েস্ট পাঠাতে ব্যর্থ হয়েছে');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'রিকুয়েস্ট পাঠাতে ব্যর্থ হয়েছে'));
     } finally {
       setResetLoading(false);
     }

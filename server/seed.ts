@@ -1,9 +1,9 @@
-import './env.js';
 import mongoose from 'mongoose';
 import Category from './models/Category.js';
 import Product from './models/Product.js';
+import { getBackendEnv } from './env.js';
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/khamarbari';
+const { MONGO_URI } = getBackendEnv();
 
 const categories = [
   { name: 'দুগ্ধজাত পণ্য', slug: 'dairy' },

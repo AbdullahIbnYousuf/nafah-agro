@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Product, Category, Order, Moderator } from '@/lib/types';
 import {
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import AddProductForm from '@/components/AddProductForm';
+import { getErrorMessage } from '@/lib/utils';
 import {
   Package, Tag, ClipboardList, BarChart3, Plus, Edit, Trash2,
   ArrowLeft, AlertTriangle, Search, Menu, X, Loader2, Check,
@@ -56,7 +57,7 @@ const Admin = () => {
     <div className="min-h-screen flex bg-background">
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-primary text-primary-foreground transform transition-transform md:relative md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 border-b border-secondary/30 flex items-center justify-between">
-          <Link to="/" className="text-xl font-bold text-accent">খামারবাড়ি অ্যাডমিন</Link>
+          <Link to="/" className="text-xl font-bold text-accent">নাফাহ এগ্রো অ্যাডমিন</Link>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden"><X size={20} /></button>
         </div>
         <nav className="p-2 space-y-1">
@@ -219,7 +220,7 @@ function CategoriesTab() {
       if (editTarget) { const u = await updateCategory(editTarget.id, { name: form.name.trim(), slug: form.slug.trim() }); setCategories(prev => prev.map(c => c.id === u.id ? u : c)); toast.success('আপডেট হয়েছে'); }
       else { const c = await createCategory({ name: form.name.trim(), slug: form.slug.trim() }); setCategories(prev => [...prev, c]); toast.success('যোগ করা হয়েছে'); }
       closeForm();
-    } catch (err: any) { toast.error(err.message ?? 'ব্যর্থ'); } finally { setSaving(false); }
+    } catch (error: unknown) { toast.error(getErrorMessage(error, 'ব্যর্থ')); } finally { setSaving(false); }
   }
 
   async function handleDelete(id: string, name: string) {
@@ -273,14 +274,16 @@ function ModeratorsTab({ onResetCountChange }: { onResetCountChange: (n: number)
   const [newPassword, setNewPassword] = useState('');
   const [resetting, setResetting] = useState(false);
 
-  function load() {
+  const load = useCallback(() => {
     getModerators().then(mods => {
       setModerators(mods);
       onResetCountChange(mods.filter(m => m.passwordResetRequested).length);
     }).catch(() => toast.error('মডারেটর লোড করতে ব্যর্থ')).finally(() => setLoading(false));
-  }
+  }, [onResetCountChange]);
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); if (!name.trim() || !email.trim() || !password) return toast.error('সব ফিল্ড পূরণ করুন');
@@ -290,7 +293,7 @@ function ModeratorsTab({ onResetCountChange }: { onResetCountChange: (n: number)
       setModerators(prev => [res.user, ...prev]);
       toast.success('মডারেটর তৈরি হয়েছে');
       setShowCreate(false); setName(''); setEmail(''); setPassword('');
-    } catch (err: any) { toast.error(err.message ?? 'ব্যর্থ'); } finally { setCreating(false); }
+    } catch (error: unknown) { toast.error(getErrorMessage(error, 'ব্যর্থ')); } finally { setCreating(false); }
   }
 
   async function handleToggle(id: string) {
@@ -310,7 +313,7 @@ function ModeratorsTab({ onResetCountChange }: { onResetCountChange: (n: number)
       onResetCountChange(moderators.filter(m => m.passwordResetRequested && m.id !== resetId).length);
       toast.success('পাসওয়ার্ড রিসেট হয়েছে');
       setResetId(null); setNewPassword('');
-    } catch (err: any) { toast.error(err.message ?? 'ব্যর্থ'); } finally { setResetting(false); }
+    } catch (error: unknown) { toast.error(getErrorMessage(error, 'ব্যর্থ')); } finally { setResetting(false); }
   }
 
   async function handleDeleteMod(id: string, modName: string) {

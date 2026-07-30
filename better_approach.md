@@ -1,5 +1,8 @@
 # Future Authentication & Authorization — Better Approach
 
+> **Legacy design note:** this predates the agreed Supabase Auth V1 design.
+> `docs/SYSTEM_DESIGN.md` is authoritative for implementation.
+
 This document outlines improvements to evolve the current simple JWT-based auth into a production-grade, scalable system.
 
 ---
@@ -52,10 +55,10 @@ For the LLM moderator agent, create a separate auth mechanism:
 **Recommended API key format:**
 
 ```bash
-km_mod_<random_32_chars>
+na_mod_<random_32_chars>
 ```
 
-Where `km` = Khamarbari, `mod` = moderator role prefix.
+Where `na` = Nafah Agro, `mod` = moderator role prefix.
 
 ### Phase 3: OAuth 2.0 / OpenID Connect
 

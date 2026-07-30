@@ -137,7 +137,7 @@ const ProductDetails = () => {
               ) : (
                 <div className="flex flex-col items-center gap-3 text-muted-foreground">
                   <Leaf size={64} className="text-secondary" />
-                  <span>খামারবাড়ি</span>
+                  <span>নাফাহ এগ্রো</span>
                 </div>
               )}
             </div>

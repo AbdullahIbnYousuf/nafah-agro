@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import Product from '../models/Product.js';
+import type { FilterQuery } from 'mongoose';
+import Product, { type IProduct } from '../models/Product.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = Router();
@@ -31,7 +32,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       limit: limitParam,
     } = req.query as Record<string, string | undefined>;
 
-    const filter: Record<string, any> = {};
+    const filter: FilterQuery<IProduct> = {};
 
     // Free-text search
     if (q) {

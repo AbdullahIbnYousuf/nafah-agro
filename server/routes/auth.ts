@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import User from '../models/User.js';
 import { authenticate, authorize, generateToken } from '../middleware/auth.js';
+import { getBackendEnv } from '../env.js';
 
 const router = Router();
 
@@ -39,8 +40,7 @@ router.post('/register/admin', async (req: Request, res: Response, next: NextFun
       return res.status(400).json({ error: 'Name, email, password, and unlockCode are required' });
     }
 
-    const ADMIN_UNLOCK_CODE = process.env.ADMIN_UNLOCK_CODE;
-    if (!ADMIN_UNLOCK_CODE || unlockCode !== ADMIN_UNLOCK_CODE) {
+    if (unlockCode !== getBackendEnv().ADMIN_UNLOCK_CODE) {
       return res.status(403).json({ error: 'Invalid unlock code' });
     }
 

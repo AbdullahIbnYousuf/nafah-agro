@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Category, Product, AttributeGroup, AttributeOption } from '@/lib/types';
 import { createProduct, updateProduct, uploadImages, getProductTags } from '@/lib/api';
+import { getErrorMessage } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface Props {
@@ -185,8 +186,8 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         toast.success(`"${created.name}" পণ্য সফলভাবে যোগ করা হয়েছে`);
         onCreated(created);
       }
-    } catch (err: any) {
-      toast.error(err.message ?? 'সংরক্ষণ করতে ব্যর্থ হয়েছে');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'সংরক্ষণ করতে ব্যর্থ হয়েছে'));
     } finally {
       setSaving(false);
     }
