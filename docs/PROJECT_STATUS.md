@@ -7,9 +7,9 @@ Last updated: 2026-08-01
 Milestones 1–4 are complete in local code. Milestone 4 replaces every remaining
 MongoDB order flow with one PostgreSQL order system while preserving Milestone 3
 physical-shop behavior. No external migration, real Supabase/Cloudinary test,
-or analytics dashboard was performed. The first Vercel deployment served the
-frontend but emitted no callable API Function; the standard `api/index.ts`
-routing fix is prepared for redeployment.
+or analytics dashboard was performed. Vercel now serves the frontend and shared
+Express Function. Its named API rewrite capture was found to enter `req.query`
+and break strict admin list validation; the rewrite now uses an unnamed capture.
 
 ## Completed in code
 
@@ -39,7 +39,7 @@ routing fix is prepared for redeployment.
 - Mongo startup, Mongoose dependency/model, `/api/orders`, Mongo utility, and
   `MONGO_URI` have been removed.
 - A single-project Vercel layout is prepared: Vite outputs `dist`,
-  `api/index.ts` exports the shared Express app, `/api/:path*` forwards to that
+  `api/index.ts` exports the shared Express app, `/api/(.*)` forwards to that
   Function, and non-API deep links have an `index.html` fallback. API paths are
   excluded from that fallback and return JSON 404s.
 - Every active Express application route is under `/api/v1`; the Cloudinary

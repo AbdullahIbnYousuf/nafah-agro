@@ -79,7 +79,7 @@ runtime values. Production does not use cross-origin requests, so neither
 
 The repository deploys as one Vercel project: Vite serves `/`, the shared
 Express app is exported by `api/index.ts`, and `vercel.json` forwards
-`/api/:path*` to that Function while preserving the original URL for Express.
+`/api/(.*)` to that Function without injecting a named query parameter.
 Every application API route is under `/api/v1`; `/api` is excluded from the
 React Router fallback, so unknown API requests stay JSON 404 responses.
 

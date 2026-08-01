@@ -16,7 +16,7 @@ vercel.json        Vite build output and non-API SPA fallback
 ```
 
 Vercel discovers `api/index.ts` as the API Function. `vercel.json` forwards
-`/api/:path*` to it without duplicating Express setup. Existing static files take
+`/api/(.*)` to it without adding a named query parameter or duplicating Express setup. Existing static files take
 precedence, non-API paths such as `/`, `/shop`, `/admin`, and `/products/:slug`
 fall back to `index.html`, and `/api` is excluded from that fallback. Express
 returns JSON for API 404s.

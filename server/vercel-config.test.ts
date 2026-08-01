@@ -37,9 +37,10 @@ describe("single-project Vercel configuration", () => {
       (rewrite) => rewrite.destination === "/api",
     );
     expect(apiRewrite).toEqual({
-      source: "/api/:path*",
+      source: "/api/(.*)",
       destination: "/api",
     });
+    expect(apiRewrite?.source).not.toContain(":path");
 
     const spaRewrite = config.rewrites?.find(
       (rewrite) => rewrite.destination === "/index.html",
