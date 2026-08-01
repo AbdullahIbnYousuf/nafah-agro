@@ -6,6 +6,7 @@ import { createApp } from "./app.js";
 import { parseBackendEnv } from "./env.js";
 import type { ApplicationProfile } from "./services/profiles.js";
 import type { CatalogService } from "./services/catalog.js";
+import type { InventoryService } from "./services/inventory.js";
 
 const baseEnvironment = {
   NODE_ENV: "test",
@@ -88,6 +89,7 @@ describe("GET /api/v1/foundation", () => {
     profile: ApplicationProfile | null = ownerProfile,
     protectedRateLimit = 60,
     catalogService?: CatalogService,
+    inventoryService?: InventoryService,
   ) {
     return createApp({
       env: parseBackendEnv({
@@ -112,6 +114,7 @@ describe("GET /api/v1/foundation", () => {
         updatedAt: new Date("2026-07-30T00:00:00.000Z"),
       })),
       catalogService,
+      inventoryService,
     });
   }
 
@@ -321,6 +324,57 @@ describe("GET /api/v1/foundation", () => {
       expect(response.status).toBe(403);
       expect(response.body.error.code).toBe("INSUFFICIENT_ROLE");
       expect(catalog.createCategory).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Milestone 3 inventory authorization", () => {
+    function inventoryStub() {
+      return {
+        listBatches: vi.fn(async () => []),
+        createPurchase: vi.fn(async () => ({ purchaseGroupId: "30000000-0000-4000-8000-000000000001", batches: [] })),
+        adjustStock: vi.fn(async () => []),
+        createPhysicalSale: vi.fn(),
+        listPhysicalSales: vi.fn(async () => []),
+      } as unknown as InventoryService;
+    }
+
+    it.each(["OWNER", "ADMIN"] as const)("allows %s to create purchases", async (role) => {
+      const inventory = inventoryStub();
+      const response = await request(createProtectedApp({ ...ownerProfile, role }, 60, undefined, inventory))
+        .post("/api/v1/purchases")
+        .set("Authorization", "Bearer valid-token")
+        .send({
+          purchaseDate: "2026-08-01",
+          items: [{
+            productVariantId: "10000000-0000-4000-8000-000000000001",
+            quantity: 5,
+            unitBuyingCost: "250.00",
+          }],
+        });
+
+      expect(response.status).toBe(201);
+      expect(inventory.createPurchase).toHaveBeenCalledWith(
+        expect.objectContaining({ purchaseDate: "2026-08-01" }),
+        ownerProfile.id,
+      );
+    });
+
+    it("denies CUSTOMER inventory and physical-sale mutations", async () => {
+      const inventory = inventoryStub();
+      const app = createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, undefined, inventory);
+      const purchaseResponse = await request(app)
+        .post("/api/v1/purchases")
+        .set("Authorization", "Bearer valid-token")
+        .send({});
+      const saleResponse = await request(app)
+        .post("/api/v1/physical-sales")
+        .set("Authorization", "Bearer valid-token")
+        .send({});
+
+      expect(purchaseResponse.status).toBe(403);
+      expect(saleResponse.status).toBe(403);
+      expect(inventory.createPurchase).not.toHaveBeenCalled();
+      expect(inventory.createPhysicalSale).not.toHaveBeenCalled();
     });
   });
 });

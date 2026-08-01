@@ -69,14 +69,29 @@ Required follow-up acceptance work:
 
 ## Milestone 3 — Purchases, FIFO, physical-shop sales
 
-Do not start until Milestone 2 acceptance passes.
+Status: complete in code; real Supabase concurrency and browser acceptance remain.
 
-- Add `stock_batches` and `order_allocations`.
-- Purchases create batches with purchased/available/reserved quantities, buying
-  cost, and purchase date.
-- FIFO allocation locks rows and never allows negative quantities.
-- Admin adjustments require a reason and audit entry.
-- Physical-shop sales consume FIFO immediately.
+- Added `stock_batches`, reason-bearing `stock_adjustments`, PostgreSQL physical
+  sales/items, and `order_allocations` with price/cost snapshots.
+- Multi-item purchases create batches and update cached variant totals in one
+  serializable transaction.
+- FIFO locks available batches by purchase date, creation time, and ID; one sale
+  may consume multiple batches and overselling is rejected.
+- Stock increases create a new costed adjustment batch; decreases consume FIFO;
+  both require an append-only adjustment reason record.
+- Physical-shop sales are always `CASH`, `PAID`, and `COMPLETED`, deduct stock
+  immediately, and calculate gross profit/margin from preserved snapshots.
+- Discount cannot exceed subtotal. A loss requires an explicit OWNER/ADMIN
+  confirmation and stores the override actor.
+- Admin UI includes purchase entry, stock adjustment/batch visibility, product
+  and SKU search, fast physical sale, and recent sale profitability.
+
+External acceptance still required:
+
+- Apply the migration to a disposable Supabase project and load real batches.
+- Run simultaneous final-unit sales against PostgreSQL and confirm one commits.
+- Exercise the purchase, adjustment, loss-warning, and sale screens with real
+  OWNER and ADMIN tokens.
 
 ## Milestone 4 — Guest COD and manual delivery orders
 

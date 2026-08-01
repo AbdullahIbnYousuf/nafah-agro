@@ -32,6 +32,75 @@ export interface SellingPriceHistoryEntry {
   effectiveAt: string;
 }
 
+export interface StockBatch {
+  id: string;
+  purchaseGroupId: string | null;
+  productVariantId: string;
+  productName: string;
+  variantName: string;
+  sku: string;
+  source: 'PURCHASE' | 'ADJUSTMENT';
+  purchasedQuantity: number;
+  availableQuantity: number;
+  reservedQuantity: number;
+  unitBuyingCost: number;
+  purchaseDate: string;
+  note: string | null;
+  adjustmentReason: string | null;
+  variantAvailableStock: number;
+  variantReservedStock: number;
+  createdBy: { fullName: string; role: Role };
+  createdAt: string;
+}
+
+export interface PhysicalSaleAllocation {
+  id: string;
+  stockBatchId: string;
+  quantity: number;
+  unitBuyingCost: number;
+  totalBuyingCost: number;
+  state: 'CONSUMED';
+  purchaseDate: string;
+}
+
+export interface PhysicalSaleItem {
+  id: string;
+  productId: string;
+  productVariantId: string;
+  productName: string;
+  variantName: string;
+  sku: string;
+  quantity: number;
+  unitSellingPrice: number;
+  grossLineRevenue: number;
+  allocatedDiscount: number;
+  netLineRevenue: number;
+  totalBuyingCost: number;
+  grossProfit: number;
+  allocations: PhysicalSaleAllocation[];
+}
+
+export interface PhysicalSale {
+  id: string;
+  orderNumber: string;
+  source: 'PHYSICAL_SHOP';
+  status: 'COMPLETED';
+  paymentMethod: 'CASH';
+  paymentStatus: 'PAID';
+  customerName: string | null;
+  customerPhone: string | null;
+  subtotal: number;
+  discountTotal: number;
+  grandTotal: number;
+  totalBuyingCost: number;
+  grossProfit: number;
+  grossProfitMargin: number | null;
+  unprofitableOverrideConfirmed: boolean;
+  createdBy: { fullName: string; role: Role };
+  completedAt: string;
+  items: PhysicalSaleItem[];
+}
+
 export interface AttributeOption {
   label: string;
   value: string;

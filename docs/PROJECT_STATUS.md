@@ -4,9 +4,10 @@ Last updated: 2026-08-01
 
 ## Summary
 
-Milestones 1 and 2 are complete in code. Deployment and real
+Milestones 1, 2, and 3 are complete in code. Deployment and real
 Supabase/PostgreSQL/Cloudinary integration remain unverified because external
-credentials were not used. Milestone 3 has not started.
+credentials were not used. Website/delivery-order replacement and analytics
+have not started.
 
 ## Completed
 
@@ -37,14 +38,26 @@ credentials were not used. Milestone 3 has not started.
   failures return a clear retry message and cannot create privileged profiles.
 - The existing storefront now calls the PostgreSQL `/api/v1` catalog.
 - Old MongoDB product/category routes and models are removed.
+- PostgreSQL stock batches store purchase grouping, source, purchased/available/
+  reserved quantities, unit buying cost, date, note/reason, and creator.
+- Multi-item purchases atomically create batches and update variant stock totals.
+- Stock decreases and physical sales lock and consume FIFO batches; cached totals
+  change in the same serializable transaction and cannot go negative.
+- Reason-required stock adjustments are recorded without a separate movement
+  ledger. Stock increases create a new buying-cost batch.
+- PostgreSQL physical sales store CASH/PAID/COMPLETED fields, item selling-price
+  snapshots, exact FIFO allocations/costs, discount, gross profit, and margin.
+- Admin UI supports purchases, adjustments, batch/cost visibility, fast physical
+  sales, unprofitable-sale confirmation, and recent profitability.
 - Guest checkout remains available through the temporary MongoDB order endpoint.
 
 ## Verification on 2026-08-01
 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 42 tests passed across five files.
-- `npm run build`: passed; Vite reported a non-blocking 706.40 kB JavaScript
+- `npm test -- --run`: 55 tests passed across six files, including ten focused
+  purchase/FIFO/physical-sale transaction tests and three new role tests.
+- `npm run build`: passed; Vite reported a non-blocking 725.07 kB JavaScript
   chunk and stale Browserslist-data warnings.
 - `npm run build:server`: passed.
 - `npm run prisma:validate`: passed.
@@ -53,11 +66,18 @@ credentials were not used. Milestone 3 has not started.
 - Prisma migration was generated/validated locally but not applied to Supabase.
 - Cloudinary and Vercel deployment were not tested.
 
+- Milestone 3 TypeScript, lint, tests, frontend build, backend build, Prisma
+  validation, and Prisma generation all pass.
+- The Milestone 3 migration is checked in and validated but was not applied to
+  an external Supabase database.
+
 ## Temporary legacy surface
 
 - `MONGO_URI`, Mongoose, and MongoDB models remain for guest/order management.
 - `/api/orders` is temporary; guest creation is public and management uses
   Supabase OWNER/ADMIN authorization.
+- Cart checkout, website order history, and legacy delivery-order administration
+  remain MongoDB-backed and were not connected to the new physical-sales tables.
 - Cloudinary upload is still an unversioned route, now Supabase-protected.
 
 Custom JWT/password dependencies, the Mongo `User` model, moderator pages, and

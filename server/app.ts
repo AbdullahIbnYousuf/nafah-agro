@@ -11,6 +11,7 @@ import { rateLimit } from "express-rate-limit";
 import { createOrderRouter } from "./routes/orders.js";
 import uploadRoutes from "./routes/upload.js";
 import { createCatalogRouter } from "./routes/catalog.js";
+import { createInventoryRouter } from "./routes/inventory.js";
 import type { BackendEnv } from "./env.js";
 import { getPrismaClient } from "./lib/prisma.js";
 import {
@@ -36,6 +37,7 @@ import {
   type ProfileReader,
 } from "./services/profiles.js";
 import { createCatalogService, type CatalogService } from "./services/catalog.js";
+import { createInventoryService, type InventoryService } from "./services/inventory.js";
 import { ensureLegacyMongoConnection } from "./lib/mongo.js";
 
 export interface AppDependencies {
@@ -45,12 +47,14 @@ export interface AppDependencies {
   readFoundationRecord?: FoundationRecordReader;
   checkDatabase?: DatabaseHealthCheck;
   catalogService?: CatalogService;
+  inventoryService?: InventoryService;
   writeCustomerProfile?: CustomerProfileWriter;
 }
 
 interface HttpError extends Error {
   status?: number;
   code?: string;
+  details?: Record<string, unknown>;
 }
 
 function unavailableTokenVerifier(): SupabaseTokenVerifier {
@@ -79,6 +83,7 @@ function getFoundationDependencies(env: BackendEnv) {
       readFoundationRecord: unavailableRecordReader(),
       checkDatabase: undefined,
       catalogService: undefined,
+      inventoryService: undefined,
       writeCustomerProfile: undefined,
     };
   }
@@ -93,6 +98,7 @@ function getFoundationDependencies(env: BackendEnv) {
     readFoundationRecord: createFoundationRecordReader(prisma),
     checkDatabase: createDatabaseHealthCheck(prisma),
     catalogService: createCatalogService(prisma),
+    inventoryService: createInventoryService(prisma),
     writeCustomerProfile: createCustomerProfileWriter(prisma),
   };
 }
@@ -114,6 +120,7 @@ export function createApp(dependencies: AppDependencies) {
   const checkDatabase =
     dependencies.checkDatabase ?? getDefaults().checkDatabase;
   const catalogService = dependencies.catalogService ?? getDefaults().catalogService;
+  const inventoryService = dependencies.inventoryService ?? getDefaults().inventoryService;
   const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
   const allowedOrigins = new Set([dependencies.env.FRONTEND_URL]);
   const protectedRouteLimiter = rateLimit({
@@ -376,6 +383,28 @@ export function createApp(dependencies: AppDependencies) {
     });
   }
 
+  if (inventoryService) {
+    app.use(
+      "/api/v1",
+      createInventoryRouter(
+        inventoryService,
+        authenticate,
+        requireAdminOrOwner,
+        protectedRouteLimiter,
+      ),
+    );
+  } else {
+    app.use(
+      ["/api/v1/stock-batches", "/api/v1/purchases", "/api/v1/stock-adjustments", "/api/v1/physical-sales"],
+      (_req, res) => {
+        res.status(503).json({
+          success: false,
+          error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} },
+        });
+      },
+    );
+  }
+
   // Temporary MongoDB order API. Guest checkout stays public; management uses Supabase.
   app.use("/api/orders", legacyMongo, createOrderRouter(authenticate, requireAdminOrOwner, protectedRouteLimiter));
   app.use("/api/upload", protectedRouteLimiter, authenticate, requireAdminOrOwner, uploadRoutes);
@@ -419,7 +448,7 @@ export function createApp(dependencies: AppDependencies) {
                 ? httpError.code
                 : "INTERNAL_SERVER_ERROR",
             message: responseMessage,
-            details: { requestId },
+            details: { ...httpError.details, requestId },
           },
         });
         return;

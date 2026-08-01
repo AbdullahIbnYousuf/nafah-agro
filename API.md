@@ -73,6 +73,57 @@ selling-price-history rows.
 Product list query parameters: `query`, category slug in `category`, `tag`,
 `featured`, `minPrice`, `maxPrice`, `sort`, `page`, and `limit` (maximum 100).
 
+## Purchases, FIFO inventory, and physical sales
+
+Every route in this section requires an active `OWNER` or `ADMIN` profile.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/stock-batches` | List FIFO batches, quantities, buying costs, cached variant totals, and actors |
+| `POST` | `/api/v1/purchases` | Transactionally create one or more purchase batches and increase variant totals |
+| `POST` | `/api/v1/stock-adjustments` | Increase stock with a new costed batch or decrease existing batches using FIFO; reason required |
+| `POST` | `/api/v1/physical-sales` | Complete an immediate CASH/PAID physical sale and consume FIFO stock |
+| `GET` | `/api/v1/physical-sales` | List physical sales with selling-price, buying-cost, allocation, profit, and margin snapshots |
+
+Purchase request:
+
+```json
+{
+  "purchaseDate": "2026-08-01",
+  "note": "Optional invoice note",
+  "items": [
+    { "productVariantId": "uuid", "quantity": 10, "unitBuyingCost": "250.00" }
+  ]
+}
+```
+
+Quantities and buying costs must be greater than zero. A purchase may include
+up to 100 unique variants. All batches and variant totals commit or roll back
+together.
+
+Adjustment requests use `direction: "INCREASE"` or `"DECREASE"`. Both require a
+positive whole quantity and reason. An increase also requires
+`unitBuyingCost` and `purchaseDate`; a decrease consumes available batches FIFO.
+
+Physical sale request:
+
+```json
+{
+  "items": [{ "productVariantId": "uuid", "quantity": 2 }],
+  "customerName": "Optional",
+  "customerPhone": "01700000000",
+  "discountTotal": "50.00",
+  "confirmUnprofitable": false
+}
+```
+
+The backend reloads current selling prices and locks stock batches in
+`purchase_date`, `created_at`, then `id` order. Discount cannot exceed subtotal.
+If FIFO costs make projected profit negative, the first request returns
+`UNPROFITABLE_SALE_CONFIRMATION_REQUIRED`; an owner/admin may explicitly retry
+with `confirmUnprofitable: true`. Completed allocations retain exact batch cost
+and selling-price snapshots.
+
 ## Temporary MongoDB routes
 
 These routes are explicitly legacy and unversioned. MongoDB catalog routes and

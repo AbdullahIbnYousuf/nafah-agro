@@ -4,7 +4,9 @@ import type {
   Product,
   ProductsPage,
   ProductVariant,
+  PhysicalSale,
   SellingPriceHistoryEntry,
+  StockBatch,
   User,
 } from './types';
 import { frontendEnv } from './env';
@@ -22,6 +24,7 @@ export class ApiError extends Error {
     message: string,
     public readonly code: string,
     public readonly status: number,
+    public readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'ApiError';
@@ -51,7 +54,7 @@ async function request<T>(path: string, options?: RequestInit, explicitToken?: s
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = body?.error?.message ?? body?.error ?? `Request failed: ${response.status}`;
-    throw new ApiError(message, body?.error?.code ?? 'REQUEST_FAILED', response.status);
+    throw new ApiError(message, body?.error?.code ?? 'REQUEST_FAILED', response.status, body?.error?.details ?? {});
   }
   return body as T;
 }
@@ -248,6 +251,61 @@ export async function deleteCategory(id: string): Promise<void> {
 
 export function setCategoryActive(id: string, isActive: boolean): Promise<Category> {
   return updateCategory(id, { isActive });
+}
+
+export interface PurchaseItemInput {
+  productVariantId: string;
+  quantity: number;
+  unitBuyingCost: number;
+}
+
+export function createPurchase(input: {
+  purchaseDate: string;
+  note?: string;
+  items: PurchaseItemInput[];
+}): Promise<{ purchaseGroupId: string; batches: StockBatch[] }> {
+  return requestV1<{ purchaseGroupId: string; batches: StockBatch[] }>('/purchases', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...input,
+      items: input.items.map((item) => ({ ...item, unitBuyingCost: String(item.unitBuyingCost) })),
+    }),
+  });
+}
+
+export function getStockBatches(productVariantId?: string): Promise<StockBatch[]> {
+  const query = new URLSearchParams({ limit: '200' });
+  if (productVariantId) query.set('productVariantId', productVariantId);
+  return requestV1<StockBatch[]>(`/stock-batches?${query}`);
+}
+
+export function adjustStock(input:
+  | { direction: 'INCREASE'; productVariantId: string; quantity: number; unitBuyingCost: number; purchaseDate: string; reason: string }
+  | { direction: 'DECREASE'; productVariantId: string; quantity: number; reason: string }
+): Promise<StockBatch[]> {
+  return requestV1<StockBatch[]>('/stock-adjustments', {
+    method: 'POST',
+    body: JSON.stringify(input.direction === 'INCREASE'
+      ? { ...input, unitBuyingCost: String(input.unitBuyingCost) }
+      : input),
+  });
+}
+
+export function createPhysicalSale(input: {
+  items: Array<{ productVariantId: string; quantity: number }>;
+  customerName?: string;
+  customerPhone?: string;
+  discountTotal: number;
+  confirmUnprofitable?: boolean;
+}): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>('/physical-sales', {
+    method: 'POST',
+    body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal) }),
+  });
+}
+
+export function getPhysicalSales(limit = 30): Promise<PhysicalSale[]> {
+  return requestV1<PhysicalSale[]>(`/physical-sales?limit=${limit}`);
 }
 
 // Temporary MongoDB order API. Guest POST remains public until the order vertical replaces it.

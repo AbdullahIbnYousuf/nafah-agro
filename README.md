@@ -2,8 +2,9 @@
 
 Nafah Agro is a React/Vite storefront with an Express API. Supabase Auth and
 PostgreSQL/Prisma now power identity, roles, categories, products, variants,
-selling prices, and price history. The old MongoDB order flow remains temporary
-so guest checkout can continue while the order vertical is rebuilt.
+selling prices, price history, FIFO inventory, and physical-shop sales. The old
+MongoDB website-order flow remains temporary so guest checkout can continue
+until the delivery-order vertical is rebuilt.
 
 ## Current status
 
@@ -18,8 +19,10 @@ so guest checkout can continue while the order vertical is rebuilt.
 - OWNER/ADMIN catalog screens can create/edit/activate/deactivate variants,
   enforce unique normalized SKUs, inspect price history, and update one or many
   selling prices. Bulk price changes are all-or-nothing.
-- Product-variant stock totals exist but cannot yet be populated; FIFO starts in
-  Milestone 3.
+- OWNER/ADMIN can enter multi-item purchases, inspect buying-cost batches,
+  perform reason-required stock adjustments, and complete immediate CASH sales.
+- Physical sales lock and consume the oldest available batches, preserve price
+  and cost snapshots, and show gross profit and margin.
 - Guest checkout still posts to the temporary MongoDB order route.
 - No deployment was performed as part of this change.
 
@@ -75,7 +78,8 @@ Frontend defaults to Vite's local URL; Express defaults to port `4000`. Configur
 
 1. Create a Supabase project and copy the PostgreSQL URLs, project URL, and
    publishable/anon key into `.env`.
-2. Apply the checked-in migrations (do not use `prisma db push`):
+2. Apply the checked-in migrations, including the Milestone 3 inventory and
+   physical-sales migration (do not use `prisma db push`):
 
 ```bash
 DATABASE_URL="postgresql://...pooler..." DIRECT_URL="postgresql://...direct..." \

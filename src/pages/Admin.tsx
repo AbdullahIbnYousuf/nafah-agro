@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BarChart3, ClipboardList, Edit, Loader2, Package, Plus, Settings2, Tag } from 'lucide-react';
+import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, Loader2, Package, Plus, Settings2, Store, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import AddProductForm from '@/components/AddProductForm';
 import VariantManager from '@/components/VariantManager';
+import InventoryManager from '@/components/InventoryManager';
+import PhysicalSaleScreen from '@/components/PhysicalSaleScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -20,7 +22,7 @@ import {
 } from '@/lib/api';
 import type { Category, Order, Product } from '@/lib/types';
 
-type Tab = 'dashboard' | 'products' | 'categories' | 'orders';
+type Tab = 'dashboard' | 'products' | 'categories' | 'inventory' | 'physical-sales' | 'orders';
 
 const statusLabels: Record<Order['status'], string> = {
   pending: 'অপেক্ষমান', confirmed: 'নিশ্চিত', processing: 'প্রক্রিয়াধীন',
@@ -37,6 +39,8 @@ export default function Admin() {
     { tab: 'dashboard' as const, label: 'ড্যাশবোর্ড', icon: BarChart3 },
     { tab: 'products' as const, label: 'পণ্য', icon: Package },
     { tab: 'categories' as const, label: 'ক্যাটাগরি', icon: Tag },
+    { tab: 'inventory' as const, label: 'ক্রয় ও ইনভেন্টরি', icon: Boxes },
+    { tab: 'physical-sales' as const, label: 'ফিজিক্যাল বিক্রয়', icon: Store },
     { tab: 'orders' as const, label: 'লেগ্যাসি অর্ডার', icon: ClipboardList },
   ];
 
@@ -60,6 +64,8 @@ export default function Admin() {
         {tab === 'dashboard' && <Dashboard />}
         {tab === 'products' && <Products />}
         {tab === 'categories' && <Categories />}
+        {tab === 'inventory' && <InventoryManager />}
+        {tab === 'physical-sales' && <PhysicalSaleScreen />}
         {tab === 'orders' && <Orders />}
       </main>
     </div>
