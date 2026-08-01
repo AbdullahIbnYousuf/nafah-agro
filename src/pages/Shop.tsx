@@ -118,7 +118,7 @@ const Shop = () => {
             <SelectContent>
               <SelectItem value="all">সব ক্যাটাগরি</SelectItem>
               {categories.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
