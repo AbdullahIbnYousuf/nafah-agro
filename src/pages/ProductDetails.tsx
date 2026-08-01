@@ -210,14 +210,8 @@ const ProductDetails = () => {
               </div>
             ))}
 
-            <div className="mb-6 text-sm">
-              {product.stock > 5 ? (
-                <span className="text-secondary">✓ স্টকে আছে</span>
-              ) : product.stock > 0 ? (
-                <span className="text-destructive">⚠ মাত্র {product.stock}টি বাকি</span>
-              ) : (
-                <span className="text-destructive">✕ স্টক শেষ</span>
-              )}
+            <div className="mb-6 text-sm text-muted-foreground">
+              স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।
             </div>
 
             {/* Quantity controls + Add to Cart */}
@@ -234,8 +228,7 @@ const ProductDetails = () => {
                   <span className="text-xl font-bold w-12 text-center">{quantityInCart}</span>
                   <button
                     onClick={handleAddToCart}
-                    disabled={product.stock === 0}
-                    className="w-10 h-10 rounded-full border-2 border-secondary flex items-center justify-center hover:bg-secondary/10 transition-colors disabled:opacity-50"
+                    className="w-10 h-10 rounded-full border-2 border-secondary flex items-center justify-center hover:bg-secondary/10 transition-colors"
                   >
                     <Plus size={18} className="text-secondary" />
                   </button>
@@ -246,7 +239,6 @@ const ProductDetails = () => {
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 onClick={handleAddToCart}
-                disabled={product.stock === 0}
                 size="lg"
                 className="flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90"
               >
@@ -255,7 +247,6 @@ const ProductDetails = () => {
               </Button>
               <Button
                 onClick={handleBuyNow}
-                disabled={product.stock === 0}
                 size="lg"
                 className="flex-1"
               >

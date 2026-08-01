@@ -13,6 +13,12 @@ export type ProfileReader = (
   userId: string,
 ) => Promise<ApplicationProfile | null>;
 
+export type CustomerProfileWriter = (
+  userId: string,
+  fullName: string,
+  phoneNumber: string,
+) => Promise<ApplicationProfile>;
+
 export function createProfileReader(prisma: PrismaClient): ProfileReader {
   return (userId) =>
     prisma.profile.findUnique({
@@ -24,5 +30,15 @@ export function createProfileReader(prisma: PrismaClient): ProfileReader {
         phoneNumber: true,
         isActive: true,
       },
+    });
+}
+
+export function createCustomerProfileWriter(prisma: PrismaClient): CustomerProfileWriter {
+  return (userId, fullName, phoneNumber) =>
+    prisma.profile.upsert({
+      where: { id: userId },
+      create: { id: userId, role: "CUSTOMER", fullName, phoneNumber, isActive: true },
+      update: {},
+      select: { id: true, role: true, fullName: true, phoneNumber: true, isActive: true },
     });
 }

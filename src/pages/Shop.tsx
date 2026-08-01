@@ -43,7 +43,7 @@ const Shop = () => {
   const fetchProducts = useCallback(() => {
     setLoading(true);
     const params: GetProductsParams = { limit: LIMIT, page, sort: sortBy };
-    if (debouncedSearch) { params.query = debouncedSearch; params.type = 'product'; }
+    if (debouncedSearch) params.query = debouncedSearch;
     if (categoryFilter !== 'all') params.category = categoryFilter;
     if (tagFilter) params.tag = tagFilter;
     if (featuredOnly) params.featured = true;

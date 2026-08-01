@@ -495,7 +495,7 @@ Admin lists use server pagination, filtering, and sorting.
 - Keep React Context for authentication wrapper, cart, and small UI preferences
 - Update API types/contracts together with each backend vertical slice
 - Show clear price changes, stock-confirmation failures, loading states, and recoverable errors
-- Remove fake payment methods, fake coupons, moderator screens, and public admin setup as the replacement flows land
+- Moderator screens and public admin setup are removed; fake payment/coupon UI remains until the order replacement lands
 
 ## 11. Security and operational design
 

@@ -43,7 +43,8 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const [slugTouched, setSlugTouched] = useState(isEdit);
   const [description, setDescription] = useState(editProduct?.description ?? '');
   const [price, setPrice] = useState(editProduct ? String(editProduct.price) : '');
-  const [stock, setStock] = useState(editProduct ? String(editProduct.stock) : '');
+  const [sku, setSku] = useState(editProduct?.sku ?? '');
+  const [variantName, setVariantName] = useState(editProduct?.variantName ?? 'Default');
   const [categoryId, setCategoryId] = useState(editProduct?.categoryId ?? '');
   const [featured, setFeatured] = useState(editProduct?.featured ?? false);
 
@@ -147,8 +148,9 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return toast.error('পণ্যের নাম দিন');
-    if (!price || isNaN(Number(price))) return toast.error('সঠিক দাম দিন');
+    if (!isEdit && (!price || isNaN(Number(price)))) return toast.error('সঠিক দাম দিন');
     if (!categoryId) return toast.error('ক্যাটাগরি নির্বাচন করুন');
+    if (!isEdit && !sku.trim()) return toast.error('SKU দিন');
 
     setSaving(true);
     try {
@@ -168,7 +170,9 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         slug: slug.trim() || slugify(name.trim()),
         description: description.trim(),
         price: Number(price),
-        stock: Number(stock) || 0,
+        stock: editProduct?.stock ?? 0,
+        sku: sku.trim(),
+        variantName: variantName.trim() || 'Default',
         categoryId,
         featured,
         images: allImages,
@@ -264,29 +268,43 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="price">দাম (টাকা) *</Label>
+                  <Label htmlFor="price">{isEdit ? 'ডিফল্ট ভ্যারিয়েন্টের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
                   <Input
                     id="price"
                     type="number"
                     min="0"
                     value={price}
                     onChange={e => setPrice(e.target.value)}
+                    disabled={isEdit}
                     placeholder="০"
                     className="mt-1 bg-card"
                   />
+                  {isEdit && <p className="text-xs text-muted-foreground mt-1">দাম ভ্যারিয়েন্ট ব্যবস্থাপনা থেকে পরিবর্তন করুন।</p>}
                 </div>
                 <div>
-                  <Label htmlFor="stock">স্টক পরিমাণ</Label>
+                  <Label htmlFor="sku">SKU *</Label>
                   <Input
-                    id="stock"
-                    type="number"
-                    min="0"
-                    value={stock}
-                    onChange={e => setStock(e.target.value)}
-                    placeholder="০"
+                    id="sku"
+                    value={sku}
+                    onChange={e => setSku(e.target.value.toUpperCase())}
+                    placeholder="NAFAH-001"
+                    disabled={isEdit}
                     className="mt-1 bg-card"
                   />
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="variant-name">ভ্যারিয়েন্টের নাম *</Label>
+                <Input
+                  id="variant-name"
+                  value={variantName}
+                  onChange={e => setVariantName(e.target.value)}
+                  placeholder="যেমন: ১ কেজি"
+                  disabled={isEdit}
+                  className="mt-1 bg-card"
+                />
+                <p className="text-xs text-muted-foreground mt-1">স্টক Milestone 3-এ FIFO purchase batch থেকে যোগ হবে।</p>
               </div>
 
               <div>

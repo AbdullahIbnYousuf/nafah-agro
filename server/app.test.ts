@@ -5,13 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 import { parseBackendEnv } from "./env.js";
 import type { ApplicationProfile } from "./services/profiles.js";
+import type { CatalogService } from "./services/catalog.js";
 
 const baseEnvironment = {
   NODE_ENV: "test",
   MONGO_URI: "mongodb://127.0.0.1:27017/nafah_agro_test",
   FRONTEND_URL: "http://localhost:8080",
-  JWT_SECRET: "a-development-secret-with-32-characters",
-  ADMIN_UNLOCK_CODE: "local-unlock-code",
 };
 
 function createTestEnv(configureFoundation = false) {
@@ -76,24 +75,6 @@ describe("GET /api/v1/health", () => {
   });
 });
 
-describe("legacy authentication rate limiting", () => {
-  it("limits repeated authentication-sensitive requests", async () => {
-    const app = createApp({
-      env: parseBackendEnv({
-        ...baseEnvironment,
-        AUTH_RATE_LIMIT_MAX: "2",
-      }),
-    });
-
-    await request(app).post("/api/auth/login").send({});
-    await request(app).post("/api/auth/login").send({});
-    const response = await request(app).post("/api/auth/login").send({});
-
-    expect(response.status).toBe(429);
-    expect(response.body.error.code).toBe("RATE_LIMIT_EXCEEDED");
-  });
-});
-
 describe("GET /api/v1/foundation", () => {
   const ownerProfile: ApplicationProfile = {
     id: "4cd56ef4-56d8-4a22-92fe-887e6f601de6",
@@ -106,6 +87,7 @@ describe("GET /api/v1/foundation", () => {
   function createProtectedApp(
     profile: ApplicationProfile | null = ownerProfile,
     protectedRateLimit = 60,
+    catalogService?: CatalogService,
   ) {
     return createApp({
       env: parseBackendEnv({
@@ -129,6 +111,7 @@ describe("GET /api/v1/foundation", () => {
         value: "Nafah Agro PostgreSQL foundation is ready",
         updatedAt: new Date("2026-07-30T00:00:00.000Z"),
       })),
+      catalogService,
     });
   }
 
@@ -163,6 +146,22 @@ describe("GET /api/v1/foundation", () => {
       fullName: "Initial Owner",
     });
     expect(response.body.data.record.key).toBe("milestone-1");
+  });
+
+  it("resolves the Supabase token to the PostgreSQL profile for the frontend", async () => {
+    const response = await request(createProtectedApp())
+      .get("/api/v1/auth/me")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      id: ownerProfile.id,
+      name: "Initial Owner",
+      email: "owner@example.com",
+      phoneNumber: null,
+      role: "OWNER",
+      isActive: true,
+    });
   });
 
   it("rejects an authenticated user without a profile", async () => {
@@ -238,5 +237,90 @@ describe("GET /api/v1/foundation", () => {
     expect(response.status).toBe(429);
     expect(response.body.error.code).toBe("RATE_LIMIT_EXCEEDED");
     expect(response.headers.ratelimit).toBeDefined();
+  });
+
+  it("repairs a missing customer profile only for the verified token subject", async () => {
+    const writeCustomerProfile = vi.fn(async (id: string, fullName: string, phoneNumber: string) => ({
+      id,
+      role: "CUSTOMER" as const,
+      fullName,
+      phoneNumber,
+      isActive: true,
+    }));
+    const app = createApp({
+      env: createTestEnv(true),
+      verifySupabaseToken: vi.fn(async () => ({
+        id: ownerProfile.id,
+        email: "customer@example.com",
+        claims: {
+          sub: ownerProfile.id,
+          user_metadata: { full_name: "Customer", phone_number: "01700000000" },
+        },
+      })),
+      readProfile: vi.fn(async () => null),
+      readFoundationRecord: vi.fn(),
+      checkDatabase: vi.fn(),
+      writeCustomerProfile,
+    });
+    const response = await request(app)
+      .post("/api/v1/auth/complete-customer-profile")
+      .set("Authorization", "Bearer valid-token")
+      .send({ fullName: "Ignored caller value", phoneNumber: "0000000" });
+
+    expect(response.status).toBe(201);
+    expect(writeCustomerProfile).toHaveBeenCalledWith(
+      ownerProfile.id,
+      "Customer",
+      "01700000000",
+    );
+    expect(response.body.data.role).toBe("CUSTOMER");
+  });
+
+  describe("catalog authorization", () => {
+    function catalogStub() {
+      return {
+        listCategories: vi.fn(async () => []),
+        createCategory: vi.fn(async (input: { name: string; slug: string }) => ({
+          id: "10000000-0000-4000-8000-000000000001",
+          ...input,
+          isActive: true,
+        })),
+        updateCategory: vi.fn(),
+        listProducts: vi.fn(),
+        getProductBySlug: vi.fn(),
+        createProduct: vi.fn(),
+        updateProduct: vi.fn(),
+        createVariant: vi.fn(),
+        updateVariant: vi.fn(),
+        changePrice: vi.fn(),
+        bulkChangePrices: vi.fn(),
+        getPriceHistory: vi.fn(),
+      } as unknown as CatalogService;
+    }
+
+    it.each(["OWNER", "ADMIN"] as const)("allows %s to create a category", async (role) => {
+      const catalog = catalogStub();
+      const response = await request(createProtectedApp({ ...ownerProfile, role }, 60, catalog))
+        .post("/api/v1/categories")
+        .set("Authorization", "Bearer valid-token")
+        .send({ name: "Dairy", slug: "dairy" });
+
+      expect(response.status).toBe(201);
+      expect(catalog.createCategory).toHaveBeenCalledWith({ name: "Dairy", slug: "dairy" });
+    });
+
+    it("denies CUSTOMER catalog mutations before the service is called", async () => {
+      const catalog = catalogStub();
+      const response = await request(
+        createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, catalog),
+      )
+        .post("/api/v1/categories")
+        .set("Authorization", "Bearer valid-token")
+        .send({ name: "Dairy", slug: "dairy" });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe("INSUFFICIENT_ROLE");
+      expect(catalog.createCategory).not.toHaveBeenCalled();
+    });
   });
 });

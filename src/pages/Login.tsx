@@ -78,22 +78,11 @@ const Login = () => {
               </button>
             </form>
 
-            <div className="mt-6 text-center space-y-2">
+            <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
                 অ্যাকাউন্ট নেই?{' '}
                 <Link to="/register" className="text-primary font-medium hover:underline">
                   রেজিস্ট্রেশন করুন
-                </Link>
-              </p>
-              <p className="text-sm text-muted-foreground">
-                মডারেটর?{' '}
-                <Link to="/moderator-login" className="text-primary font-medium hover:underline">
-                  মডারেটর লগইন
-                </Link>
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <Link to="/admin-setup" className="text-muted-foreground/70 hover:text-primary hover:underline text-xs">
-                  অ্যাডমিন সেটআপ
                 </Link>
               </p>
             </div>

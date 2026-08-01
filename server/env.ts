@@ -38,17 +38,12 @@ export const backendEnvSchema = z
       .min(1_000)
       .max(86_400_000)
       .default(900_000),
-    AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10_000).default(20),
     PROTECTED_RATE_LIMIT_MAX: z.coerce
       .number()
       .int()
       .min(1)
       .max(10_000)
       .default(60),
-    JWT_SECRET: z.string().min(32, "JWT_SECRET must contain at least 32 characters"),
-    ADMIN_UNLOCK_CODE: z
-      .string()
-      .min(12, "ADMIN_UNLOCK_CODE must contain at least 12 characters"),
     CLOUDINARY_CLOUD_NAME: optionalString,
     CLOUDINARY_API_KEY: optionalString,
     CLOUDINARY_API_SECRET: optionalString,

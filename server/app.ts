@@ -4,14 +4,13 @@ import express, {
   type Response,
 } from "express";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
-import productRoutes from "./routes/products.js";
-import categoryRoutes from "./routes/categories.js";
-import orderRoutes from "./routes/orders.js";
+import { createOrderRouter } from "./routes/orders.js";
 import uploadRoutes from "./routes/upload.js";
-import authRoutes from "./routes/auth.js";
+import { createCatalogRouter } from "./routes/catalog.js";
 import type { BackendEnv } from "./env.js";
 import { getPrismaClient } from "./lib/prisma.js";
 import {
@@ -22,6 +21,7 @@ import {
   requireAdminOrOwner,
   requireAuthenticated,
   requireOwner,
+  requireSupabaseUser,
 } from "./middleware/supabaseAuth.js";
 import {
   createDatabaseHealthCheck,
@@ -30,9 +30,13 @@ import {
   type FoundationRecordReader,
 } from "./services/foundation.js";
 import {
+  createCustomerProfileWriter,
   createProfileReader,
+  type CustomerProfileWriter,
   type ProfileReader,
 } from "./services/profiles.js";
+import { createCatalogService, type CatalogService } from "./services/catalog.js";
+import { ensureLegacyMongoConnection } from "./lib/mongo.js";
 
 export interface AppDependencies {
   env: BackendEnv;
@@ -40,6 +44,8 @@ export interface AppDependencies {
   readProfile?: ProfileReader;
   readFoundationRecord?: FoundationRecordReader;
   checkDatabase?: DatabaseHealthCheck;
+  catalogService?: CatalogService;
+  writeCustomerProfile?: CustomerProfileWriter;
 }
 
 interface HttpError extends Error {
@@ -72,6 +78,8 @@ function getFoundationDependencies(env: BackendEnv) {
       readProfile: unavailableProfileReader(),
       readFoundationRecord: unavailableRecordReader(),
       checkDatabase: undefined,
+      catalogService: undefined,
+      writeCustomerProfile: undefined,
     };
   }
 
@@ -84,6 +92,8 @@ function getFoundationDependencies(env: BackendEnv) {
     readProfile: createProfileReader(prisma),
     readFoundationRecord: createFoundationRecordReader(prisma),
     checkDatabase: createDatabaseHealthCheck(prisma),
+    catalogService: createCatalogService(prisma),
+    writeCustomerProfile: createCustomerProfileWriter(prisma),
   };
 }
 
@@ -103,21 +113,9 @@ export function createApp(dependencies: AppDependencies) {
     dependencies.readFoundationRecord ?? getDefaults().readFoundationRecord;
   const checkDatabase =
     dependencies.checkDatabase ?? getDefaults().checkDatabase;
+  const catalogService = dependencies.catalogService ?? getDefaults().catalogService;
+  const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
   const allowedOrigins = new Set([dependencies.env.FRONTEND_URL]);
-  const authenticationLimiter = rateLimit({
-    windowMs: dependencies.env.RATE_LIMIT_WINDOW_MS,
-    limit: dependencies.env.AUTH_RATE_LIMIT_MAX,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: {
-      success: false,
-      error: {
-        code: "RATE_LIMIT_EXCEEDED",
-        message: "Too many authentication requests. Try again later.",
-        details: {},
-      },
-    },
-  });
   const protectedRouteLimiter = rateLimit({
     windowMs: dependencies.env.RATE_LIMIT_WINDOW_MS,
     limit: dependencies.env.PROTECTED_RATE_LIMIT_MAX,
@@ -133,6 +131,16 @@ export function createApp(dependencies: AppDependencies) {
     },
   });
   const authenticate = requireAuthenticated(verifySupabaseToken, readProfile);
+  const verifyAuthUser = requireSupabaseUser(verifySupabaseToken);
+  const legacyMongo: express.RequestHandler = async (_req, res, next) => {
+    res.setHeader("X-Nafah-Legacy-Store", "mongodb");
+    try {
+      await ensureLegacyMongoConnection(dependencies.env.MONGO_URI);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 
   app.disable("x-powered-by");
   if (dependencies.env.NODE_ENV === "production") {
@@ -284,12 +292,93 @@ export function createApp(dependencies: AppDependencies) {
     sendFoundationRecord,
   );
 
-  // Legacy MVP endpoints remain available until their PostgreSQL replacements exist.
-  app.use("/api/auth", authenticationLimiter, authRoutes);
-  app.use("/api/products", productRoutes);
-  app.use("/api/categories", categoryRoutes);
-  app.use("/api/orders", orderRoutes);
-  app.use("/api/upload", uploadRoutes);
+  app.get(
+    "/api/v1/auth/me",
+    protectedRouteLimiter,
+    authenticate,
+    (req, res) => {
+      const principal = req.authenticatedUser!;
+      res.json({
+        success: true,
+        data: {
+          id: principal.profile.id,
+          name: principal.profile.fullName,
+          email: principal.authUser.email ?? null,
+          phoneNumber: principal.profile.phoneNumber,
+          role: principal.profile.role,
+          isActive: principal.profile.isActive,
+        },
+      });
+    },
+  );
+
+  app.post(
+    "/api/v1/auth/complete-customer-profile",
+    protectedRouteLimiter,
+    verifyAuthUser,
+    async (req, res, next) => {
+      if (!writeCustomerProfile) {
+        res.status(503).json({
+          success: false,
+          error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} },
+        });
+        return;
+      }
+      const parsed = z.object({
+        fullName: z.string().trim().min(1).max(120),
+        phoneNumber: z.string().trim().min(7).max(30),
+      }).safeParse({
+        fullName: req.verifiedSupabaseUser!.claims.user_metadata
+          && typeof req.verifiedSupabaseUser!.claims.user_metadata === "object"
+          ? (req.verifiedSupabaseUser!.claims.user_metadata as Record<string, unknown>).full_name
+          : undefined,
+        phoneNumber: req.verifiedSupabaseUser!.claims.user_metadata
+          && typeof req.verifiedSupabaseUser!.claims.user_metadata === "object"
+          ? (req.verifiedSupabaseUser!.claims.user_metadata as Record<string, unknown>).phone_number
+          : undefined,
+      });
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          error: { code: "PROFILE_METADATA_REQUIRED", message: "The verified Supabase token must contain a valid name and phone number.", details: {} },
+        });
+        return;
+      }
+      try {
+        const profile = await writeCustomerProfile(
+          req.verifiedSupabaseUser!.id,
+          parsed.data.fullName,
+          parsed.data.phoneNumber,
+        );
+        res.status(201).json({ success: true, data: profile });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  if (catalogService) {
+    app.use(
+      "/api/v1",
+      createCatalogRouter(
+        catalogService,
+        authenticate,
+        requireAdminOrOwner,
+        protectedRouteLimiter,
+      ),
+    );
+  } else {
+    app.use(["/api/v1/admin", "/api/v1/categories", "/api/v1/products", "/api/v1/variants"], (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} },
+      });
+    });
+  }
+
+  // Temporary MongoDB order API. Guest checkout stays public; management uses Supabase.
+  app.use("/api/orders", legacyMongo, createOrderRouter(authenticate, requireAdminOrOwner, protectedRouteLimiter));
+  app.use("/api/upload", protectedRouteLimiter, authenticate, requireAdminOrOwner, uploadRoutes);
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
   app.use(

@@ -16,6 +16,7 @@ export interface AuthenticatedPrincipal {
 declare module "express-serve-static-core" {
   interface Request {
     authenticatedUser?: AuthenticatedPrincipal;
+    verifiedSupabaseUser?: VerifiedSupabaseUser;
   }
 }
 
@@ -29,6 +30,29 @@ function sendAuthorizationError(
     success: false,
     error: { code, message, details: {} },
   });
+}
+
+export function requireSupabaseUser(
+  verifyToken: SupabaseTokenVerifier,
+): RequestHandler {
+  return async (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (!authorization?.startsWith("Bearer ")) {
+      sendAuthorizationError(res, 401, "AUTHENTICATION_REQUIRED", "A valid Supabase access token is required.");
+      return;
+    }
+    const token = authorization.slice("Bearer ".length).trim();
+    if (!token) {
+      sendAuthorizationError(res, 401, "AUTHENTICATION_REQUIRED", "A valid Supabase access token is required.");
+      return;
+    }
+    try {
+      req.verifiedSupabaseUser = await verifyToken(token);
+      next();
+    } catch {
+      sendAuthorizationError(res, 401, "INVALID_ACCESS_TOKEN", "The Supabase access token is invalid or expired.");
+    }
+  };
 }
 
 export function requireAuthenticated(

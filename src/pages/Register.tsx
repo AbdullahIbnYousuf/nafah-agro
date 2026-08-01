@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 const Register = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,9 +28,11 @@ const Register = () => {
     }
     setLoading(true);
     try {
-      await register(name, email, password);
-      toast.success('রেজিস্ট্রেশন সফল হয়েছে!');
-      navigate('/');
+      const needsConfirmation = await register(name, phoneNumber, email, password);
+      toast.success(needsConfirmation
+        ? 'ইমেইল নিশ্চিত করে লগইন করুন।'
+        : 'রেজিস্ট্রেশন সফল হয়েছে!');
+      navigate(needsConfirmation ? '/login' : '/');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'রেজিস্ট্রেশন ব্যর্থ হয়েছে'));
     } finally {
@@ -49,6 +52,21 @@ const Register = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="register-phone" className="block text-sm font-medium text-foreground mb-1.5">
+                  ফোন নম্বর
+                </label>
+                <input
+                  id="register-phone"
+                  type="tel"
+                  required
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="01XXXXXXXXX"
+                  className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+                />
+              </div>
+
               <div>
                 <label htmlFor="register-name" className="block text-sm font-medium text-foreground mb-1.5">
                   নাম

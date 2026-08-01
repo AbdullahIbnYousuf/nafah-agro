@@ -1,143 +1,80 @@
-import { Product, ProductsPage, Category, Order, AuthResponse, User, Moderator } from './types';
+import type {
+  Category,
+  Order,
+  Product,
+  ProductsPage,
+  ProductVariant,
+  SellingPriceHistoryEntry,
+  User,
+} from './types';
 import { frontendEnv } from './env';
+import { supabase } from './supabase';
 
 const BASE = frontendEnv.VITE_API_URL;
 
-// ── Token management ────────────────────────────────────────────────────────────
-export function getStoredToken(): string | null {
-  return localStorage.getItem('auth_token');
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
 }
 
-export function setStoredToken(token: string): void {
-  localStorage.setItem('auth_token', token);
-}
-
-export function removeStoredToken(): void {
-  localStorage.removeItem('auth_token');
-}
-
-// Recursively map Mongoose `_id` to `id` so the frontend types work.
-function normalizeIds(data: unknown): unknown {
-  if (Array.isArray(data)) return data.map(normalizeIds);
-  if (data && typeof data === 'object') {
-    const obj = data as Record<string, unknown>;
-    const { _id, ...rest } = obj;
-    const out: Record<string, unknown> = _id !== undefined ? { id: _id, ...rest } : { ...rest };
-    for (const key of Object.keys(out)) {
-      out[key] = normalizeIds(out[key]);
-    }
-    return out;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
   }
-  return data;
 }
 
-function authHeaders(): Record<string, string> {
-  const token = getStoredToken();
+async function accessToken(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  return data.session?.access_token ?? null;
+}
+
+async function authorizationHeaders(explicitToken?: string): Promise<Record<string, string>> {
+  const token = explicitToken ?? await accessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+async function request<T>(path: string, options?: RequestInit, explicitToken?: string): Promise<T> {
+  const response = await fetch(`${BASE}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...authHeaders(),
+      ...await authorizationHeaders(explicitToken),
       ...options?.headers,
     },
-    ...options,
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `Request failed: ${res.status}`);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = body?.error?.message ?? body?.error ?? `Request failed: ${response.status}`;
+    throw new ApiError(message, body?.error?.code ?? 'REQUEST_FAILED', response.status);
   }
-  const json = await res.json();
-  return normalizeIds(json) as T;
+  return body as T;
 }
 
-// ── Auth ─────────────────────────────────────────────────────────────────────────
-export async function loginUser(email: string, password: string): Promise<AuthResponse> {
-  return request<AuthResponse>('/auth/login', {
+async function requestV1<T>(path: string, options?: RequestInit, explicitToken?: string): Promise<T> {
+  const envelope = await request<ApiEnvelope<T>>(`/v1${path}`, options, explicitToken);
+  return envelope.data;
+}
+
+export function getCurrentProfile(token: string): Promise<User> {
+  return requestV1<User>('/auth/me', undefined, token);
+}
+
+export function completeCustomerProfile(
+  token: string,
+): Promise<User> {
+  return requestV1<User>('/auth/complete-customer-profile', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
+  }, token);
 }
 
-export async function loginModerator(email: string, password: string): Promise<AuthResponse> {
-  return request<AuthResponse>('/auth/login/moderator', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-}
-
-export async function registerUser(name: string, email: string, password: string): Promise<AuthResponse> {
-  return request<AuthResponse>('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ name, email, password }),
-  });
-}
-
-export async function registerAdmin(
-  name: string,
-  email: string,
-  password: string,
-  unlockCode: string
-): Promise<AuthResponse> {
-  return request<AuthResponse>('/auth/register/admin', {
-    method: 'POST',
-    body: JSON.stringify({ name, email, password, unlockCode }),
-  });
-}
-
-export async function registerModerator(
-  name: string,
-  email: string,
-  password: string
-): Promise<{ user: Moderator }> {
-  return request<{ user: Moderator }>('/auth/register/moderator', {
-    method: 'POST',
-    body: JSON.stringify({ name, email, password }),
-  });
-}
-
-export async function getCurrentUser(): Promise<User> {
-  return request<User>('/auth/me');
-}
-
-// ── Moderator Management (admin only) ────────────────────────────────────────────
-export async function getModerators(): Promise<Moderator[]> {
-  return request<Moderator[]>('/auth/moderators');
-}
-
-export async function resetModeratorPassword(id: string, newPassword: string): Promise<{ message: string }> {
-  return request<{ message: string }>(`/auth/moderators/${id}/reset-password`, {
-    method: 'PATCH',
-    body: JSON.stringify({ newPassword }),
-  });
-}
-
-export async function toggleModeratorActive(id: string): Promise<Moderator> {
-  return request<Moderator>(`/auth/moderators/${id}/toggle-active`, {
-    method: 'PATCH',
-  });
-}
-
-export async function deleteModerator(id: string): Promise<{ message: string }> {
-  return request<{ message: string }>(`/auth/moderators/${id}`, {
-    method: 'DELETE',
-  });
-}
-
-// ── Moderator password reset request (unauthenticated) ───────────────────────────
-export async function requestModeratorPasswordReset(email: string): Promise<{ message: string }> {
-  return request<{ message: string }>('/auth/moderator/request-reset', {
-    method: 'POST',
-    body: JSON.stringify({ email }),
-  });
-}
-
-// ── Products ─────────────────────────────────────────────────────────────────────
 export interface GetProductsParams {
   query?: string;
-  type?: 'product' | 'category';
   category?: string;
   tag?: string;
   featured?: boolean;
@@ -149,153 +86,217 @@ export interface GetProductsParams {
 }
 
 export async function getProducts(params?: GetProductsParams): Promise<ProductsPage> {
-  const q = new URLSearchParams();
-  if (params?.query)    q.set('query', params.query);
-  if (params?.type)     q.set('type', params.type);
-  if (params?.category) q.set('category', params.category);
-  if (params?.tag)      q.set('tag', params.tag);
-  if (params?.featured != null) q.set('featured', String(params.featured));
-  if (params?.minPrice != null) q.set('minPrice', String(params.minPrice));
-  if (params?.maxPrice != null) q.set('maxPrice', String(params.maxPrice));
-  if (params?.sort)     q.set('sort', params.sort);
-  if (params?.page)     q.set('page', String(params.page));
-  if (params?.limit)    q.set('limit', String(params.limit));
-  const qs = q.toString() ? `?${q.toString()}` : '';
-  return request<ProductsPage>(`/products${qs}`);
+  const query = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<ProductsPage>(`/products${query.size ? `?${query}` : ''}`);
+}
+
+export async function getAdminProducts(params?: GetProductsParams): Promise<ProductsPage> {
+  const query = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<ProductsPage>(`/admin/products${query.size ? `?${query}` : ''}`);
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | undefined> {
   try {
-    return await request<Product>(`/products/${slug}`);
+    return await requestV1<Product>(`/products/${encodeURIComponent(slug)}`);
   } catch {
     return undefined;
   }
 }
 
 export async function createProduct(product: Omit<Product, 'id'>): Promise<Product> {
-  return request<Product>('/products', {
+  return requestV1<Product>('/products', {
     method: 'POST',
-    body: JSON.stringify(product),
+    body: JSON.stringify({
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      categoryId: product.categoryId,
+      featured: product.featured,
+      tags: product.tags,
+      images: product.images,
+      youtubeLinks: product.youtubeLinks,
+      attributes: product.attributes,
+      initialVariant: {
+        name: product.variantName || 'Default',
+        sku: product.sku,
+        sellingPrice: String(product.price),
+        lowStockThreshold: 5,
+      },
+      priceReason: 'Initial selling price',
+    }),
   });
 }
 
 export async function updateProduct(id: string, data: Partial<Product>): Promise<Product> {
-  return request<Product>(`/products/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
+  return requestV1<Product>(`/products/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      name: data.name,
+      slug: data.slug,
+      description: data.description,
+      categoryId: data.categoryId,
+      featured: data.featured,
+      tags: data.tags,
+      images: data.images,
+      youtubeLinks: data.youtubeLinks,
+      attributes: data.attributes,
+      isActive: data.isActive,
+    }),
   });
 }
 
-export async function updateProductStock(id: string, stock: number): Promise<Product> {
-  return request<Product>(`/products/${id}/stock`, {
+export async function changeSellingPrice(variantId: string, price: number, reason: string): Promise<Product> {
+  return requestV1<Product>(`/variants/${variantId}/selling-price`, {
     method: 'PATCH',
-    body: JSON.stringify({ stock }),
+    body: JSON.stringify({ sellingPrice: String(price), reason }),
   });
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  await request(`/products/${id}`, { method: 'DELETE' });
+  await requestV1(`/products/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive: false }),
+  });
+}
+
+export function setProductActive(id: string, isActive: boolean): Promise<Product> {
+  return updateProduct(id, { isActive });
+}
+
+export interface VariantCreateInput {
+  name: string;
+  sku: string;
+  sellingPrice: number;
+  lowStockThreshold: number;
+  isDefault: boolean;
+  priceReason: string;
+}
+
+export function createVariant(productId: string, input: VariantCreateInput): Promise<Product> {
+  return requestV1<Product>(`/products/${productId}/variants`, {
+    method: 'POST',
+    body: JSON.stringify({ ...input, sellingPrice: String(input.sellingPrice) }),
+  });
+}
+
+export function updateVariant(
+  variantId: string,
+  input: Partial<Pick<ProductVariant, 'name' | 'sku' | 'lowStockThreshold' | 'isDefault' | 'isActive'>>,
+): Promise<Product> {
+  return requestV1<Product>(`/variants/${variantId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getSellingPriceHistory(variantId: string): Promise<SellingPriceHistoryEntry[]> {
+  return requestV1<SellingPriceHistoryEntry[]>(`/variants/${variantId}/price-history`);
+}
+
+export function bulkChangeSellingPrices(
+  updates: Array<{ variantId: string; sellingPrice: number }>,
+  reason: string,
+): Promise<Product[]> {
+  return requestV1<Product[]>('/variants/selling-prices/bulk', {
+    method: 'POST',
+    body: JSON.stringify({
+      reason,
+      updates: updates.map((update) => ({
+        variantId: update.variantId,
+        sellingPrice: String(update.sellingPrice),
+      })),
+    }),
+  });
 }
 
 export async function getProductTags(): Promise<string[]> {
-  return request<string[]>('/products/tags');
+  const products = await getProducts({ limit: 100 });
+  return [...new Set(products.data.flatMap((product) => product.tags))].sort();
 }
 
-// ── Categories ───────────────────────────────────────────────────────────────────
-export async function getCategories(): Promise<Category[]> {
-  return request<Category[]>('/categories');
+export function getCategories(): Promise<Category[]> {
+  return requestV1<Category[]>('/categories');
 }
 
-export async function createCategory(category: Omit<Category, 'id'>): Promise<Category> {
-  return request<Category>('/categories', {
+export function getAdminCategories(): Promise<Category[]> {
+  return requestV1<Category[]>('/admin/categories');
+}
+
+export function createCategory(category: Omit<Category, 'id'>): Promise<Category> {
+  return requestV1<Category>('/categories', {
     method: 'POST',
     body: JSON.stringify(category),
   });
 }
 
-export async function updateCategory(id: string, data: Partial<Category>): Promise<Category> {
-  return request<Category>(`/categories/${id}`, {
-    method: 'PUT',
+export function updateCategory(id: string, data: Partial<Category>): Promise<Category> {
+  return requestV1<Category>(`/categories/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(data),
   });
 }
 
 export async function deleteCategory(id: string): Promise<void> {
-  await request(`/categories/${id}`, { method: 'DELETE' });
+  await updateCategory(id, { isActive: false });
 }
 
-// ── Orders ───────────────────────────────────────────────────────────────────────
-export async function getOrders(): Promise<Order[]> {
+export function setCategoryActive(id: string, isActive: boolean): Promise<Category> {
+  return updateCategory(id, { isActive });
+}
+
+// Temporary MongoDB order API. Guest POST remains public until the order vertical replaces it.
+export function getOrders(): Promise<Order[]> {
   return request<Order[]>('/orders');
 }
 
-export async function getMyOrders(): Promise<Order[]> {
+export function getMyOrders(): Promise<Order[]> {
   return request<Order[]>('/orders/my');
 }
 
-export async function createOrder(order: Omit<Order, 'id' | 'createdAt'>): Promise<Order> {
-  return request<Order>('/orders', {
-    method: 'POST',
-    body: JSON.stringify(order),
-  });
+export function createOrder(order: Omit<Order, 'id' | 'createdAt'>): Promise<Order> {
+  return request<Order>('/orders', { method: 'POST', body: JSON.stringify(order) });
 }
 
-export async function updateOrderStatus(id: string, status: Order['status']): Promise<Order> {
+export function updateOrderStatus(id: string, status: Order['status']): Promise<Order> {
   return request<Order>(`/orders/${id}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
+    method: 'PATCH', body: JSON.stringify({ status }),
   });
 }
 
-export async function updateOrderPayment(
+export function updateOrderPayment(
   id: string,
-  data: { paymentStatus?: string; paymentReference?: string }
+  data: { paymentStatus?: string; paymentReference?: string },
 ): Promise<Order> {
   return request<Order>(`/orders/${id}/payment`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
+    method: 'PATCH', body: JSON.stringify(data),
   });
 }
 
-export async function updateOrderDelivery(
+export function updateOrderDelivery(
   id: string,
-  data: { deliveryTeam?: string; deliveryRider?: string; deliveryNotes?: string }
+  data: { deliveryTeam?: string; deliveryRider?: string; deliveryNotes?: string },
 ): Promise<Order> {
   return request<Order>(`/orders/${id}/delivery`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
+    method: 'PATCH', body: JSON.stringify(data),
   });
 }
 
-// ── Image Upload ─────────────────────────────────────────────────────────────────
-export async function uploadImage(file: File): Promise<string> {
-  const form = new FormData();
-  form.append('image', file);
-  const res = await fetch(`${BASE}/upload`, {
-    method: 'POST',
-    body: form,
-    headers: authHeaders(),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? 'Image upload failed');
-  }
-  const data = await res.json();
-  return data.url as string;
-}
-
+// Temporary Cloudinary upload route, now protected by Supabase OWNER/ADMIN middleware.
 export async function uploadImages(files: File[]): Promise<string[]> {
   const form = new FormData();
-  files.forEach((f) => form.append('images', f));
-  const res = await fetch(`${BASE}/upload/multiple`, {
+  files.forEach((file) => form.append('images', file));
+  const response = await fetch(`${BASE}/upload/multiple`, {
     method: 'POST',
     body: form,
-    headers: authHeaders(),
+    headers: await authorizationHeaders(),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? 'Image upload failed');
-  }
-  const data = await res.json();
-  return data.urls as string[];
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error ?? 'Image upload failed');
+  return body.urls as string[];
 }

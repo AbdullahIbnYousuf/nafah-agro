@@ -1,147 +1,81 @@
-# Nafah Agro V1 Project Status
+# Nafah Agro Project Status
 
-## Current status
+Last updated: 2026-08-01
 
-```text
-Date: July 30, 2026
-Stage: Milestone 1 foundation
-Overall status: READY_FOR_EXTERNAL_VERIFICATION — credentials and deployment pending
-```
+## Summary
 
-All four planning documents exist. Milestones 2–5 (products, FIFO inventory,
-orders, and analytics) remain untouched.
+Milestones 1 and 2 are complete in code. Deployment and real
+Supabase/PostgreSQL/Cloudinary integration remain unverified because external
+credentials were not used. Milestone 3 has not started.
 
-## Milestone 1 completed locally
+## Completed
 
-- Created local annotated baseline tag `pre-nafah-agro-v1-rebuild` at commit
-  `8a7e9ae`; the tag was new and was not pushed.
-- Standardized on npm, retained only `package-lock.json`, removed both unused
-  Bun lockfiles, and recorded Node `22.22.3` in `.nvmrc`.
-- Fixed the baseline 16 lint errors and 11 warnings without changing business
-  behavior.
-- Replaced active English/Bangla legacy branding, metadata, cart storage key,
-  coupon name, map query, documentation examples, MongoDB example name, and
-  Cloudinary folder with Nafah Agro equivalents. A repository-wide legacy-name
-  search is clean.
-- Added strict Zod environment parsing for frontend and backend configuration.
-  Removed custom-JWT and admin-code fallback secrets.
-- Added Helmet, an exact-origin CORS allowlist, configurable JSON size limit,
-  request IDs, structured logging, and safe production errors.
-- Added a minimal Prisma 7 PostgreSQL schema, SQL migration with RLS enabled,
-  migration seed, and Supabase-compatible pooled/direct connection workflow.
-- Added Supabase JWKS access-token verification middleware.
-- Added token-to-profile resolution, active/inactive enforcement,
-  `requireAuthenticated`, `requireOwner`, and `requireAdminOrOwner`.
-- Added a one-time initial-owner command with duplicate-owner/profile guards and
-  no public owner-registration endpoint.
-- Added per-IP rate limits to legacy authentication routes and all protected
-  foundation proof routes.
-- Added `GET /api/v1/health` plus authenticated, admin-or-owner, and owner-only
-  foundation proof routes.
-- Added a root default-exported Express `server.ts` for Vercel compatibility.
-- Added meaningful environment, health, security-header, token rejection, and
-  protected-read tests.
-- Updated `.env.example`, `README.md`, `API.md`, and this status.
+- Planning documents exist and define the practical V1.
+- npm/Node foundation, Vercel-compatible Express entry, security headers, CORS,
+  request limits, safe errors, rate limiting, environment validation, Prisma,
+  Supabase token verification, profiles, and owner creation are present.
+- Roles are only `OWNER`, `ADMIN`, and `CUSTOMER`, with active/inactive profiles.
+- Browser login, logout, registration, session restoration, and protected routes
+  use Supabase Auth.
+- Public admin setup, unlock-code workflow, moderators, custom JWT creation and
+  verification, and MongoDB user authentication have been removed.
+- Customer sign-up can create only a `CUSTOMER` profile via a database trigger;
+  owner creation remains a controlled CLI workflow.
+- PostgreSQL models/migration exist for categories, products, product variants,
+  variant stock totals, and immutable selling-price history.
+- Catalog APIs use Zod, Prisma transactions, Supabase profile authorization, and
+  public storefront reads.
+- Admin catalog UI supports variant creation/editing/activation, global unique
+  SKUs, default variants, price-history inspection, and atomic single/bulk price
+  changes.
+- Every product is transactionally created with one active default variant,
+  including products without customer-visible options.
+- Duplicate slugs/SKUs return safe conflicts; public reads hide inactive
+  categories, products, and variants.
+- Registration requires phone metadata. Missing trigger-created CUSTOMER
+  profiles can be safely recovered for the verified token subject; trigger
+  failures return a clear retry message and cannot create privileged profiles.
+- The existing storefront now calls the PostgreSQL `/api/v1` catalog.
+- Old MongoDB product/category routes and models are removed.
+- Guest checkout remains available through the temporary MongoDB order endpoint.
 
-Existing MongoDB/Mongoose feature routes remain in place until their individual
-PostgreSQL replacements are built. The new `/api/v1` foundation does not use
-the legacy custom JWT.
+## Verification on 2026-08-01
 
-## Verification
+- `npm run typecheck`: passed.
+- `npm run lint`: passed with no errors or warnings.
+- `npm test -- --run`: 42 tests passed across five files.
+- `npm run build`: passed; Vite reported a non-blocking 706.40 kB JavaScript
+  chunk and stale Browserslist-data warnings.
+- `npm run build:server`: passed.
+- `npm run prisma:validate`: passed.
+- `npm run prisma:generate`: passed when run sequentially (do not run two Prisma
+  generators concurrently against the same output directory).
+- Prisma migration was generated/validated locally but not applied to Supabase.
+- Cloudinary and Vercel deployment were not tested.
 
-### Baseline before changes
+## Temporary legacy surface
 
-| Check | Result |
-|---|---|
-| Frontend TypeScript | PASS |
-| Backend TypeScript | PASS |
-| Lint | FAIL — 16 errors, 11 warnings |
-| Tests | PASS — one placeholder only |
-| Frontend production build | PASS |
-| Backend production build | PASS |
+- `MONGO_URI`, Mongoose, and MongoDB models remain for guest/order management.
+- `/api/orders` is temporary; guest creation is public and management uses
+  Supabase OWNER/ADMIN authorization.
+- Cloudinary upload is still an unversioned route, now Supabase-protected.
 
-### Current local result
+Custom JWT/password dependencies, the Mongo `User` model, moderator pages, and
+legacy auth routes are removed.
 
-| Check | Result |
-|---|---|
-| `npm run typecheck:frontend` | PASS |
-| `npm run typecheck:backend` | PASS |
-| `npm run lint` | PASS — 0 errors, 0 warnings |
-| `npm test` | PASS — 19 tests in 3 files |
-| `npm run build` | PASS; existing 500 kB chunk and stale Browserslist-data warnings |
-| `npm run build:server` | PASS |
-| `npm run prisma:generate` | PASS |
-| `npm run prisma:validate` | PASS |
-| `npm audit --omit=dev` | FAIL — 6 advisories remain (4 high, 2 moderate) after compatible fixes |
-| `npm audit` | FAIL — 17 total advisories remain (14 high, 3 moderate); available complete fixes require breaking upgrades |
+## Milestone 2 external acceptance remaining
 
-Supertest needs permission to open an ephemeral localhost listener. Its first
-sandboxed run failed with `listen EPERM`; the identical test command passed
-outside that restriction. This is an execution-environment limitation, not an
-endpoint failure.
+- Apply the new migration to a real Supabase project and test the signup trigger.
+- Exercise category/product/variant/single and bulk price updates with real OWNER
+  and ADMIN accounts; verify CUSTOMER denial with a real token.
+- Test email-confirmation-on and email-confirmation-off registration, including
+  phone metadata and the resulting active CUSTOMER profile.
+- Verify image upload and product images with real Cloudinary credentials.
+- Run browser-level storefront checks against seeded PostgreSQL data.
 
-## Proof endpoint
+## Why `MONGO_URI` cannot be removed yet
 
-`GET /api/v1/foundation`:
-
-1. passes through the shared Express security and rate-limit middleware;
-2. requires `Authorization: Bearer <Supabase access token>`;
-3. verifies Supabase JWKS signature, issuer, audience, expiry, and subject;
-4. resolves the token subject to an active PostgreSQL profile;
-5. queries `foundation_records.key = "milestone-1"` through Prisma; and
-6. returns the authenticated user/profile and seeded record.
-
-`/api/v1/foundation/admin` additionally requires `ADMIN` or `OWNER`, while
-`/api/v1/foundation/owner` requires `OWNER`. Tests cover missing and inactive
-profiles, customer denial, admin access, owner-only access, and rate limiting.
-No claim is made that live Supabase or Vercel connectivity works yet.
-
-## External verification and decisions still required
-
-- The current local `.env` fails the new minimum lengths for `JWT_SECRET` and
-  `ADMIN_UNLOCK_CODE`. Replace them locally with new random values; do not send
-  them in chat or commit them.
-- Provide/own a Supabase development project and configure backend
-  `DATABASE_URL`, `DIRECT_URL`, and `SUPABASE_URL`, plus frontend-public
-  `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-- Apply the migration and seed to Supabase, create a test user, then verify a
-  real access token against the deployed endpoint.
-- Configure separate Vercel frontend/API projects and their environment
-  variables. The entry shape is ready, but deployment is not verified.
-- Provide Cloudinary credentials to verify upload/delete behavior. Cloudinary
-  is not required for the foundation endpoint.
-- Confirm the initial owner identity, create the Supabase Auth user, and run the
-  controlled `npm run owner:create -- ... --confirm` command.
-- The remaining audit advisories are accepted development-stage risks. The
-  production-tree paths involve React Router and the
-  `tailwindcss-animate → tailwindcss → sucrase/glob/minimatch/brace-expansion`
-  build chain. Full development results also include Vite/esbuild and
-  ESLint/minimatch. Do not force breaking upgrades merely to clear the audit.
-
-Production builds pass locally, but Supabase PostgreSQL/Auth, Cloudinary, and
-both Vercel deployments remain `NOT_VERIFIED`.
-
-## Next work
-
-Complete the external Milestone 1 proof:
-
-1. rotate the weak local legacy secrets;
-2. provision Supabase, migrate/seed, and exercise a real token;
-3. create the initial owner with the controlled CLI;
-4. deploy the API and frontend proof projects on Vercel;
-5. verify Cloudinary; and
-6. rerun checks and record real-token responses and deployment URLs.
-
-Do not start product, inventory, order, or analytics implementation until the
-external proof passes.
-
-## Git delivery
-
-The original annotated tag must remain at `8a7e9ae`. The focused Milestone 1
-commit and `pre-nafah-agro-v1-rebuild` tag must be pushed manually when GitHub
-credentials are unavailable:
-
-```bash
-git push origin main
-git push origin pre-nafah-agro-v1-rebuild
-```
+Guest checkout, customer order history, admin order management, the Mongoose
+`Order` model, and local Mongo connection middleware still depend on MongoDB.
+It can be removed only after the PostgreSQL guest/manual order vertical replaces
+every `/api/orders` consumer.

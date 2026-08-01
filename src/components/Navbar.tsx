@@ -6,21 +6,20 @@ import { useState } from 'react';
 import logo from '@/assets/logo.avif';
 
 const roleBadge: Record<string, { label: string; className: string }> = {
-  admin: { label: 'অ্যাডমিন', className: 'bg-red-500/20 text-red-300' },
-  moderator: { label: 'মডারেটর', className: 'bg-yellow-500/20 text-yellow-300' },
-  customer: { label: 'কাস্টমার', className: 'bg-green-500/20 text-green-300' },
+  OWNER: { label: 'ওনার', className: 'bg-amber-500/20 text-amber-200' },
+  ADMIN: { label: 'অ্যাডমিন', className: 'bg-red-500/20 text-red-300' },
+  CUSTOMER: { label: 'কাস্টমার', className: 'bg-green-500/20 text-green-300' },
 };
 
 const Navbar = () => {
   const { totalItems } = useCart();
-  const { user, isAuthenticated, logout, isAdmin, isModerator } = useAuth();
+  const { user, isAuthenticated, logout, isAdminOrOwner } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [
     { to: '/', label: 'হোম' },
     { to: '/shop', label: 'দোকান' },
-    ...(isAdmin ? [{ to: '/admin', label: 'অ্যাডমিন প্যানেল' }] : []),
-    ...(isModerator ? [{ to: '/moderator', label: 'মডারেটর প্যানেল' }] : []),
+    ...(isAdminOrOwner ? [{ to: '/admin', label: 'অ্যাডমিন প্যানেল' }] : []),
     ...(isAuthenticated ? [{ to: '/profile', label: 'প্রোফাইল' }] : []),
   ];
 
@@ -58,7 +57,7 @@ const Navbar = () => {
                 </span>
               </Link>
               <button
-                onClick={logout}
+                onClick={() => void logout()}
                 className="hover:text-accent transition-colors"
                 title="লগআউট"
               >
@@ -116,7 +115,7 @@ const Navbar = () => {
                 </span>
               </Link>
               <button
-                onClick={() => { logout(); setMobileOpen(false); }}
+                onClick={() => { void logout(); setMobileOpen(false); }}
                 className="flex items-center gap-2 py-2 hover:text-accent transition-colors font-medium"
               >
                 <LogOut size={16} />

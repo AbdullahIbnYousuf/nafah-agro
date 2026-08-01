@@ -63,7 +63,7 @@ const CustomerProfile = () => {
               <h1 className="text-2xl font-bold">{user?.name}</h1>
               <p className="text-muted-foreground">{user?.email}</p>
               <Badge className="mt-1">
-                {user?.role === 'admin' ? 'অ্যাডমিন' : user?.role === 'moderator' ? 'মডারেটর' : 'কাস্টমার'}
+                {user?.role === 'OWNER' ? 'ওনার' : user?.role === 'ADMIN' ? 'অ্যাডমিন' : 'কাস্টমার'}
               </Badge>
             </div>
           </div>

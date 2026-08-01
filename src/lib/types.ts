@@ -2,6 +2,34 @@ export interface Category {
   id: string;
   name: string;
   slug: string;
+  isActive?: boolean;
+}
+
+export type Role = 'OWNER' | 'ADMIN' | 'CUSTOMER';
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  sku: string;
+  sellingPrice: number;
+  availableStock: number;
+  reservedStock: number;
+  lowStockThreshold: number;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+export interface SellingPriceHistoryEntry {
+  id: string;
+  previousPrice: number | null;
+  newPrice: number;
+  reason: string;
+  changedByProfileId: string;
+  changedBy: {
+    fullName: string;
+    role: Role;
+  };
+  effectiveAt: string;
 }
 
 export interface AttributeOption {
@@ -28,6 +56,11 @@ export interface Product {
   stock: number;
   featured: boolean;
   tags: string[];
+  isActive?: boolean;
+  variants?: ProductVariant[];
+  defaultVariantId?: string;
+  sku?: string;
+  variantName?: string;
 }
 
 export interface ProductsPage {
@@ -65,7 +98,7 @@ export interface Order {
   placedBy?: {
     userId: string;
     userName: string;
-    userRole: 'admin' | 'moderator' | 'customer';
+    userRole: Role;
   };
   deliveryTeam?: string;
   deliveryRider?: string;
@@ -75,22 +108,8 @@ export interface Order {
 export interface User {
   id: string;
   name: string;
-  email: string;
-  role: 'admin' | 'moderator' | 'customer';
-}
-
-export interface Moderator {
-  id: string;
-  name: string;
-  email: string;
-  role: 'moderator';
+  email: string | null;
+  phoneNumber: string | null;
+  role: Role;
   isActive: boolean;
-  passwordResetRequested: boolean;
-  createdBy?: string;
-  createdAt: string;
-}
-
-export interface AuthResponse {
-  token: string;
-  user: User;
 }

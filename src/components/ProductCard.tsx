@@ -36,12 +36,6 @@ const ProductCard = ({ product }: Props) => {
             ))}
           </div>
         )}
-        {product.stock <= 5 && product.stock > 0 && (
-          <p className="text-xs text-destructive mt-1">স্টক সীমিত!</p>
-        )}
-        {product.stock === 0 && (
-          <p className="text-xs text-destructive mt-1">স্টক শেষ</p>
-        )}
       </div>
     </Link>
   );

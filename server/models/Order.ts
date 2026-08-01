@@ -22,10 +22,10 @@ export interface IOrder extends Document {
   customerPhone: string;
   customerAddress: string;
   source: 'online' | 'phone' | 'offline';
-  placedBy: {
+  placedBy?: {
     userId: string;
     userName: string;
-    userRole: 'admin' | 'moderator' | 'customer';
+    userRole: 'OWNER' | 'ADMIN' | 'CUSTOMER';
   };
   deliveryTeam: string;
   deliveryRider: string;
@@ -76,12 +76,12 @@ const OrderSchema = new Schema<IOrder>(
       default: 'online',
     },
     placedBy: {
-      userId: { type: String, required: true },
-      userName: { type: String, required: true },
+      userId: { type: String, required: false },
+      userName: { type: String, required: false },
       userRole: {
         type: String,
-        enum: ['admin', 'moderator', 'customer'],
-        required: true,
+        enum: ['OWNER', 'ADMIN', 'CUSTOMER'],
+        required: false,
       },
     },
     deliveryTeam: { type: String, default: '' },

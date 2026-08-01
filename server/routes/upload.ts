@@ -2,7 +2,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import streamifier from 'streamifier';
-import { authenticate, authorize } from '../middleware/auth.js';
 import { getBackendEnv } from '../env.js';
 
 const router = Router();
@@ -37,7 +36,7 @@ function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
 }
 
 // POST /api/upload  — single image upload
-router.post('/', authenticate, authorize('admin', 'moderator'), upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
     const url = await uploadToCloudinary(req.file.buffer, 'nafah-agro');
@@ -48,7 +47,7 @@ router.post('/', authenticate, authorize('admin', 'moderator'), upload.single('i
 });
 
 // POST /api/upload/multiple  — up to 10 images
-router.post('/multiple', authenticate, authorize('admin', 'moderator'), upload.array('images', 10), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/multiple', upload.array('images', 10), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) return res.status(400).json({ error: 'No files provided' });
