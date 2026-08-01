@@ -11,7 +11,6 @@ import type { UnifiedOrderService } from "./services/orders.js";
 
 const baseEnvironment = {
   NODE_ENV: "test",
-  FRONTEND_URL: "http://localhost:8080",
 };
 
 function createTestEnv(configureFoundation = false) {
@@ -73,6 +72,50 @@ describe("GET /api/v1/health", () => {
     expect(response.status).toBe(503);
     expect(response.body.error.code).toBe("DATABASE_UNAVAILABLE");
     expect(JSON.stringify(response.body)).not.toContain("credential leak");
+  });
+});
+
+describe("single-project deployment behavior", () => {
+  it("allows the checked-in Vite origins during local development", async () => {
+    const response = await request(createApp({ env: createTestEnv() }))
+      .get("/api/v1/health")
+      .set("Origin", "http://localhost:8080");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBe(
+      "http://localhost:8080",
+    );
+  });
+
+  it("rejects unknown cross-origin requests during local development", async () => {
+    const response = await request(createApp({ env: createTestEnv() }))
+      .get("/api/v1/health")
+      .set("Origin", "https://untrusted.example");
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe("CORS_ORIGIN_DENIED");
+    expect(response.body.error.message).toBe("Origin is not allowed by CORS");
+  });
+
+  it("does not enable cross-origin access in same-origin production", async () => {
+    const response = await request(
+      createApp({ env: parseBackendEnv({ NODE_ENV: "production" }) }),
+    )
+      .get("/api/v1/health")
+      .set("Origin", "https://untrusted.example");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("returns a JSON API 404 instead of falling through to the SPA", async () => {
+    const response = await request(createApp({ env: createTestEnv() })).get(
+      "/api/v1/not-a-route",
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.type).toMatch(/json/);
+    expect(response.body.error.code).toBe("API_NOT_FOUND");
   });
 });
 

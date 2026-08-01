@@ -13,7 +13,7 @@ V1 is not a full ERP or accounting platform. It must be reliable, simple to oper
 - Database: PostgreSQL with Prisma, hosted by Supabase
 - Authentication: Supabase Auth
 - Images: Cloudinary
-- Hosting: Vercel frontend, separate Vercel Express API, Supabase database/auth, and Cloudinary images
+- Hosting: one Vercel project for the Vite frontend and Express API, Supabase database/auth, and Cloudinary images
 - Repository layout: keep `src/`, `server/`, `prisma/`, and `docs/`; do not introduce a monorepo
 
 There is no real database data to preserve. MongoDB, Mongoose, custom JWT authentication, and weak backend routes may be replaced freely. No legacy-data migration, dual-write, user migration, or production cutover system is required.

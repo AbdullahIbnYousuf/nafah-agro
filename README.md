@@ -49,28 +49,43 @@ In a second terminal:
 npm run server
 ```
 
-The API defaults to port `4000`. `VITE_API_URL=/api` works with the checked-in
-Vite/Vercel routing; set a full API URL when running the two processes without a
-proxy.
+The API defaults to port `4000`. Vite proxies same-origin `/api` requests to that
+port, so no frontend API URL is required. `VITE_API_URL` is an optional local-only
+override for intentionally bypassing the proxy.
 
 ## Environment variables
 
 | Variable | Exposure | Purpose |
 | --- | --- | --- |
-| `FRONTEND_URL` | backend | Exact allowed CORS origin |
 | `DATABASE_URL` | backend | Pooled Supabase PostgreSQL runtime URL |
 | `DIRECT_URL` | CLI only | Direct/session URL for migrations and seeds |
 | `SUPABASE_URL` | backend | Supabase issuer and JWKS base URL |
 | `SUPABASE_JWT_AUDIENCE` | backend | Usually `authenticated` |
 | `VITE_SUPABASE_URL` | public frontend | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | public frontend | Publishable/anon key; never service-role |
-| `VITE_API_URL` | public frontend | API base, normally `/api` |
+| `VITE_API_URL` | optional public frontend | Local override; defaults to same-origin `/api` and should be unset on Vercel |
 | `CLOUDINARY_CLOUD_NAME` | backend | Optional image-service setting |
 | `CLOUDINARY_API_KEY` | backend | Optional image-service credential |
 | `CLOUDINARY_API_SECRET` | backend | Optional secret; never expose through Vite |
 | `PROTECTED_RATE_LIMIT_MAX` | backend | Protected requests per IP/window |
 | `RATE_LIMIT_WINDOW_MS` | backend | Rate-limit window |
 | `JSON_BODY_LIMIT` | backend | JSON request-size limit |
+
+`NODE_ENV=production` and `JSON_BODY_LIMIT=100kb` are the intended Vercel
+runtime values. Production does not use cross-origin requests, so neither
+`FRONTEND_URL` nor `CLIENT_URL` is accepted or required.
+
+## Single-project Vercel target
+
+The repository deploys as one Vercel project: Vite serves `/`, the shared
+Express app is exported by `api/[...path].ts`, and every application API route
+is under `/api/v1`. `vercel.json` excludes `/api` from the React Router fallback,
+so unknown API requests stay JSON 404 responses.
+
+Use Vite preset, repository root, Node.js 22.x, `npm ci`, `npm run build`, and
+`dist`. Do not set `VITE_API_URL` or a backend URL. See
+[deployment_guide.md](deployment_guide.md) for the exact dashboard values and
+smoke checks.
 
 ## Supabase setup
 

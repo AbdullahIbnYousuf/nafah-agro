@@ -5,7 +5,6 @@ import { parseBackendEnv } from "./env.js";
 
 const validEnvironment = {
   NODE_ENV: "test",
-  FRONTEND_URL: "http://localhost:8080",
 };
 
 describe("backend environment validation", () => {
@@ -13,8 +12,15 @@ describe("backend environment validation", () => {
     const env = parseBackendEnv(validEnvironment);
 
     expect(env.PORT).toBe(4000);
-    expect(env.FRONTEND_URL).toBe("http://localhost:8080");
     expect(env.FOUNDATION_CONFIGURED).toBe(false);
+  });
+
+  it("does not require a frontend URL for same-origin production", () => {
+    const env = parseBackendEnv({ NODE_ENV: "production" });
+
+    expect(env.NODE_ENV).toBe("production");
+    expect(env).not.toHaveProperty("FRONTEND_URL");
+    expect(env).not.toHaveProperty("CLIENT_URL");
   });
 
   it("does not expose retired custom authentication variables", () => {

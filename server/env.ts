@@ -23,8 +23,6 @@ export const backendEnvSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-    FRONTEND_URL: optionalUrl,
-    CLIENT_URL: optionalUrl,
     JSON_BODY_LIMIT: z.string().regex(/^\d+(kb|mb)$/i).default("100kb"),
     RATE_LIMIT_WINDOW_MS: z.coerce
       .number()
@@ -47,14 +45,6 @@ export const backendEnvSchema = z
     SUPABASE_JWT_AUDIENCE: z.string().trim().default("authenticated"),
   })
   .superRefine((env, ctx) => {
-    if (!env.FRONTEND_URL && !env.CLIENT_URL) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["FRONTEND_URL"],
-        message: "FRONTEND_URL is required (CLIENT_URL is accepted temporarily)",
-      });
-    }
-
     const cloudinaryValues = [
       env.CLOUDINARY_CLOUD_NAME,
       env.CLOUDINARY_API_KEY,
@@ -81,7 +71,6 @@ export const backendEnvSchema = z
   })
   .transform((env) => ({
     ...env,
-    FRONTEND_URL: env.FRONTEND_URL ?? env.CLIENT_URL!,
     FOUNDATION_CONFIGURED: Boolean(env.DATABASE_URL && env.SUPABASE_URL),
   }));
 

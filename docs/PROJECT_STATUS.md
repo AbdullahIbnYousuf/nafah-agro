@@ -7,7 +7,8 @@ Last updated: 2026-08-01
 Milestones 1–4 are complete in local code. Milestone 4 replaces every remaining
 MongoDB order flow with one PostgreSQL order system while preserving Milestone 3
 physical-shop behavior. No external migration, real Supabase/Cloudinary test,
-deployment, analytics dashboard, or commit was performed.
+deployment, or analytics dashboard was performed. The current single-project
+Vercel preparation remains uncommitted for review.
 
 ## Completed in code
 
@@ -36,16 +37,26 @@ deployment, analytics dashboard, or commit was performed.
   use `/api/v1`. Fake coupons and online/card/mobile-payment choices are removed.
 - Mongo startup, Mongoose dependency/model, `/api/orders`, Mongo utility, and
   `MONGO_URI` have been removed.
+- A single-project Vercel layout is prepared: Vite outputs `dist`,
+  `api/[...path].ts` exports the shared Express app, production uses same-origin
+  `/api`, and non-API deep links have an `index.html` fallback. API paths are
+  excluded from that fallback and return JSON 404s.
+- Every active Express application route is under `/api/v1`; the Cloudinary
+  upload route was versioned and the duplicate legacy health route was removed.
+- `FRONTEND_URL`/`CLIENT_URL` are removed. Production adds no cross-origin
+  access; local Vite development retains a fixed localhost allowlist and proxy.
 
 ## Local verification on 2026-08-01
 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 77 tests passed across seven files, including 18 focused
-  unified-order service tests, 10 existing inventory/physical-sale tests, and
-  route role/guest tests.
+- `npm test -- --run`: 90 tests passed across nine files, including focused
+  Vercel routing, same-origin/local CORS, health, API 404, unified-order,
+  inventory, authorization, and return-dialog coverage.
 - `npm run build`: passed with non-blocking bundle-size and stale Browserslist
-  data warnings (727.52 kB main JavaScript chunk).
+  data warnings (747.61 kB main JavaScript chunk).
+- Built Vite preview smoke test: `/`, `/admin`, `/shop`, and
+  `/products/demo-slug` each returned `200 text/html`.
 - `npm run build:server`, `npm run prisma:validate`, `npm run prisma:generate`,
   and `git diff --check`: passed.
 - Migration `202608010002_milestone_4_unified_orders` is checked in but has not
@@ -59,8 +70,9 @@ deployment, analytics dashboard, or commit was performed.
   reservation, delivery, cancellation/failure, and both return conditions in a
   browser against real PostgreSQL.
 - Run a real concurrent final-stock confirmation test.
-- Verify registration/profile trigger, Cloudinary upload, Vercel-compatible API,
-  CORS, and production environment variables.
+- Verify registration/profile trigger, Cloudinary upload, the generated Vercel
+  Function, same-origin behavior, SPA deep links, and production variables in a
+  real Preview deployment.
 - Obtain client-approved delivery charges. Cloudinary and Vercel remain untested.
 
 ## Not started

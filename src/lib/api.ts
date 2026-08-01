@@ -385,11 +385,11 @@ export function transitionOrder(
   });
 }
 
-// Temporary Cloudinary upload route, now protected by Supabase OWNER/ADMIN middleware.
+// Cloudinary upload route protected by Supabase OWNER/ADMIN middleware.
 export async function uploadImages(files: File[]): Promise<string[]> {
   const form = new FormData();
   files.forEach((file) => form.append('images', file));
-  const response = await fetch(`${BASE}/upload/multiple`, {
+  const response = await fetch(`${BASE}/v1/upload/multiple`, {
     method: 'POST',
     body: form,
     headers: await authorizationHeaders(),

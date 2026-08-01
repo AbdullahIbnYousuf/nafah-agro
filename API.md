@@ -105,6 +105,8 @@ List filters: `source`, `status`, ISO `dateFrom`, ISO `dateTo`, `orderNumber`,
 
 ## Image upload
 
-`POST /api/upload` and `/api/upload/multiple` remain unversioned but require an
-active OWNER/ADMIN Supabase profile. They upload to Cloudinary; they do not use
-MongoDB.
+`POST /api/v1/upload` and `/api/v1/upload/multiple` require an active
+OWNER/ADMIN Supabase profile. They upload to Cloudinary.
+
+Unknown `/api/*` requests return a JSON `API_NOT_FOUND` response. Vercel never
+rewrites them to the frontend SPA.

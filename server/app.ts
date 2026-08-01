@@ -126,7 +126,11 @@ export function createApp(dependencies: AppDependencies) {
   const inventoryService = dependencies.inventoryService ?? getDefaults().inventoryService;
   const orderService = dependencies.orderService ?? getDefaults().orderService;
   const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
-  const allowedOrigins = new Set([dependencies.env.FRONTEND_URL]);
+  const localDevelopmentOrigins = new Set([
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://[::1]:8080",
+  ]);
   const protectedRouteLimiter = rateLimit({
     windowMs: dependencies.env.RATE_LIMIT_WINDOW_MS,
     limit: dependencies.env.PROTECTED_RATE_LIMIT_MAX,
@@ -180,23 +184,25 @@ export function createApp(dependencies: AppDependencies) {
     next();
   });
   app.use(helmet());
-  app.use(
-    cors({
-      origin(origin, callback) {
-        if (!origin || allowedOrigins.has(origin)) {
-          callback(null, true);
-          return;
-        }
-        const error: HttpError = new Error("Origin is not allowed by CORS");
-        error.status = 403;
-        error.code = "CORS_ORIGIN_DENIED";
-        callback(error);
-      },
-      credentials: true,
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
-    }),
-  );
+  if (dependencies.env.NODE_ENV !== "production") {
+    app.use(
+      cors({
+        origin(origin, callback) {
+          if (!origin || localDevelopmentOrigins.has(origin)) {
+            callback(null, true);
+            return;
+          }
+          const error: HttpError = new Error("Origin is not allowed by CORS");
+          error.status = 403;
+          error.code = "CORS_ORIGIN_DENIED";
+          callback(error);
+        },
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+      }),
+    );
+  }
   app.use(express.json({ limit: dependencies.env.JSON_BODY_LIMIT }));
 
   app.get("/api/v1/health", async (_req, res, next) => {
@@ -427,8 +433,18 @@ export function createApp(dependencies: AppDependencies) {
     });
   }
 
-  app.use("/api/upload", protectedRouteLimiter, authenticate, requireAdminOrOwner, uploadRoutes);
-  app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.use("/api/v1/upload", protectedRouteLimiter, authenticate, requireAdminOrOwner, uploadRoutes);
+
+  app.use("/api", (_req, res) => {
+    res.status(404).json({
+      success: false,
+      error: {
+        code: "API_NOT_FOUND",
+        message: "The requested API endpoint does not exist.",
+        details: {},
+      },
+    });
+  });
 
   app.use(
     (error: unknown, req: Request, res: Response, _next: NextFunction) => {

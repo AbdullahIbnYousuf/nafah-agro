@@ -72,5 +72,5 @@ Status: cross-feature work exists; final gate not started.
 
 - Complete authorization/abuse, FIFO invariant, order lifecycle, accessibility,
   responsive, performance, logging/recovery, and production smoke checks.
-- Deploy frontend/backend to Vercel, PostgreSQL/Auth to Supabase, images to
+- Deploy the combined frontend/API Vercel project, PostgreSQL/Auth to Supabase, images to
   Cloudinary; verify CORS/domains and rollback notes.

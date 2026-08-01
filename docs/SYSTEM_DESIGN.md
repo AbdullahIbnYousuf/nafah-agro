@@ -448,7 +448,7 @@ Every transition is enforced by the backend and recorded in `audit_logs` with pr
 
 ## 9. API shape
 
-New routes use `/api/v1`. During frontend migration, old routes may temporarily forward to the new handlers; business logic must not be duplicated.
+Application routes use `/api/v1`; business logic is not duplicated in the Vercel entry point.
 
 ```text
 /api/v1/health
@@ -464,7 +464,7 @@ New routes use `/api/v1`. During frontend migration, old routes may temporarily 
 /api/v1/delivery-rates
 /api/v1/analytics
 /api/v1/audit-logs
-/api/v1/uploads
+/api/v1/upload
 ```
 
 Success:
@@ -515,8 +515,7 @@ Every milestone includes:
 Required environment variables:
 
 ```text
-# Frontend
-VITE_API_URL
+# Frontend (public)
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
 
@@ -524,17 +523,15 @@ VITE_SUPABASE_ANON_KEY
 DATABASE_URL
 DIRECT_URL
 SUPABASE_URL
-SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-SUPABASE_JWT_ISSUER
+SUPABASE_JWT_AUDIENCE
 CLOUDINARY_CLOUD_NAME
 CLOUDINARY_API_KEY
 CLOUDINARY_API_SECRET
-FRONTEND_URL
 NODE_ENV
+JSON_BODY_LIMIT
 ```
 
-The Express API must be exported through a Vercel-compatible serverless adapter rather than relying only on a permanent `app.listen()`. Prisma uses the Supabase pooled URL at runtime and the direct URL for migrations.
+The Express API is exported through `api/[...path].ts` instead of relying on a permanent `app.listen()`. The frontend uses same-origin `/api` in production. Prisma uses the Supabase pooled URL at runtime and the direct URL for migrations.
 
 ## 12. Analytics rules
 
@@ -582,11 +579,11 @@ End-to-end:
 
 ## 14. Deployment acceptance
 
-- Frontend and API deploy as separate Vercel projects
+- Frontend and API deploy as one Vercel project with `/api/*` isolated from the SPA fallback
 - Vercel serverless API proof of concept succeeds before feature expansion
 - Supabase pooled and direct connections are tested
 - Prisma migrations run through a controlled deployment step
-- Approved CORS origin and HTTPS are enforced
+- Same-origin production requests and HTTPS are enforced; a fixed local CORS allowlist supports Vite development
 - Cloudinary upload/delete is verified
 - Health check includes API and database readiness
 - Production smoke tests, backup responsibility, error monitoring, and rollback instructions are documented

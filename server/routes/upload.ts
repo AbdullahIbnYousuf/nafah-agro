@@ -35,7 +35,7 @@ function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
   });
 }
 
-// POST /api/upload  — single image upload
+// POST /api/v1/upload — single image upload
 router.post('/', upload.single('image'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
@@ -46,7 +46,7 @@ router.post('/', upload.single('image'), async (req: Request, res: Response, nex
   }
 });
 
-// POST /api/upload/multiple  — up to 10 images
+// POST /api/v1/upload/multiple — up to 10 images
 router.post('/multiple', upload.array('images', 10), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const files = req.files as Express.Multer.File[];
