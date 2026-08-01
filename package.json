@@ -22,6 +22,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx prisma/seed.ts",
+    "seed:demo": "tsx prisma/seed-demo.ts",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "owner:create": "tsx prisma/create-initial-owner.ts",

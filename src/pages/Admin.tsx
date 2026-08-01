@@ -77,10 +77,10 @@ function Dashboard() {
   return <div>
     <h1 className="text-2xl font-bold mb-6">ড্যাশবোর্ড</h1>
     <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
-      <Stat label="PostgreSQL পণ্য" value={summary.products} icon={Package} />
-      <Stat label="PostgreSQL ক্যাটাগরি" value={summary.categories} icon={Tag} />
+      <Stat label="পণ্য" value={summary.products} icon={Package} />
+      <Stat label="ক্যাটাগরি" value={summary.categories} icon={Tag} />
     </div>
-    <p className="mt-6 text-sm text-muted-foreground">ক্যাটালগ, ইনভেন্টরি ও সব অর্ডার PostgreSQL ব্যবহার করে।</p>
+    <p className="mt-6 text-sm text-muted-foreground">ক্যাটালগ, ইনভেন্টরি ও অর্ডার এক জায়গা থেকে পরিচালনা করুন।</p>
   </div>;
 }
 

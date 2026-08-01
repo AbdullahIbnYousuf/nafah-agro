@@ -71,6 +71,16 @@ export default function UnifiedOrderManager() {
   }, []);
 
   const variants = useMemo(() => products.flatMap(product => (product.variants ?? []).filter(variant => product.isActive !== false && variant.isActive).map(variant => ({ ...variant, productName: product.name }))), [products]);
+  const hasActiveFilters = Boolean(source || status || orderNumber || phoneFilter || dateFrom || dateTo);
+
+  function clearFilters() {
+    setSource('');
+    setStatus('');
+    setOrderNumber('');
+    setPhoneFilter('');
+    setDateFrom('');
+    setDateTo('');
+  }
 
   async function runAction(order: UnifiedOrder, action: 'CONFIRM' | 'PROCESS' | 'DELIVER' | 'CANCEL' | 'FAILED_DELIVERY') {
     try {
@@ -143,7 +153,16 @@ export default function UnifiedOrderManager() {
       <div className="space-y-2">{manualItems.map((item, index) => <div key={index} className="flex gap-2"><select className="flex-1 border rounded p-2 bg-background" value={item.productVariantId} onChange={event => setManualItems(current => current.map((value, itemIndex) => itemIndex === index ? { ...value, productVariantId: event.target.value } : value))}><option value="">পণ্য/ভ্যারিয়েন্ট</option>{variants.map(variant => <option key={variant.id} value={variant.id}>{variant.productName} — {variant.name} · {variant.sku} · স্টক {variant.availableStock}</option>)}</select><Input className="w-24" type="number" min="1" value={item.quantity} onChange={event => setManualItems(current => current.map((value, itemIndex) => itemIndex === index ? { ...value, quantity: Number(event.target.value) } : value))} /><Button variant="outline" onClick={() => setManualItems(current => current.filter((_, itemIndex) => itemIndex !== index))}>সরান</Button></div>)}</div>
       <div className="flex gap-2"><Button variant="outline" onClick={() => setManualItems(current => [...current, { productVariantId: '', quantity: 1 }])}>আরও আইটেম</Button><Button onClick={() => void saveManual()}>অর্ডার তৈরি করুন</Button></div>
     </section>}
-    <section className="grid md:grid-cols-4 xl:grid-cols-7 gap-2 mb-4"><select className="border rounded p-2 bg-background" value={source} onChange={event => setSource(event.target.value as OrderSource | '')}><option value="">সব উৎস</option>{sources.map(value => <option key={value}>{value}</option>)}</select><select className="border rounded p-2 bg-background" value={status} onChange={event => setStatus(event.target.value as OrderStatus | '')}><option value="">সব অবস্থা</option>{statuses.map(value => <option key={value}>{value}</option>)}</select><Input placeholder="অর্ডার নম্বর" value={orderNumber} onChange={event => setOrderNumber(event.target.value)} /><Input placeholder="ফোন" value={phoneFilter} onChange={event => setPhoneFilter(event.target.value)} /><Input aria-label="শুরুর তারিখ" type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /><Input aria-label="শেষ তারিখ" type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} /><Button variant="outline" onClick={() => void loadOrders()}><RefreshCw size={16} className="mr-2" />রিফ্রেশ</Button></section>
+    <section className="grid md:grid-cols-4 xl:grid-cols-8 gap-2 mb-4 items-end">
+      <select aria-label="অর্ডারের উৎস" className="h-10 border rounded px-3 bg-background" value={source} onChange={event => setSource(event.target.value as OrderSource | '')}><option value="">সব উৎস</option>{sources.map(value => <option key={value}>{value}</option>)}</select>
+      <select aria-label="অর্ডারের অবস্থা" className="h-10 border rounded px-3 bg-background" value={status} onChange={event => setStatus(event.target.value as OrderStatus | '')}><option value="">সব অবস্থা</option>{statuses.map(value => <option key={value}>{value}</option>)}</select>
+      <Input aria-label="অর্ডার নম্বর" placeholder="অর্ডার নম্বর" value={orderNumber} onChange={event => setOrderNumber(event.target.value)} />
+      <Input aria-label="গ্রাহকের ফোন" placeholder="ফোন" value={phoneFilter} onChange={event => setPhoneFilter(event.target.value)} />
+      <div><Label htmlFor="orders-date-from">তারিখ থেকে</Label><Input id="orders-date-from" type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /></div>
+      <div><Label htmlFor="orders-date-to">তারিখ পর্যন্ত</Label><Input id="orders-date-to" type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} /></div>
+      <Button variant="outline" onClick={clearFilters} disabled={!hasActiveFilters}>ফিল্টার মুছুন</Button>
+      <Button variant="outline" onClick={() => void loadOrders()}><RefreshCw size={16} className="mr-2" />রিফ্রেশ</Button>
+    </section>
     {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : <div className="space-y-3">{orders.map(order => <article key={order.id} className="bg-card border rounded-lg p-4"><div className="flex flex-wrap justify-between gap-3"><div><strong>{order.orderNumber}</strong><div className="text-sm">{order.source} · {order.status} · {order.customerName ?? 'গ্রাহক নেই'} · {order.customerPhone ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground">{new Date(order.placedAt).toLocaleString('bn-BD')}</div></div><div className="text-right"><div className="font-bold">মোট ৳{order.grandTotal}</div><div className="text-sm">ক্রয়মূল্য {order.totalBuyingCost === null ? '—' : `৳${order.totalBuyingCost}`} · লাভ {order.grossProfit === null ? '—' : `৳${order.grossProfit}`} · মার্জিন {order.grossProfitMargin === null ? '—' : `${order.grossProfitMargin}%`}</div></div></div>
         <div className="text-sm mt-3">{order.items.map(item => `${item.productName} (${item.variantName}) × ${item.quantity}`).join(', ')}</div>
         {order.statusReason && <div className="text-sm text-destructive mt-2">কারণ: {order.statusReason}</div>}
