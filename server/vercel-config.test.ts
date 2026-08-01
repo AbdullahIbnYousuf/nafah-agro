@@ -1,12 +1,11 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 interface VercelConfiguration {
-  framework?: string;
-  buildCommand?: string;
-  outputDirectory?: string;
+  builds?: unknown;
+  routes?: unknown;
   rewrites?: Array<{ source: string; destination: string }>;
 }
 
@@ -15,37 +14,51 @@ const config = JSON.parse(
 ) as VercelConfiguration;
 
 describe("single-project Vercel configuration", () => {
-  it("builds the Vite frontend and exposes the shared Express app from api/", () => {
-    expect(config.framework).toBe("vite");
-    expect(config.buildCommand).toBe("npm run build");
-    expect(config.outputDirectory).toBe("dist");
+  it("uses standard file detection for one shared Express Function", () => {
+    expect(config).not.toHaveProperty("builds");
+    expect(config).not.toHaveProperty("routes");
+    expect(config).not.toHaveProperty("framework");
+    expect(config).not.toHaveProperty("buildCommand");
+    expect(config).not.toHaveProperty("outputDirectory");
 
     const apiEntry = readFileSync(
-      new URL("../api/[...path].ts", import.meta.url),
+      new URL("../api/index.ts", import.meta.url),
       "utf8",
     );
     expect(apiEntry).toContain('import app from "../server.js"');
     expect(apiEntry).toContain("export default app");
+    expect(
+      existsSync(new URL("../api/[...path].ts", import.meta.url)),
+    ).toBe(false);
   });
 
-  it("rewrites React Router paths but excludes every API path", () => {
+  it("forwards health and unknown API paths to Express", () => {
+    const apiRewrite = config.rewrites?.find(
+      (rewrite) => rewrite.destination === "/api",
+    );
+    expect(apiRewrite).toEqual({
+      source: "/api/:path*",
+      destination: "/api",
+    });
+
     const spaRewrite = config.rewrites?.find(
       (rewrite) => rewrite.destination === "/index.html",
     );
     expect(spaRewrite).toBeDefined();
 
     const sourcePattern = new RegExp(`^${spaRewrite!.source}$`);
-    for (const frontendPath of [
-      "/",
-      "/shop",
-      "/admin",
-      "/products/raw-honey",
-      "/assets/index.js",
-    ]) {
-      expect(sourcePattern.test(frontendPath), frontendPath).toBe(true);
-    }
-    for (const apiPath of ["/api", "/api/v1/health", "/api/v1/missing"]) {
+    for (const apiPath of ["/api/v1/health", "/api/v1/missing"]) {
       expect(sourcePattern.test(apiPath), apiPath).toBe(false);
     }
+  });
+
+  it("returns the SPA for /admin without catching API paths", () => {
+    const spaRewrite = config.rewrites?.find(
+      (rewrite) => rewrite.destination === "/index.html",
+    );
+    const sourcePattern = new RegExp(`^${spaRewrite!.source}$`);
+
+    expect(sourcePattern.test("/admin")).toBe(true);
+    expect(sourcePattern.test("/api/v1/health")).toBe(false);
   });
 });

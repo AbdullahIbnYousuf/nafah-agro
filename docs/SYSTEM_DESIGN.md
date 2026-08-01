@@ -531,7 +531,7 @@ NODE_ENV
 JSON_BODY_LIMIT
 ```
 
-The Express API is exported through `api/[...path].ts` instead of relying on a permanent `app.listen()`. The frontend uses same-origin `/api` in production. Prisma uses the Supabase pooled URL at runtime and the direct URL for migrations.
+The Express API is exported through `api/index.ts` instead of relying on a permanent `app.listen()`. Vercel forwards `/api/:path*` to this single Function, and the frontend uses same-origin `/api` in production. Prisma uses the Supabase pooled URL at runtime and the direct URL for migrations.
 
 ## 12. Analytics rules
 

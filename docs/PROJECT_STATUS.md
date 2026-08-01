@@ -7,8 +7,9 @@ Last updated: 2026-08-01
 Milestones 1–4 are complete in local code. Milestone 4 replaces every remaining
 MongoDB order flow with one PostgreSQL order system while preserving Milestone 3
 physical-shop behavior. No external migration, real Supabase/Cloudinary test,
-deployment, or analytics dashboard was performed. The current single-project
-Vercel preparation remains uncommitted for review.
+or analytics dashboard was performed. The first Vercel deployment served the
+frontend but emitted no callable API Function; the standard `api/index.ts`
+routing fix is prepared for redeployment.
 
 ## Completed in code
 
@@ -38,8 +39,8 @@ Vercel preparation remains uncommitted for review.
 - Mongo startup, Mongoose dependency/model, `/api/orders`, Mongo utility, and
   `MONGO_URI` have been removed.
 - A single-project Vercel layout is prepared: Vite outputs `dist`,
-  `api/[...path].ts` exports the shared Express app, production uses same-origin
-  `/api`, and non-API deep links have an `index.html` fallback. API paths are
+  `api/index.ts` exports the shared Express app, `/api/:path*` forwards to that
+  Function, and non-API deep links have an `index.html` fallback. API paths are
   excluded from that fallback and return JSON 404s.
 - Every active Express application route is under `/api/v1`; the Cloudinary
   upload route was versioned and the duplicate legacy health route was removed.
@@ -50,7 +51,7 @@ Vercel preparation remains uncommitted for review.
 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 90 tests passed across nine files, including focused
+- `npm test -- --run`: 91 tests passed across nine files, including focused
   Vercel routing, same-origin/local CORS, health, API 404, unified-order,
   inventory, authorization, and return-dialog coverage.
 - `npm run build`: passed with non-blocking bundle-size and stale Browserslist

@@ -7,7 +7,7 @@ project: React/Vite serves `/`, the existing Express application serves
 ## Repository and routing
 
 ```text
-api/[...path].ts  thin Vercel Function entry; imports the shared Express app
+api/index.ts      thin Vercel Function entry; imports the shared Express app
 server.ts          creates the single Express app instance
 server/            Express routes, middleware, services, and environment checks
 src/               React/Vite frontend
@@ -15,10 +15,11 @@ dist/              generated frontend production output
 vercel.json        Vite build output and non-API SPA fallback
 ```
 
-Vercel discovers `api/[...path].ts` as the API Function. It does not duplicate
-Express setup. Existing static files take precedence, non-API paths such as `/`,
-`/shop`, `/admin`, and `/products/:slug` fall back to `index.html`, and `/api`
-is excluded from that fallback. Express returns JSON for API 404s.
+Vercel discovers `api/index.ts` as the API Function. `vercel.json` forwards
+`/api/:path*` to it without duplicating Express setup. Existing static files take
+precedence, non-API paths such as `/`, `/shop`, `/admin`, and `/products/:slug`
+fall back to `index.html`, and `/api` is excluded from that fallback. Express
+returns JSON for API 404s.
 
 ## Before deployment
 
@@ -94,7 +95,7 @@ intentionally bypassed, set `VITE_API_URL=http://localhost:4000/api` locally.
 3. Push the reviewed commit or create a Preview deployment. This repository has
    not been deployed by Codex.
 4. In Vercel's deployment Resources view, confirm one Function generated from
-   `api/[...path].ts` and the Vite assets under `dist`.
+   `api/index.ts` and the Vite assets under `dist`.
 5. Smoke-test `/`, `/admin`, `/shop`, `/products/<real-slug>`,
    `/api/v1/health`, and an unknown `/api/v1/...` path. The unknown API path
    must return JSON 404, while frontend deep links must return the SPA.
