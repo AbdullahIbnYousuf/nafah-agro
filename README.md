@@ -1,40 +1,38 @@
 # Nafah Agro
 
-Nafah Agro is a React/Vite storefront with an Express API. Supabase Auth and
-PostgreSQL/Prisma now power identity, roles, categories, products, variants,
-selling prices, price history, FIFO inventory, and physical-shop sales. The old
-MongoDB website-order flow remains temporary so guest checkout can continue
-until the delivery-order vertical is rebuilt.
+Nafah Agro is a React/Vite storefront and Express API backed by Supabase Auth,
+PostgreSQL, and Prisma. The current V1 code supports catalog/pricing, FIFO
+inventory, physical-shop sales, guest website COD, manual delivery orders, and a
+single order lifecycle across every sales source.
 
-## Current status
+## Current features
 
-- Roles: `OWNER`, `ADMIN`, `CUSTOMER`; roles come only from PostgreSQL profiles.
-- Login, logout, registration, browser session restoration, and protected routes
-  use Supabase Auth.
-- Public admin setup, unlock codes, moderator accounts, and custom JWTs are gone.
-- Storefront product/category reads and admin catalog writes use `/api/v1` and
-  PostgreSQL.
-- A product is created with an initial variant and selling-price-history row in
-  one transaction. Subsequent selling-price changes append history atomically.
-- OWNER/ADMIN catalog screens can create/edit/activate/deactivate variants,
-  enforce unique normalized SKUs, inspect price history, and update one or many
-  selling prices. Bulk price changes are all-or-nothing.
-- OWNER/ADMIN can enter multi-item purchases, inspect buying-cost batches,
-  perform reason-required stock adjustments, and complete immediate CASH sales.
-- Physical sales lock and consume the oldest available batches, preserve price
-  and cost snapshots, and show gross profit and margin.
-- Guest checkout still posts to the temporary MongoDB order route.
-- No deployment was performed as part of this change.
+- Roles are `OWNER`, `ADMIN`, and `CUSTOMER`, resolved from active PostgreSQL
+  profiles after Supabase token verification.
+- Public storefront reads active PostgreSQL categories, products, and variants.
+- OWNER/ADMIN manage products, unique SKUs, immutable selling-price history,
+  purchases, stock adjustments, FIFO batches, and physical CASH sales.
+- Guest and registered customers can place website COD orders. Checkout sends
+  variant IDs and quantities only; Express reloads all prices and delivery rates.
+- Website orders start `PENDING` without stock reservation. OWNER/ADMIN
+  confirmation reserves exact FIFO batches; delivery consumes reservations;
+  cancellation or failed delivery releases them.
+- OWNER/ADMIN can create Facebook, phone, WhatsApp, or other delivery orders as
+  pending or confirmed, and manage every source from one screen.
+- Whole sellable returns restore stock at captured costs. Whole damaged returns
+  do not restore stock. Return status supplies the reversal signal while original
+  price/cost snapshots remain immutable for later reporting.
+- Order/rate changes write actor, before/after state, and reasons to append-only
+  PostgreSQL audit logs in the same transaction.
+- MongoDB, Mongoose, legacy order routes, fake coupons, and fake online-payment
+  choices have been removed. No deployment was performed.
 
-## Requirements
+## Requirements and local setup
 
 - Node.js `>=22.12 <23`
 - npm `>=10`
 - Supabase project with Auth and PostgreSQL
-- MongoDB only while the legacy order routes remain
-- Cloudinary only when testing product image upload
-
-## Local setup
+- Cloudinary credentials only for image upload
 
 ```bash
 npm install
@@ -51,35 +49,32 @@ In a second terminal:
 npm run server
 ```
 
-Frontend defaults to Vite's local URL; Express defaults to port `4000`. Configure
-`VITE_API_URL` to point to the API when the Vite proxy is not used.
+The API defaults to port `4000`. `VITE_API_URL=/api` works with the checked-in
+Vite/Vercel routing; set a full API URL when running the two processes without a
+proxy.
 
 ## Environment variables
 
 | Variable | Exposure | Purpose |
 | --- | --- | --- |
-| `MONGO_URI` | backend | Temporary legacy order creation/history/management only |
-| `FRONTEND_URL` | backend | Exact CORS origin |
+| `FRONTEND_URL` | backend | Exact allowed CORS origin |
 | `DATABASE_URL` | backend | Pooled Supabase PostgreSQL runtime URL |
-| `DIRECT_URL` | CLI only | Direct PostgreSQL migration/seed URL |
-| `SUPABASE_URL` | backend | Supabase issuer/JWKS URL |
+| `DIRECT_URL` | CLI only | Direct/session URL for migrations and seeds |
+| `SUPABASE_URL` | backend | Supabase issuer and JWKS base URL |
 | `SUPABASE_JWT_AUDIENCE` | backend | Usually `authenticated` |
 | `VITE_SUPABASE_URL` | public frontend | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | public frontend | Publishable/anon key; never service-role |
-| `VITE_API_URL` | public frontend | API base, default `/api` |
-| `CLOUDINARY_CLOUD_NAME` | backend | Optional image service setting |
-| `CLOUDINARY_API_KEY` | backend | Optional image service credential |
-| `CLOUDINARY_API_SECRET` | backend | Optional secret; never expose to Vite |
+| `VITE_API_URL` | public frontend | API base, normally `/api` |
+| `CLOUDINARY_CLOUD_NAME` | backend | Optional image-service setting |
+| `CLOUDINARY_API_KEY` | backend | Optional image-service credential |
+| `CLOUDINARY_API_SECRET` | backend | Optional secret; never expose through Vite |
 | `PROTECTED_RATE_LIMIT_MAX` | backend | Protected requests per IP/window |
 | `RATE_LIMIT_WINDOW_MS` | backend | Rate-limit window |
-| `JSON_BODY_LIMIT` | backend | JSON request limit |
+| `JSON_BODY_LIMIT` | backend | JSON request-size limit |
 
 ## Supabase setup
 
-1. Create a Supabase project and copy the PostgreSQL URLs, project URL, and
-   publishable/anon key into `.env`.
-2. Apply the checked-in migrations, including the Milestone 3 inventory and
-   physical-sales migration (do not use `prisma db push`):
+Apply checked-in migrations; do not use `prisma db push`:
 
 ```bash
 DATABASE_URL="postgresql://...pooler..." DIRECT_URL="postgresql://...direct..." \
@@ -88,34 +83,32 @@ DATABASE_URL="postgresql://...pooler..." DIRECT_URL="postgresql://...direct..." 
   npm run seed
 ```
 
-Use Supabase's direct/session connection for `DIRECT_URL`; use the transaction
-pooler for the deployed API's `DATABASE_URL`. The seed only upserts the
-idempotent foundation record.
+The Milestone 4 migration inserts `Dhaka` and `Outside Dhaka` delivery-rate rows
+with `NULL` charges intentionally. Before checkout testing, an OWNER/ADMIN must
+set approved charges from the admin order screen.
 
-3. Create the first owner in Supabase Auth without `nafah_role` metadata, copy
-   the Auth UUID, then run:
+Create the first user in Supabase Auth, copy its UUID, then create the owner
+profile through the controlled command:
 
 ```bash
 npm run owner:create -- --user-id UUID --full-name "Owner Name" --phone 01XXXXXXXXX --confirm
 ```
 
-There is intentionally no public owner/admin registration endpoint. Customer
-sign-up sends `full_name`, the required `phone_number`, and a
-`nafah_role=CUSTOMER` marker. The database trigger ignores privileged role
-requests and inserts only `CUSTOMER`. If that profile is missing after Auth
-signup, the next verified session can recover only its own CUSTOMER profile from
-the token metadata; it cannot create or modify an OWNER/ADMIN profile.
+There is no public OWNER/ADMIN registration endpoint. Customer registration
+requires phone metadata and can create only a `CUSTOMER` profile.
 
 ## Verification
 
 ```bash
 npm run typecheck
 npm run lint
-npm test
+npm test -- --run
 npm run build
 npm run build:server
 npm run prisma:validate
+npm run prisma:generate
+git diff --check
 ```
 
-See [API.md](API.md) for routes and [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)
-for verified results and remaining work.
+See [API.md](API.md) for routes and
+[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for external acceptance work.

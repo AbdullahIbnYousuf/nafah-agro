@@ -5,12 +5,11 @@ import { parseBackendEnv } from "./env.js";
 
 const validEnvironment = {
   NODE_ENV: "test",
-  MONGO_URI: "mongodb://127.0.0.1:27017/nafah_agro_test",
   FRONTEND_URL: "http://localhost:8080",
 };
 
 describe("backend environment validation", () => {
-  it("parses the temporary MongoDB environment and reports PostgreSQL as optional", () => {
+  it("parses the base environment and reports PostgreSQL as optional", () => {
     const env = parseBackendEnv(validEnvironment);
 
     expect(env.PORT).toBe(4000);

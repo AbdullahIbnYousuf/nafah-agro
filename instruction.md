@@ -12,9 +12,9 @@ Build a production-ready ecommerce website for an organic food shop called **"Na
 
 | Concern | Technology |
 |---|---|
-| Framework | Next.js (App Router) |
+| Framework | React/Vite frontend + Express API |
 | Styling | Tailwind CSS |
-| Database | MongoDB |
+| Database | PostgreSQL with Prisma |
 | Image Storage | Cloudinary |
 | Language | Bangla (all UI text must be in Bangla) |
 | Theme | Light mode only (no dark mode) |
@@ -159,8 +159,8 @@ Create protected admin routes starting at `/admin`.
 
 ## Deliverables
 
-- [ ] Full Next.js project structure
-- [ ] MongoDB models
+- [ ] Full React/Vite and Express project structure
+- [ ] PostgreSQL/Prisma models
 - [ ] API routes
 - [ ] Tailwind styling with custom color palette
 - [ ] Admin dashboard

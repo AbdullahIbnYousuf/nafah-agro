@@ -39,7 +39,7 @@ export interface StockBatch {
   productName: string;
   variantName: string;
   sku: string;
-  source: 'PURCHASE' | 'ADJUSTMENT';
+  source: 'PURCHASE' | 'ADJUSTMENT' | 'SELLABLE_RETURN';
   purchasedQuantity: number;
   availableQuantity: number;
   reservedQuantity: number;
@@ -142,36 +142,90 @@ export interface ProductsPage {
 
 export interface CartItem {
   productId: string;
+  productVariantId: string;
   productName: string;
+  variantName: string;
+  sku: string;
   quantity: number;
   selectedAttributes: Record<string, string>; // groupName -> optionValue
   unitPrice: number;
 }
 
-export interface Order {
+export type OrderSource = 'WEBSITE' | 'PHYSICAL_SHOP' | 'FACEBOOK' | 'PHONE' | 'WHATSAPP' | 'OTHER';
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'DELIVERED' | 'COMPLETED' | 'CANCELLED' | 'RETURNED_SELLABLE' | 'RETURNED_DAMAGED';
+
+export interface DeliveryRate {
   id: string;
-  items: CartItem[];
-  subtotal?: number;
-  shippingCost?: number;
-  discount?: number;
+  code: 'DHAKA' | 'OUTSIDE_DHAKA';
+  name: string;
+  charge: number | null;
+  isActive: boolean;
+}
+
+export interface UnifiedOrderItem {
+  id: string;
+  productId: string;
+  productVariantId: string;
+  productName: string;
+  variantName: string;
+  sku: string;
+  quantity: number;
+  unitSellingPrice: number;
+  grossLineRevenue: number;
+  allocatedDiscount: number;
+  netLineRevenue: number;
+  totalBuyingCost: number | null;
+  grossProfit: number | null;
+  allocations: Array<{
+    id: string;
+    stockBatchId: string;
+    quantity: number;
+    unitBuyingCost: number;
+    totalBuyingCost: number;
+    state: 'RESERVED' | 'CONSUMED' | 'RELEASED';
+    purchaseDate: string;
+  }>;
+}
+
+export interface UnifiedOrder {
+  id: string;
+  orderNumber: string;
+  source: OrderSource;
+  status: OrderStatus;
+  paymentMethod: 'CASH' | 'CASH_ON_DELIVERY';
+  paymentStatus: 'UNPAID' | 'PAID' | 'REFUNDED';
+  customerProfileId: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  customerAddress: string | null;
+  deliveryRate: Pick<DeliveryRate, 'id' | 'code' | 'name' | 'charge'> | null;
+  subtotal: number;
+  discountTotal: number;
+  deliveryCharge: number;
+  grandTotal: number;
+  totalBuyingCost: number | null;
+  grossProfit: number | null;
+  grossProfitMargin: number | null;
+  unprofitableOverrideConfirmed: boolean;
+  createdBy: { fullName: string; role: Role } | null;
+  placedAt: string;
+  confirmedAt: string | null;
+  completedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
+  returnedAt: string | null;
+  statusReason: string | null;
+  returnCondition: 'SELLABLE' | 'DAMAGED' | null;
+  items: UnifiedOrderItem[];
+}
+
+export interface OrdersPage {
+  data: UnifiedOrder[];
   total: number;
-  paymentMethod?: 'cod' | 'mobilebank' | 'sslcommerz';
-  paymentStatus?: 'unpaid' | 'paid' | 'refunded';
-  paymentReference?: string;
-  status: 'pending' | 'confirmed' | 'processing' | 'delivered' | 'cancelled';
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  createdAt: string;
-  source: 'online' | 'phone' | 'offline';
-  placedBy?: {
-    userId: string;
-    userName: string;
-    userRole: Role;
-  };
-  deliveryTeam?: string;
-  deliveryRider?: string;
-  deliveryNotes?: string;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface User {

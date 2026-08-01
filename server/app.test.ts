@@ -7,10 +7,10 @@ import { parseBackendEnv } from "./env.js";
 import type { ApplicationProfile } from "./services/profiles.js";
 import type { CatalogService } from "./services/catalog.js";
 import type { InventoryService } from "./services/inventory.js";
+import type { UnifiedOrderService } from "./services/orders.js";
 
 const baseEnvironment = {
   NODE_ENV: "test",
-  MONGO_URI: "mongodb://127.0.0.1:27017/nafah_agro_test",
   FRONTEND_URL: "http://localhost:8080",
 };
 
@@ -90,6 +90,7 @@ describe("GET /api/v1/foundation", () => {
     protectedRateLimit = 60,
     catalogService?: CatalogService,
     inventoryService?: InventoryService,
+    orderService?: UnifiedOrderService,
   ) {
     return createApp({
       env: parseBackendEnv({
@@ -115,6 +116,7 @@ describe("GET /api/v1/foundation", () => {
       })),
       catalogService,
       inventoryService,
+      orderService,
     });
   }
 
@@ -375,6 +377,54 @@ describe("GET /api/v1/foundation", () => {
       expect(saleResponse.status).toBe(403);
       expect(inventory.createPurchase).not.toHaveBeenCalled();
       expect(inventory.createPhysicalSale).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Milestone 4 unified-order authorization", () => {
+    function orderStub() {
+      return {
+        listDeliveryRates: vi.fn(async () => []),
+        updateDeliveryRate: vi.fn(),
+        createWebsiteOrder: vi.fn(async () => ({ order: { id: "order-1", status: "PENDING" }, replayed: false })),
+        createManualOrder: vi.fn(async () => ({ id: "order-2" })),
+        listOrders: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 30, totalPages: 0 })),
+        listCustomerWebsiteOrders: vi.fn(async () => []),
+        transitionOrder: vi.fn(),
+      } as unknown as UnifiedOrderService;
+    }
+
+    it("allows guest website COD checkout without authentication", async () => {
+      const orders = orderStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, undefined, orders))
+        .post("/api/v1/orders/website")
+        .send({
+          items: [{ productVariantId: "10000000-0000-4000-8000-000000000001", quantity: 1 }],
+          customer: { name: "Guest", phone: "01700000000", address: "Dhaka address" },
+          deliveryRateId: "30000000-0000-4000-8000-000000000001",
+          idempotencyKey: "guest-checkout-001",
+        });
+
+      expect(response.status).toBe(201);
+      expect(orders.createWebsiteOrder).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: "guest-checkout-001" }), undefined);
+    });
+
+    it.each(["OWNER", "ADMIN"] as const)("allows %s to list unified orders", async (role) => {
+      const orders = orderStub();
+      const response = await request(createProtectedApp({ ...ownerProfile, role }, 60, undefined, undefined, orders))
+        .get("/api/v1/orders")
+        .set("Authorization", "Bearer valid-token");
+      expect(response.status).toBe(200);
+      expect(orders.listOrders).toHaveBeenCalledOnce();
+    });
+
+    it("denies CUSTOMER order management", async () => {
+      const orders = orderStub();
+      const response = await request(createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, undefined, undefined, orders))
+        .post("/api/v1/orders/manual")
+        .set("Authorization", "Bearer valid-token")
+        .send({});
+      expect(response.status).toBe(403);
+      expect(orders.createManualOrder).not.toHaveBeenCalled();
     });
   });
 });

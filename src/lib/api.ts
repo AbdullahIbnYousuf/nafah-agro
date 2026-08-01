@@ -1,6 +1,9 @@
 import type {
   Category,
-  Order,
+  DeliveryRate,
+  OrderSource,
+  OrderStatus,
+  OrdersPage,
   Product,
   ProductsPage,
   ProductVariant,
@@ -8,6 +11,7 @@ import type {
   SellingPriceHistoryEntry,
   StockBatch,
   User,
+  UnifiedOrder,
 } from './types';
 import { frontendEnv } from './env';
 import { supabase } from './supabase';
@@ -308,40 +312,76 @@ export function getPhysicalSales(limit = 30): Promise<PhysicalSale[]> {
   return requestV1<PhysicalSale[]>(`/physical-sales?limit=${limit}`);
 }
 
-// Temporary MongoDB order API. Guest POST remains public until the order vertical replaces it.
-export function getOrders(): Promise<Order[]> {
-  return request<Order[]>('/orders');
+export function getDeliveryRates(): Promise<DeliveryRate[]> {
+  return requestV1<DeliveryRate[]>('/delivery-rates');
 }
 
-export function getMyOrders(): Promise<Order[]> {
-  return request<Order[]>('/orders/my');
-}
-
-export function createOrder(order: Omit<Order, 'id' | 'createdAt'>): Promise<Order> {
-  return request<Order>('/orders', { method: 'POST', body: JSON.stringify(order) });
-}
-
-export function updateOrderStatus(id: string, status: Order['status']): Promise<Order> {
-  return request<Order>(`/orders/${id}/status`, {
-    method: 'PATCH', body: JSON.stringify({ status }),
+export function updateDeliveryRate(
+  id: string,
+  input: { name?: string; charge?: number | null; isActive?: boolean },
+): Promise<DeliveryRate> {
+  return requestV1<DeliveryRate>(`/delivery-rates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ...input, charge: input.charge == null ? input.charge : String(input.charge) }),
   });
 }
 
-export function updateOrderPayment(
-  id: string,
-  data: { paymentStatus?: string; paymentReference?: string },
-): Promise<Order> {
-  return request<Order>(`/orders/${id}/payment`, {
-    method: 'PATCH', body: JSON.stringify(data),
+export function createWebsiteOrder(input: {
+  items: Array<{ productVariantId: string; quantity: number }>;
+  customer: { name: string; phone: string; email?: string; address: string };
+  deliveryRateId: string;
+  idempotencyKey: string;
+}): Promise<{ order: UnifiedOrder; replayed: boolean }> {
+  return requestV1('/orders/website', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function createManualOrder(input: {
+  source: Exclude<OrderSource, 'WEBSITE' | 'PHYSICAL_SHOP'>;
+  initialStatus: 'PENDING' | 'CONFIRMED';
+  items: Array<{ productVariantId: string; quantity: number }>;
+  customer: { name: string; phone: string; email?: string; address: string };
+  deliveryRateId: string;
+  discountTotal: number;
+  confirmUnprofitable?: boolean;
+}): Promise<UnifiedOrder> {
+  return requestV1('/orders/manual', {
+    method: 'POST',
+    body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal) }),
   });
 }
 
-export function updateOrderDelivery(
+export function getOrders(filters?: {
+  source?: OrderSource;
+  status?: OrderStatus;
+  orderNumber?: string;
+  phone?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}): Promise<OrdersPage> {
+  const query = new URLSearchParams();
+  Object.entries(filters ?? {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<OrdersPage>(`/orders${query.size ? `?${query}` : ''}`);
+}
+
+export function getMyOrders(): Promise<UnifiedOrder[]> {
+  return requestV1<UnifiedOrder[]>('/orders/my');
+}
+
+export function transitionOrder(
   id: string,
-  data: { deliveryTeam?: string; deliveryRider?: string; deliveryNotes?: string },
-): Promise<Order> {
-  return request<Order>(`/orders/${id}/delivery`, {
-    method: 'PATCH', body: JSON.stringify(data),
+  action:
+    | { action: 'CONFIRM'; confirmUnprofitable?: boolean }
+    | { action: 'PROCESS' }
+    | { action: 'DELIVER' }
+    | { action: 'CANCEL' | 'FAILED_DELIVERY'; reason: string }
+    | { action: 'RETURN'; condition: 'SELLABLE' | 'DAMAGED'; reason: string },
+): Promise<UnifiedOrder> {
+  return requestV1<UnifiedOrder>(`/orders/${id}/status`, {
+    method: 'PATCH', body: JSON.stringify(action),
   });
 }
 

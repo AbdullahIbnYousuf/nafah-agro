@@ -2,121 +2,75 @@
 
 ## Working rules
 
-- Keep the current `src/`, `server/`, `prisma/`, and `docs/` layout.
-- Reuse useful React/Vite UI; replace weak backend/database code freely.
-- Build vertical slices with authorization, validation, auditability, and tests.
-- Do not migrate historical MongoDB data; there is no production data to keep.
-- Use BDT, `Asia/Dhaka`, Sunday–Saturday reporting, FIFO only, and guest COD.
-- Deploy only after local checks and a Supabase/Vercel proof succeeds.
+- Keep `src/`, `server/`, `prisma/`, and `docs/`; reuse practical React/Vite UI.
+- Use Supabase Auth, PostgreSQL/Prisma, Express, Zod, Cloudinary, BDT,
+  `Asia/Dhaka`, Sunday–Saturday reporting, FIFO only, and guest COD.
+- Authorization, validation, invariants, security, and tests belong in each slice.
+- There is no MongoDB data migration or compatibility phase.
 
 ## Milestone 1 — Foundation
 
-Status: complete in code; live external-service verification is pending.
+Status: complete in code; live Supabase/Vercel proof remains.
 
-- Baseline tag and focused foundation commit.
-- npm and Node.js standardization.
-- Express security, request IDs, safe errors, health endpoint, and rate limits.
-- Prisma/Supabase PostgreSQL connection and seed.
-- Supabase token verification, PostgreSQL profiles, OWNER/ADMIN/CUSTOMER guards,
-  and controlled first-owner command.
-- Vercel-compatible frontend/backend layout and documentation.
+- npm/Node baseline, Express security, safe errors, health/rate limits.
+- Prisma/Supabase connectivity, profiles, token verification, role guards, and
+  controlled first-owner command.
 
-## Authentication cleanup gate
+## Milestone 2 — Catalog and price history
 
-Status: complete in code; real Supabase verification pending.
+Status: complete in code; real Supabase/Cloudinary acceptance remains.
 
-- Removed public admin setup, unlock code, moderators, Mongo users, bcrypt,
-  custom JWT issuance/verification, and legacy auth routes.
-- Frontend uses Supabase login/logout/signup/session restoration.
-- Every protected Express request resolves an active PostgreSQL profile.
-- Customer self-registration creates only `CUSTOMER`; no public privileged signup.
-- Guest checkout remains available independently of customer accounts.
-
-Acceptance checks:
-
-- Guest is redirected from protected frontend routes.
-- OWNER and ADMIN can open admin routes; CUSTOMER cannot.
-- Missing/inactive profiles are denied.
-- No custom application signing or public unlock secret is required.
-
-## Milestone 2 — Product and pricing vertical
-
-Status: complete in code; external acceptance remains.
-
-Implemented sequence:
-
-1. Category create/edit/deactivate and public list.
-2. Product create/edit/deactivate with PostgreSQL storefront reads.
-3. Initial variant at product creation; additional-variant API.
-4. Current selling price stored on each variant.
-5. Immutable price-history row written transactionally for initial/change prices.
-6. Existing home, shop, search/filter, and product-detail UI read `/api/v1`.
-7. Admin UI creates/edits/activates variants, manages normalized unique SKUs,
-   selects defaults, views immutable price history, and performs transactional
-   single/bulk selling-price changes.
-8. MongoDB product/category compatibility routes and models are removed; MongoDB
-   is isolated to the temporary order vertical.
-
-Required follow-up acceptance work:
-
-- Apply migration and test with real Supabase Auth/PostgreSQL.
-- Verify OWNER and ADMIN catalog and price changes with real tokens; confirm
-  CUSTOMER and inactive-profile denial.
-- Verify unique SKU/slug errors are returned safely.
-- Test Cloudinary image upload and storefront rendering.
-- Test customer signup/profile trigger and fallback recovery in real Supabase.
-- Run the catalog demonstration against the migrated Supabase database.
+- Category → product → required default variant → unique SKU → selling price →
+  immutable history → PostgreSQL storefront/admin UI.
 
 ## Milestone 3 — Purchases, FIFO, physical-shop sales
 
-Status: complete in code; real Supabase concurrency and browser acceptance remain.
+Status: complete in code; real PostgreSQL concurrency acceptance remains.
 
-- Added `stock_batches`, reason-bearing `stock_adjustments`, PostgreSQL physical
-  sales/items, and `order_allocations` with price/cost snapshots.
-- Multi-item purchases create batches and update cached variant totals in one
-  serializable transaction.
-- FIFO locks available batches by purchase date, creation time, and ID; one sale
-  may consume multiple batches and overselling is rejected.
-- Stock increases create a new costed adjustment batch; decreases consume FIFO;
-  both require an append-only adjustment reason record.
-- Physical-shop sales are always `CASH`, `PAID`, and `COMPLETED`, deduct stock
-  immediately, and calculate gross profit/margin from preserved snapshots.
-- Discount cannot exceed subtotal. A loss requires an explicit OWNER/ADMIN
-  confirmation and stores the override actor.
-- Admin UI includes purchase entry, stock adjustment/batch visibility, product
-  and SKU search, fast physical sale, and recent sale profitability.
+- Multi-item purchases, costed batches, cached variant totals, FIFO allocation,
+  reason-required adjustments, immediate CASH/PAID physical sales, preserved
+  price/cost snapshots, discount/loss confirmation, profit visibility.
 
-External acceptance still required:
+## Milestone 4 — Unified COD and manual delivery orders
 
-- Apply the migration to a disposable Supabase project and load real batches.
-- Run simultaneous final-unit sales against PostgreSQL and confirm one commits.
-- Exercise the purchase, adjustment, loss-warning, and sale screens with real
-  OWNER and ADMIN tokens.
+Status: complete in local code; external migration/browser acceptance remains.
 
-## Milestone 4 — Guest COD and manual delivery orders
+Implemented order:
 
-- Replace the MongoDB order flow with PostgreSQL.
-- Website orders start `PENDING` without reservation.
-- Confirmation reserves FIFO; delivered consumes; cancel/failure releases.
-- Phone/Facebook/WhatsApp orders may confirm immediately.
-- Whole-order sellable/damaged returns only.
-- Dhaka/outside-Dhaka rates come from `delivery_rates`; charges await client input.
-- Remove Mongoose, Mongo models, and `MONGO_URI` only after all order consumers move.
+1. Extend the existing sales order/item/allocation tables; add delivery rates.
+2. Guest/registered WEBSITE COD begins pending with server-only pricing and an
+   idempotency key; pending stock is unchanged.
+3. OWNER/ADMIN confirmation reserves exact FIFO allocations transactionally.
+4. FACEBOOK/PHONE/WHATSAPP/OTHER orders can begin pending or confirmed.
+5. Processing and delivery consume reservations and recognize payment/financials.
+6. Cancellation or failed delivery releases reservations and records a reason.
+7. Whole SELLABLE returns restore cost-preserving stock; DAMAGED returns do not.
+8. Replace cart, profile history, and admin consumers; remove Mongo/Mongoose and
+   fake coupon/payment UI.
+
+Acceptance gate before Milestone 5:
+
+- Apply migration/seed on disposable Supabase.
+- Enter client-approved Dhaka/outside-Dhaka rates.
+- Use real OWNER, ADMIN, CUSTOMER, and guest sessions to demonstrate every order
+  transition and denial; verify a concurrent final-stock confirmation.
+- Confirm existing physical-shop sales still complete and appear in unified list.
+- Run full local checks and browser smoke tests; do not deploy yet.
 
 ## Milestone 5 — Analytics
 
-- Revenue/profit only for delivered orders.
-- Whole returns reverse revenue/profit; sellable restores stock, damaged does not.
-- Owner and admins see buying cost, inventory value, gross profit, and margin.
-- Weekly reporting is Sunday through Saturday.
+Status: not started.
+
+- Revenue/profit recognized for delivered delivery orders and completed physical
+  sales only; whole returns reverse recognition by return status.
+- Inventory value, buying cost, gross profit, and margin visible to OWNER/ADMIN.
+- Sunday–Saturday BDT reporting. No expense/net-profit/category-performance work.
 
 ## Milestone 6 — Security, testing, polish, deployment
 
-Security/testing remain part of each earlier slice; this milestone is the final
-cross-system gate, not deferred cleanup.
+Status: cross-feature work exists; final gate not started.
 
-- Full authorization matrix and abuse-case tests.
-- FIFO concurrency/invariant tests and order lifecycle integration tests.
-- Accessibility, responsive, performance, logging, and recovery checks.
-- Vercel frontend/backend deployment, Supabase migration, Cloudinary validation,
-  CORS/domain verification, smoke tests, and rollback notes.
+- Complete authorization/abuse, FIFO invariant, order lifecycle, accessibility,
+  responsive, performance, logging/recovery, and production smoke checks.
+- Deploy frontend/backend to Vercel, PostgreSQL/Auth to Supabase, images to
+  Cloudinary; verify CORS/domains and rollback notes.

@@ -7,7 +7,6 @@ The V1 target is:
 - Express backend on Vercel.
 - PostgreSQL and Auth on Supabase.
 - Product images on Cloudinary.
-- MongoDB temporarily, only while `/api/orders` remains legacy.
 
 ## Before deployment
 
@@ -32,7 +31,7 @@ Frontend: `VITE_API_URL`, `VITE_SUPABASE_URL`, and the public
 `VITE_SUPABASE_ANON_KEY`.
 
 Backend: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWT_AUDIENCE`,
-`FRONTEND_URL`, `MONGO_URI` (temporary), and Cloudinary values when uploads are
+`FRONTEND_URL` and Cloudinary values when uploads are
 enabled. Keep `DIRECT_URL` in the migration environment rather than exposing it
 to the frontend.
 

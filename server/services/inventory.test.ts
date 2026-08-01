@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import {
   physicalSaleCreateSchema,
@@ -123,6 +123,7 @@ function createInMemoryPrisma() {
     sales: SaleRow[];
     saleItems: SaleItemRow[];
     allocations: AllocationRow[];
+    audits: Array<Record<string, unknown>>;
     failBatchForVariant: string | null;
   } = {
     variants: [
@@ -137,7 +138,7 @@ function createInMemoryPrisma() {
         product: { id: PRODUCT_B, name: "Red Rice", isActive: true },
       },
     ],
-    batches: [], adjustments: [], sales: [], saleItems: [], allocations: [],
+    batches: [], adjustments: [], sales: [], saleItems: [], allocations: [], audits: [],
     failBatchForVariant: null,
   };
 
@@ -290,6 +291,13 @@ function createInMemoryPrisma() {
           consumedAt: data.consumedAt as Date, createdAt: now, updatedAt: now,
         };
         state.allocations.push(row);
+        return row;
+      },
+    },
+    auditLog: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: id(), ...data, createdAt: new Date() };
+        state.audits.push(row);
         return row;
       },
     },
@@ -463,5 +471,16 @@ describe("Milestone 3 inventory and physical sales", () => {
     expect(result.items[0]).toMatchObject({ unitSellingPrice: 500, totalBuyingCost: 280 });
     expect(stored.items[0]).toMatchObject({ unitSellingPrice: 500, totalBuyingCost: 280 });
     expect(stored.items[0].allocations[0].unitBuyingCost).toBe(280);
+  });
+
+  it("keeps website and manual orders out of the physical-sales list", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const findMany = vi.spyOn(prisma.salesOrder, "findMany");
+
+    await createInventoryService(prisma).listPhysicalSales({ limit: 10 });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { source: "PHYSICAL_SHOP", status: "COMPLETED" },
+    }));
   });
 });

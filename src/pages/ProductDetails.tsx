@@ -18,6 +18,7 @@ const ProductDetails = () => {
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedAttrs, setSelectedAttrs] = useState<Record<string, string>>({});
+  const [selectedVariantId, setSelectedVariantId] = useState('');
 
   useEffect(() => {
     if (!slug) return;
@@ -30,6 +31,13 @@ const ProductDetails = () => {
             if (g.options.length > 0) initial[g.name] = g.options[0].value;
           });
           setSelectedAttrs(initial);
+          const variants = (prod.variants ?? []).filter(variant => variant.isActive);
+          setSelectedVariantId(
+            variants.find(variant => variant.id === prod.defaultVariantId)?.id
+              ?? variants.find(variant => variant.isDefault)?.id
+              ?? variants[0]?.id
+              ?? '',
+          );
           setCategory(cats.find(c => c.id === prod.categoryId) ?? null);
         }
       })
@@ -63,10 +71,10 @@ const ProductDetails = () => {
     );
   }
 
-  const currentPrice = product.attributes.reduce((price, group) => {
-    const selectedOption = group.options.find(o => o.value === selectedAttrs[group.name]);
-    return price + (selectedOption?.priceModifier || 0);
-  }, product.price);
+  const activeVariants = (product.variants ?? []).filter(variant => variant.isActive);
+  const selectedVariant = activeVariants.find(variant => variant.id === selectedVariantId)
+    ?? activeVariants[0];
+  const currentPrice = selectedVariant?.sellingPrice ?? product.price;
 
   const getSelectedLabels = () => {
     const labels: Record<string, string> = {};
@@ -77,39 +85,54 @@ const ProductDetails = () => {
     return labels;
   };
 
-  // Find the matching cart item for current product + selected attributes
-  const getCartItemKey = () => {
-    return `${product.id}_${Object.values(selectedAttrs).sort().join('_')}`;
-  };
-  const cartItem = items.find(
-    i => `${i.productId}_${Object.values(i.selectedAttributes).sort().join('_')}` === getCartItemKey()
-  );
+  const cartItem = items.find(i => i.productVariantId === selectedVariant?.id);
   const quantityInCart = cartItem?.quantity ?? 0;
 
   const handleAddToCart = () => {
+    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় ভ্যারিয়েন্ট নেই');
     if (quantityInCart > 0) {
       // Already in cart — increase quantity
-      updateQuantity(product.id, selectedAttrs, quantityInCart + 1);
+      updateQuantity(selectedVariant.id, quantityInCart + 1);
       toast.success('কার্টে পরিমাণ বাড়ানো হয়েছে!');
     } else {
-      addItem({ productId: product.id, productName: product.name, quantity: 1, selectedAttributes: selectedAttrs, unitPrice: currentPrice });
+      addItem({
+        productId: product.id,
+        productVariantId: selectedVariant.id,
+        productName: product.name,
+        variantName: selectedVariant.name,
+        sku: selectedVariant.sku,
+        quantity: 1,
+        selectedAttributes: selectedAttrs,
+        unitPrice: currentPrice,
+      });
       toast.success('কার্টে যোগ করা হয়েছে!');
     }
   };
 
   const handleDecreaseQuantity = () => {
+    if (!selectedVariant) return;
     if (quantityInCart <= 1) {
-      removeItem(product.id, selectedAttrs);
+      removeItem(selectedVariant.id);
       toast.success('কার্ট থেকে সরানো হয়েছে');
     } else {
-      updateQuantity(product.id, selectedAttrs, quantityInCart - 1);
+      updateQuantity(selectedVariant.id, quantityInCart - 1);
       toast.success('কার্টে পরিমাণ কমানো হয়েছে');
     }
   };
 
   const handleBuyNow = () => {
+    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় ভ্যারিয়েন্ট নেই');
     if (quantityInCart === 0) {
-      addItem({ productId: product.id, productName: product.name, quantity: 1, selectedAttributes: selectedAttrs, unitPrice: currentPrice });
+      addItem({
+        productId: product.id,
+        productVariantId: selectedVariant.id,
+        productName: product.name,
+        variantName: selectedVariant.name,
+        sku: selectedVariant.sku,
+        quantity: 1,
+        selectedAttributes: selectedAttrs,
+        unitPrice: currentPrice,
+      });
     }
     navigate('/cart');
   };
@@ -187,6 +210,24 @@ const ProductDetails = () => {
 
             <div className="text-3xl font-bold text-secondary mb-6">৳{currentPrice}</div>
 
+            {activeVariants.length > 1 && (
+              <div className="mb-6">
+                <h3 className="font-semibold mb-2">ভ্যারিয়েন্ট</h3>
+                <div className="flex flex-wrap gap-2">
+                  {activeVariants.map(variant => (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      onClick={() => setSelectedVariantId(variant.id)}
+                      className={`px-4 py-2 rounded-lg border text-sm font-medium ${selectedVariant?.id === variant.id ? 'border-secondary bg-secondary text-secondary-foreground' : 'border-border'}`}
+                    >
+                      {variant.name} · ৳{variant.sellingPrice}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {product.attributes.map(group => (
               <div key={group.name} className="mb-6">
                 <h3 className="font-semibold mb-2">
@@ -211,7 +252,7 @@ const ProductDetails = () => {
             ))}
 
             <div className="mb-6 text-sm text-muted-foreground">
-              স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।
+              {selectedVariant ? `${selectedVariant.name} · SKU ${selectedVariant.sku}` : 'কোনো সক্রিয় ভ্যারিয়েন্ট নেই'}। স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।
             </div>
 
             {/* Quantity controls + Add to Cart */}
@@ -241,6 +282,7 @@ const ProductDetails = () => {
                 onClick={handleAddToCart}
                 size="lg"
                 className="flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                disabled={!selectedVariant}
               >
                 <ShoppingCart className="mr-2" size={20} />
                 {quantityInCart > 0 ? `আরও যোগ করুন (${quantityInCart})` : 'কার্টে যোগ করুন'}
@@ -249,6 +291,7 @@ const ProductDetails = () => {
                 onClick={handleBuyNow}
                 size="lg"
                 className="flex-1"
+                disabled={!selectedVariant}
               >
                 <CreditCard className="mr-2" size={20} />
                 এখনই কিনুন

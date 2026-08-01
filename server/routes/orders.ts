@@ -1,93 +1,93 @@
-import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
-import Order from '../models/Order.js';
+import { Router, type RequestHandler } from "express";
+import { z, ZodError } from "zod";
+import {
+  deliveryRateUpdateSchema,
+  manualDeliveryOrderSchema,
+  orderLifecycleSchema,
+  orderListSchema,
+  websiteCheckoutSchema,
+} from "../schemas/orders.js";
+import type { UnifiedOrderService } from "../services/orders.js";
 
-// Temporary MongoDB order router. It is removed when the PostgreSQL order
-// vertical lands. Guest creation is deliberately public; all management paths
-// are protected by Supabase profile middleware supplied by app.ts.
+function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S> {
+  try {
+    return schema.parse(value);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw Object.assign(new Error("Request validation failed"), {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        details: { issues: error.issues },
+      });
+    }
+    throw error;
+  }
+}
+
 export function createOrderRouter(
+  service: UnifiedOrderService,
+  optionalAuthenticate: RequestHandler,
   authenticate: RequestHandler,
   requireAdminOrOwner: RequestHandler,
   protectedLimiter: RequestHandler,
 ) {
   const router = Router();
   const management = [protectedLimiter, authenticate, requireAdminOrOwner];
-  const optionalAuthentication: RequestHandler = (req, res, next) => {
-    if (!req.headers.authorization) {
-      next();
-      return;
-    }
-    authenticate(req, res, next);
-  };
 
-  router.get('/my', protectedLimiter, authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  router.get("/delivery-rates", async (_req, res, next) => {
+    try { res.json({ success: true, data: await service.listDeliveryRates() }); }
+    catch (error) { next(error); }
+  });
+
+  router.patch("/delivery-rates/:id", ...management, async (req, res, next) => {
     try {
-      const orders = await Order.find({ 'placedBy.userId': req.authenticatedUser!.profile.id }).sort({ createdAt: -1 }).lean();
-      res.json(orders.map(({ _id, ...rest }) => ({ ...rest, id: String(_id) })));
+      res.json({ success: true, data: await service.updateDeliveryRate(
+        req.params.id,
+        validate(deliveryRateUpdateSchema, req.body),
+        req.authenticatedUser!.profile.id,
+      ) });
     } catch (error) { next(error); }
   });
 
-  router.get('/', ...management, async (_req, res, next) => {
+  router.post("/orders/website", protectedLimiter, optionalAuthenticate, async (req, res, next) => {
     try {
-      const orders = await Order.find().sort({ createdAt: -1 }).lean();
-      res.json(orders.map(({ _id, ...rest }) => ({ ...rest, id: String(_id) })));
+      const result = await service.createWebsiteOrder(
+        validate(websiteCheckoutSchema, req.body),
+        req.authenticatedUser?.profile.id,
+      );
+      res.status(result.replayed ? 200 : 201).json({ success: true, data: result });
     } catch (error) { next(error); }
   });
 
-  router.post('/', optionalAuthentication, async (req, res, next) => {
+  router.get("/orders/my", protectedLimiter, authenticate, async (req, res, next) => {
     try {
-      const orderInput = { ...req.body } as Record<string, unknown>;
-      delete orderInput.placedBy;
-      if (req.authenticatedUser) {
-        orderInput.placedBy = {
-          userId: req.authenticatedUser.profile.id,
-          userName: req.authenticatedUser.profile.fullName,
-          userRole: req.authenticatedUser.profile.role,
-        };
-      }
-      const order = await Order.create(orderInput);
-      const { _id, ...rest } = order.toObject();
-      res.status(201).json({ ...rest, id: String(_id) });
+      res.json({ success: true, data: await service.listCustomerWebsiteOrders(req.authenticatedUser!.profile.id) });
     } catch (error) { next(error); }
   });
 
-  router.get('/:id', ...management, async (req, res, next) => {
+  router.post("/orders/manual", ...management, async (req, res, next) => {
     try {
-      const order = await Order.findById(req.params.id).lean();
-      if (!order) { res.status(404).json({ error: 'Order not found' }); return; }
-      const { _id, ...rest } = order;
-      res.json({ ...rest, id: String(_id) });
+      res.status(201).json({ success: true, data: await service.createManualOrder(
+        validate(manualDeliveryOrderSchema, req.body),
+        req.authenticatedUser!.profile.id,
+      ) });
     } catch (error) { next(error); }
   });
 
-  router.patch('/:id/status', ...management, async (req, res, next) => {
+  router.get("/orders", ...management, async (req, res, next) => {
+    try { res.json({ success: true, data: await service.listOrders(validate(orderListSchema, req.query)) }); }
+    catch (error) { next(error); }
+  });
+
+  router.patch("/orders/:id/status", ...management, async (req, res, next) => {
     try {
-      const order = await Order.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true }).lean();
-      if (!order) { res.status(404).json({ error: 'Order not found' }); return; }
-      const { _id, ...rest } = order; res.json({ ...rest, id: String(_id) });
+      res.json({ success: true, data: await service.transitionOrder(
+        req.params.id,
+        validate(orderLifecycleSchema, req.body),
+        req.authenticatedUser!.profile.id,
+      ) });
     } catch (error) { next(error); }
   });
 
-  router.patch('/:id/payment', ...management, async (req, res, next) => {
-    try {
-      const order = await Order.findByIdAndUpdate(req.params.id, {
-        ...(req.body.paymentStatus ? { paymentStatus: req.body.paymentStatus } : {}),
-        ...(req.body.paymentReference !== undefined ? { paymentReference: req.body.paymentReference } : {}),
-      }, { new: true }).lean();
-      if (!order) { res.status(404).json({ error: 'Order not found' }); return; }
-      const { _id, ...rest } = order; res.json({ ...rest, id: String(_id) });
-    } catch (error) { next(error); }
-  });
-
-  router.patch('/:id/delivery', ...management, async (req, res, next) => {
-    try {
-      const order = await Order.findByIdAndUpdate(req.params.id, {
-        deliveryTeam: req.body.deliveryTeam,
-        deliveryRider: req.body.deliveryRider,
-        deliveryNotes: req.body.deliveryNotes,
-      }, { new: true }).lean();
-      if (!order) { res.status(404).json({ error: 'Order not found' }); return; }
-      const { _id, ...rest } = order; res.json({ ...rest, id: String(_id) });
-    } catch (error) { next(error); }
-  });
   return router;
 }

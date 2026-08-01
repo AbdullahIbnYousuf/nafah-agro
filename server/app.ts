@@ -38,7 +38,7 @@ import {
 } from "./services/profiles.js";
 import { createCatalogService, type CatalogService } from "./services/catalog.js";
 import { createInventoryService, type InventoryService } from "./services/inventory.js";
-import { ensureLegacyMongoConnection } from "./lib/mongo.js";
+import { createUnifiedOrderService, type UnifiedOrderService } from "./services/orders.js";
 
 export interface AppDependencies {
   env: BackendEnv;
@@ -48,6 +48,7 @@ export interface AppDependencies {
   checkDatabase?: DatabaseHealthCheck;
   catalogService?: CatalogService;
   inventoryService?: InventoryService;
+  orderService?: UnifiedOrderService;
   writeCustomerProfile?: CustomerProfileWriter;
 }
 
@@ -84,6 +85,7 @@ function getFoundationDependencies(env: BackendEnv) {
       checkDatabase: undefined,
       catalogService: undefined,
       inventoryService: undefined,
+      orderService: undefined,
       writeCustomerProfile: undefined,
     };
   }
@@ -99,6 +101,7 @@ function getFoundationDependencies(env: BackendEnv) {
     checkDatabase: createDatabaseHealthCheck(prisma),
     catalogService: createCatalogService(prisma),
     inventoryService: createInventoryService(prisma),
+    orderService: createUnifiedOrderService(prisma),
     writeCustomerProfile: createCustomerProfileWriter(prisma),
   };
 }
@@ -121,6 +124,7 @@ export function createApp(dependencies: AppDependencies) {
     dependencies.checkDatabase ?? getDefaults().checkDatabase;
   const catalogService = dependencies.catalogService ?? getDefaults().catalogService;
   const inventoryService = dependencies.inventoryService ?? getDefaults().inventoryService;
+  const orderService = dependencies.orderService ?? getDefaults().orderService;
   const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
   const allowedOrigins = new Set([dependencies.env.FRONTEND_URL]);
   const protectedRouteLimiter = rateLimit({
@@ -139,14 +143,12 @@ export function createApp(dependencies: AppDependencies) {
   });
   const authenticate = requireAuthenticated(verifySupabaseToken, readProfile);
   const verifyAuthUser = requireSupabaseUser(verifySupabaseToken);
-  const legacyMongo: express.RequestHandler = async (_req, res, next) => {
-    res.setHeader("X-Nafah-Legacy-Store", "mongodb");
-    try {
-      await ensureLegacyMongoConnection(dependencies.env.MONGO_URI);
+  const optionalAuthenticate: express.RequestHandler = (req, res, next) => {
+    if (!req.header("Authorization")) {
       next();
-    } catch (error) {
-      next(error);
+      return;
     }
+    authenticate(req, res, next);
   };
 
   app.disable("x-powered-by");
@@ -405,8 +407,26 @@ export function createApp(dependencies: AppDependencies) {
     );
   }
 
-  // Temporary MongoDB order API. Guest checkout stays public; management uses Supabase.
-  app.use("/api/orders", legacyMongo, createOrderRouter(authenticate, requireAdminOrOwner, protectedRouteLimiter));
+  if (orderService) {
+    app.use(
+      "/api/v1",
+      createOrderRouter(
+        orderService,
+        optionalAuthenticate,
+        authenticate,
+        requireAdminOrOwner,
+        protectedRouteLimiter,
+      ),
+    );
+  } else {
+    app.use(["/api/v1/orders", "/api/v1/delivery-rates"], (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} },
+      });
+    });
+  }
+
   app.use("/api/upload", protectedRouteLimiter, authenticate, requireAdminOrOwner, uploadRoutes);
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 

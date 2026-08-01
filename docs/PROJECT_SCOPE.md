@@ -123,9 +123,10 @@ Order statuses:
 - `DELIVERED`
 - `COMPLETED`
 - `CANCELLED`
-- `FAILED_DELIVERY`
 - `RETURNED_SELLABLE`
 - `RETURNED_DAMAGED`
+
+Failed delivery uses `CANCELLED` plus a required `FAILED_DELIVERY:` reason in V1.
 
 ### Website orders
 

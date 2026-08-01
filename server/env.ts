@@ -23,12 +23,6 @@ export const backendEnvSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-    MONGO_URI: z
-      .string()
-      .refine(
-        (value) => value.startsWith("mongodb://") || value.startsWith("mongodb+srv://"),
-        "Must be a MongoDB connection URL",
-      ),
     FRONTEND_URL: optionalUrl,
     CLIENT_URL: optionalUrl,
     JSON_BODY_LIMIT: z.string().regex(/^\d+(kb|mb)$/i).default("100kb"),

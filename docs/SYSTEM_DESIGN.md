@@ -294,7 +294,9 @@ delivery_rates
 - updated_at
 ```
 
-Only owner/admin can update rates. Rate changes are audited. Final charges are decided before checkout implementation.
+Only owner/admin can update rates; updater and timestamp are stored. The two
+rows start with null charges, and checkout rejects them until the client-approved
+charges are entered.
 
 ### Audit logs
 
@@ -308,12 +310,13 @@ audit_logs
 - previous_data: redacted JSON
 - new_data: redacted JSON
 - reason
-- ip_address
-- correlation_id
 - created_at
 ```
 
-Audit logs are append-only. Passwords, tokens, Supabase keys, and other secrets are never recorded.
+Audit logs are append-only through a database trigger and are written inside the
+same transaction as order/rate changes. Passwords, tokens, Supabase keys, and
+other secrets are never recorded. Request IDs remain in structured application
+logs rather than this V1 table.
 
 ## 6. Stock transaction rules
 
@@ -377,7 +380,7 @@ For a confirmed/processing delivery order:
 2. Reduce batch/variant reserved quantities.
 3. Restore batch/variant available quantities.
 4. Mark allocations `RELEASED`.
-5. Mark order `CANCELLED` or `FAILED_DELIVERY`.
+5. Mark order `CANCELLED`; prefix failed-delivery reasons with `FAILED_DELIVERY:`.
 6. Store the required reason; count no revenue/profit.
 7. Commit.
 
@@ -430,11 +433,9 @@ PENDING -> CANCELLED
 CONFIRMED -> PROCESSING
 CONFIRMED -> DELIVERED
 CONFIRMED -> CANCELLED
-CONFIRMED -> FAILED_DELIVERY
 
 PROCESSING -> DELIVERED
 PROCESSING -> CANCELLED
-PROCESSING -> FAILED_DELIVERY
 
 DELIVERED -> RETURNED_SELLABLE
 DELIVERED -> RETURNED_DAMAGED
@@ -495,7 +496,7 @@ Admin lists use server pagination, filtering, and sorting.
 - Keep React Context for authentication wrapper, cart, and small UI preferences
 - Update API types/contracts together with each backend vertical slice
 - Show clear price changes, stock-confirmation failures, loading states, and recoverable errors
-- Moderator screens and public admin setup are removed; fake payment/coupon UI remains until the order replacement lands
+- Moderator screens, public admin setup, fake coupons, and fake online-payment choices are removed
 
 ## 11. Security and operational design
 

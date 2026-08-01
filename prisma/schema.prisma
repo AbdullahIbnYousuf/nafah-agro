@@ -19,6 +19,7 @@ enum Role {
 enum StockBatchSource {
   PURCHASE
   ADJUSTMENT
+  SELLABLE_RETURN
 }
 
 enum StockAdjustmentDirection {
@@ -33,19 +34,44 @@ enum AllocationState {
 }
 
 enum SalesOrderSource {
+  WEBSITE
   PHYSICAL_SHOP
+  FACEBOOK
+  PHONE
+  WHATSAPP
+  OTHER
 }
 
 enum SalesOrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  DELIVERED
   COMPLETED
+  CANCELLED
+  RETURNED_SELLABLE
+  RETURNED_DAMAGED
 }
 
 enum SalesPaymentMethod {
   CASH
+  CASH_ON_DELIVERY
 }
 
 enum SalesPaymentStatus {
+  UNPAID
   PAID
+  REFUNDED
+}
+
+enum DeliveryRateCode {
+  DHAKA
+  OUTSIDE_DHAKA
+}
+
+enum ReturnCondition {
+  SELLABLE
+  DAMAGED
 }
 
 model Profile {
@@ -60,7 +86,10 @@ model Profile {
   stockBatches          StockBatch[]
   stockAdjustments      StockAdjustment[]
   createdSales          SalesOrder[]          @relation("CreatedSales")
+  customerSales         SalesOrder[]          @relation("CustomerSales")
   unprofitableOverrides SalesOrder[]          @relation("UnprofitableOverrides")
+  updatedDeliveryRates  DeliveryRate[]
+  auditLogs             AuditLog[]
 
   @@map("profiles")
 }
@@ -155,6 +184,8 @@ model StockBatch {
   productVariant     ProductVariant    @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
   createdBy          Profile           @relation(fields: [createdByProfileId], references: [id], onDelete: Restrict)
   orderAllocations   OrderAllocation[]
+  sourceSalesOrderId String?           @map("source_sales_order_id") @db.Uuid
+  sourceSalesOrder   SalesOrder?       @relation("ReturnStockBatches", fields: [sourceSalesOrderId], references: [id], onDelete: Restrict)
 
   @@index([productVariantId, purchaseDate, createdAt])
   @@index([purchaseGroupId])
@@ -180,28 +211,48 @@ model StockAdjustment {
 model SalesOrder {
   id                              String             @id @default(uuid()) @db.Uuid
   orderNumber                     String             @unique @map("order_number")
+  idempotencyKey                  String?            @unique @map("idempotency_key")
+  requestFingerprint              String?            @map("request_fingerprint")
   source                          SalesOrderSource   @default(PHYSICAL_SHOP)
   status                          SalesOrderStatus   @default(COMPLETED)
   paymentMethod                   SalesPaymentMethod @default(CASH) @map("payment_method")
   paymentStatus                   SalesPaymentStatus @default(PAID) @map("payment_status")
+  customerProfileId               String?            @map("customer_profile_id") @db.Uuid
   customerName                    String?            @map("customer_name")
   customerPhone                   String?            @map("customer_phone")
+  customerEmail                   String?            @map("customer_email")
+  customerAddress                 String?            @map("customer_address")
+  deliveryRateId                  String?            @map("delivery_rate_id") @db.Uuid
+  deliveryCharge                  Decimal            @default(0) @map("delivery_charge") @db.Decimal(14, 2)
   subtotal                        Decimal            @db.Decimal(14, 2)
   discountTotal                   Decimal            @default(0) @map("discount_total") @db.Decimal(14, 2)
   grandTotal                      Decimal            @map("grand_total") @db.Decimal(14, 2)
-  totalBuyingCost                 Decimal            @map("total_buying_cost") @db.Decimal(14, 2)
-  grossProfit                     Decimal            @map("gross_profit") @db.Decimal(14, 2)
+  totalBuyingCost                 Decimal?           @map("total_buying_cost") @db.Decimal(14, 2)
+  grossProfit                     Decimal?           @map("gross_profit") @db.Decimal(14, 2)
   grossProfitMargin               Decimal?           @map("gross_profit_margin") @db.Decimal(7, 4)
   unprofitableOverrideConfirmed   Boolean            @default(false) @map("unprofitable_override_confirmed")
   unprofitableOverrideByProfileId String?            @map("unprofitable_override_by_profile_id") @db.Uuid
-  createdByProfileId              String             @map("created_by_profile_id") @db.Uuid
-  completedAt                     DateTime           @default(now()) @map("completed_at")
+  createdByProfileId              String?            @map("created_by_profile_id") @db.Uuid
+  placedAt                        DateTime           @default(now()) @map("placed_at")
+  confirmedAt                     DateTime?          @map("confirmed_at")
+  completedAt                     DateTime?          @map("completed_at")
+  deliveredAt                     DateTime?          @map("delivered_at")
+  cancelledAt                     DateTime?          @map("cancelled_at")
+  returnedAt                      DateTime?          @map("returned_at")
+  statusReason                    String?            @map("status_reason")
+  returnCondition                 ReturnCondition?   @map("return_condition")
   createdAt                       DateTime           @default(now()) @map("created_at")
   updatedAt                       DateTime           @updatedAt @map("updated_at")
-  createdBy                       Profile            @relation("CreatedSales", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  createdBy                       Profile?           @relation("CreatedSales", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  customerProfile                 Profile?           @relation("CustomerSales", fields: [customerProfileId], references: [id], onDelete: SetNull)
+  deliveryRate                    DeliveryRate?      @relation(fields: [deliveryRateId], references: [id], onDelete: Restrict)
   unprofitableOverrideBy          Profile?           @relation("UnprofitableOverrides", fields: [unprofitableOverrideByProfileId], references: [id], onDelete: Restrict)
   items                           SalesOrderItem[]
+  returnStockBatches              StockBatch[]       @relation("ReturnStockBatches")
 
+  @@index([source, status, placedAt])
+  @@index([customerProfileId, placedAt])
+  @@index([customerPhone])
   @@index([completedAt])
   @@map("sales_orders")
 }
@@ -219,8 +270,8 @@ model SalesOrderItem {
   grossLineRevenue    Decimal           @map("gross_line_revenue") @db.Decimal(14, 2)
   allocatedDiscount   Decimal           @default(0) @map("allocated_discount") @db.Decimal(14, 2)
   netLineRevenue      Decimal           @map("net_line_revenue") @db.Decimal(14, 2)
-  totalBuyingCost     Decimal           @map("total_buying_cost") @db.Decimal(14, 2)
-  grossProfit         Decimal           @map("gross_profit") @db.Decimal(14, 2)
+  totalBuyingCost     Decimal?          @map("total_buying_cost") @db.Decimal(14, 2)
+  grossProfit         Decimal?          @map("gross_profit") @db.Decimal(14, 2)
   createdAt           DateTime          @default(now()) @map("created_at")
   salesOrder          SalesOrder        @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
   productVariant      ProductVariant    @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
@@ -250,6 +301,37 @@ model OrderAllocation {
   @@index([salesOrderItemId])
   @@index([stockBatchId, state])
   @@map("order_allocations")
+}
+
+model DeliveryRate {
+  id                 String           @id @default(uuid()) @db.Uuid
+  code               DeliveryRateCode @unique
+  name               String
+  charge             Decimal?         @db.Decimal(14, 2)
+  isActive           Boolean          @default(true) @map("is_active")
+  updatedByProfileId String?          @map("updated_by_profile_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  updatedBy          Profile?         @relation(fields: [updatedByProfileId], references: [id], onDelete: Restrict)
+  orders             SalesOrder[]
+
+  @@map("delivery_rates")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  actorProfileId String?  @map("actor_profile_id") @db.Uuid
+  action         String
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id") @db.Uuid
+  previousData   Json?    @map("previous_data")
+  newData        Json?    @map("new_data")
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  actor          Profile? @relation(fields: [actorProfileId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@map("audit_logs")
 }
 
 model FoundationRecord {

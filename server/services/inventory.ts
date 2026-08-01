@@ -7,21 +7,7 @@ import type {
   StockAdjustmentInput,
   StockBatchList,
 } from "../schemas/inventory.js";
-
-interface LockedBatch {
-  id: string;
-  availableQuantity: number;
-  unitBuyingCost: Prisma.Decimal;
-  purchaseDate: Date;
-  createdAt: Date;
-}
-
-interface FifoAllocation {
-  stockBatchId: string;
-  quantity: number;
-  unitBuyingCost: Prisma.Decimal;
-  totalBuyingCost: Prisma.Decimal;
-}
+import { consumeAvailableFifo, type FifoAllocation } from "./stockAllocation.js";
 
 interface InventoryHttpError extends Error {
   status: number;
@@ -110,70 +96,6 @@ function saleDto(sale: SaleRecord) {
   };
 }
 
-async function lockAvailableBatches(
-  transaction: Prisma.TransactionClient,
-  productVariantId: string,
-): Promise<LockedBatch[]> {
-  return transaction.$queryRaw<LockedBatch[]>(Prisma.sql`
-    SELECT
-      "id",
-      "available_quantity" AS "availableQuantity",
-      "unit_buying_cost" AS "unitBuyingCost",
-      "purchase_date" AS "purchaseDate",
-      "created_at" AS "createdAt"
-    FROM "stock_batches"
-    WHERE "product_variant_id" = ${productVariantId}::uuid
-      AND "available_quantity" > 0
-    ORDER BY "purchase_date" ASC, "created_at" ASC, "id" ASC
-    FOR UPDATE
-  `);
-}
-
-async function consumeFifo(
-  transaction: Prisma.TransactionClient,
-  productVariantId: string,
-  requestedQuantity: number,
-): Promise<FifoAllocation[]> {
-  const batches = await lockAvailableBatches(transaction, productVariantId);
-  const available = batches.reduce((sum, batch) => sum + batch.availableQuantity, 0);
-  if (available < requestedQuantity) {
-    throw inventoryError(409, "INSUFFICIENT_STOCK", "The requested quantity is not available.", {
-      productVariantId,
-      requestedQuantity,
-      availableQuantity: available,
-    });
-  }
-
-  let remaining = requestedQuantity;
-  const allocations: FifoAllocation[] = [];
-  for (const batch of batches) {
-    if (remaining === 0) break;
-    const quantity = Math.min(batch.availableQuantity, remaining);
-    const updated = await transaction.stockBatch.updateMany({
-      where: { id: batch.id, availableQuantity: { gte: quantity } },
-      data: { availableQuantity: { decrement: quantity } },
-    });
-    if (updated.count !== 1) {
-      throw inventoryError(409, "STOCK_CONFLICT", "Stock changed during allocation. Please retry.");
-    }
-    allocations.push({
-      stockBatchId: batch.id,
-      quantity,
-      unitBuyingCost: batch.unitBuyingCost,
-      totalBuyingCost: batch.unitBuyingCost.mul(quantity),
-    });
-    remaining -= quantity;
-  }
-
-  const variantUpdated = await transaction.productVariant.updateMany({
-    where: { id: productVariantId, availableStock: { gte: requestedQuantity } },
-    data: { availableStock: { decrement: requestedQuantity } },
-  });
-  if (variantUpdated.count !== 1) {
-    throw inventoryError(409, "STOCK_TOTAL_MISMATCH", "Variant stock totals do not match FIFO batches.");
-  }
-  return allocations;
-}
 
 function allocateDiscount(
   lineTotals: Prisma.Decimal[],
@@ -316,7 +238,7 @@ export function createInventoryService(prisma: PrismaClient) {
             data: { availableStock: { increment: input.quantity } },
           });
         } else {
-          await consumeFifo(transaction, input.productVariantId, input.quantity);
+          await consumeAvailableFifo(transaction, input.productVariantId, input.quantity);
         }
 
         await transaction.stockAdjustment.create({ data: {
@@ -365,7 +287,7 @@ export function createInventoryService(prisma: PrismaClient) {
         for (const item of sortedItems) {
           fifoByVariant.set(
             item.productVariantId,
-            await consumeFifo(transaction, item.productVariantId, item.quantity),
+            await consumeAvailableFifo(transaction, item.productVariantId, item.quantity),
           );
         }
 
@@ -441,6 +363,13 @@ export function createInventoryService(prisma: PrismaClient) {
             } });
           }
         }
+        await transaction.auditLog.create({ data: {
+          actorProfileId: actorId,
+          action: "PHYSICAL_SALE_COMPLETED",
+          entityType: "SALES_ORDER",
+          entityId: sale.id,
+          newData: { source: "PHYSICAL_SHOP", status: "COMPLETED", paymentStatus: "PAID" },
+        } });
         return sale.id;
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (error) {
@@ -452,6 +381,7 @@ export function createInventoryService(prisma: PrismaClient) {
 
     async listPhysicalSales(input: PhysicalSaleList) {
       const sales = await prisma.salesOrder.findMany({
+        where: { source: "PHYSICAL_SHOP", status: "COMPLETED" },
         include: saleInclude,
         orderBy: { completedAt: "desc" },
         take: input.limit,
