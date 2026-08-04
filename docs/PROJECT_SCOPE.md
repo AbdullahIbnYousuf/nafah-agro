@@ -16,7 +16,7 @@ V1 is not a full ERP or accounting platform. It must be reliable, simple to oper
 - Hosting: one Vercel project for the Vite frontend and Express API, Supabase database/auth, and Cloudinary images
 - Repository layout: keep `src/`, `server/`, `prisma/`, and `docs/`; do not introduce a monorepo
 
-There is no real database data to preserve. MongoDB, Mongoose, custom JWT authentication, and weak backend routes may be replaced freely. No legacy-data migration, dual-write, user migration, or production cutover system is required.
+There was no production dataset to migrate during the V1 rebuild. The checked-in implementation is now PostgreSQL/Prisma with Supabase Auth; no compatibility, dual-write, or historical-data cutover path is part of V1.
 
 ## 3. Roles and access
 
@@ -218,7 +218,8 @@ Category-performance analytics are outside V1.
 - Zod validates every API input and rejects unknown sensitive fields
 - Use strict CORS, Helmet, rate limiting, request-size limits, safe errors, and environment validation
 - Uploads enforce role, MIME type, file size, and file-count limits
-- Cloudinary public IDs are stored for safe cleanup
+- Cloudinary uploads validate authorization, type, size, and count. V1 stores
+  secure URLs; orphan cleanup remains an explicitly documented manual operation.
 - Sensitive actions create append-only audit records
 - Secrets and service-role credentials remain backend-only
 - Critical pricing, stock, authentication, authorization, and order behavior is tested as it is implemented

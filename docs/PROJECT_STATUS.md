@@ -4,106 +4,132 @@ Last updated: 2026-08-04
 
 ## Summary
 
-Milestones 1–5 are complete in local code. The OWNER analytics dashboard now
-uses PostgreSQL order snapshots, FIFO allocations, batches, and variant totals.
-A read-only authenticated smoke test succeeded against the configured sample
-database; the new migration, deployment, and production-data reconciliation
-were not performed. The existing single-project Vercel architecture is unchanged.
+Milestones 1–6 are complete in local code. The V1 includes Supabase Auth with
+OWNER/CUSTOMER profiles, PostgreSQL/Prisma catalog and FIFO inventory, physical
+and delivery sales, whole-order returns, OWNER analytics, Cloudinary uploads,
+and a single-project Vercel layout. No deployment, external migration, or
+production-data change was performed during the final review.
 
-## Completed in code
+The code is ready for a disposable Supabase/Vercel Preview acceptance run. It
+is not approved for production until the external gates in this document and
+`docs/RELEASE_CHECKLIST.md` are completed.
 
-- Supabase Auth, active PostgreSQL profiles, OWNER/CUSTOMER authorization,
-  strict environment validation, Express security/rate limits, and health checks.
-- PostgreSQL categories, products, variants, unique SKUs, current price, immutable
-  price history, purchases, stock batches, reason-required adjustments, FIFO
-  allocations, variant stock totals, and immediate physical-shop sales.
-- Unified `SalesOrder`, `SalesOrderItem`, and `OrderAllocation` support WEBSITE,
-  PHYSICAL_SHOP, FACEBOOK, PHONE, WHATSAPP, and OTHER.
-- Guest website COD sends no financial fields, is idempotent, and starts pending
-  without reservation. Authenticated checkout attaches the verified profile.
-- OWNER confirmation reserves exact FIFO batches in a serializable
-  transaction; insufficient/concurrently changed stock rejects the operation.
-- Manual delivery orders can start pending or confirmed. Delivery consumes
-  reservations and marks COD paid. Cancellation/failed delivery releases stock
-  and records a reason without recognized revenue/profit.
-- Whole sellable returns restore stock using original allocation quantities and
-  costs; damaged returns restore no stock. Return status is the reporting reversal
-  signal and original commercial/cost snapshots remain preserved.
-- Editable `delivery_rates` contains Dhaka and Outside Dhaka. Seeded charges are
-  deliberately `NULL` pending client approval; checkout rejects an unpriced rate.
-- Sensitive order/rate mutations append actor, before/after state, and reason to
-  database-enforced append-only `audit_logs` in the same transaction.
-- Storefront cart, customer website-order history, and unified admin management
-  use `/api/v1`. Fake coupons and online/card/mobile-payment choices are removed.
-- Product pages use sellable variants as the only package/weight selector, so
-  the selected label, SKU, price, stock identity, and cart item cannot diverge.
-- Mongo startup, Mongoose dependency/model, `/api/orders`, Mongo utility, and
-  `MONGO_URI` have been removed.
-- A single-project Vercel layout is prepared: Vite outputs `dist`,
-  `api/index.ts` exports the shared Express app, `/api/(.*)` forwards to that
-  Function, and non-API deep links have an `index.html` fallback. API paths are
-  excluded from that fallback and return JSON 404s.
-- Every active Express application route is under `/api/v1`; the Cloudinary
-  upload route was versioned and the duplicate legacy health route was removed.
-- `FRONTEND_URL`/`CLIENT_URL` are removed. Production adds no cross-origin
-  access; local Vite development retains a fixed localhost allowlist and proxy.
-- Multiple OWNER profiles are supported through the controlled CLI workflow;
-  owner-only route guards protect all management operations, and a migration
-  removes the retired role and prevents loss of the final active owner.
-- The role-aware profile screen supports audited name/phone updates,
-  reauthenticated password changes, customer order history, an owner management
-  panel, secure email invitations, and reason-required owner activation changes.
-  First-owner bootstrap remains CLI-only; invitation requires the backend-only
-  Supabase service-role key and configured SMTP/Site URL.
-- OWNER-only analytics provides Today, Yesterday, Sunday–Saturday week, calendar
-  month, and validated custom ranges with previous equivalent-period comparison.
-  Completed physical sales and delivered orders contribute positive events;
-  sellable/damaged returns contribute negative events on the return date.
-- Dashboard sections cover recognized grand-total sales, product revenue,
-  delivery charges, FIFO gross profit/margin, order/unit/AOV metrics, daily
-  trend, source grouping, variant rankings, open COD work, and authoritative
-  batch-based inventory valuation/stock alerts.
-- Migration `202608040001_milestone_5_analytics_indexes` adds only the
-  `delivered_at` and `returned_at` indexes required by the event-range queries.
+## Milestone 6 completed in code
 
-## Local verification on 2026-08-04
+- Removed active obsolete deployment/auth references and all native
+  `alert`/`prompt`/`confirm` workflows. Order transitions, returns, delivery-rate
+  edits, category edits, and loss warnings now use application dialogs with
+  explicit consequences and in-context validation errors.
+- Added strict catalog request schemas and contract tests that reject unknown or
+  client-supplied role, buying-cost, price-total, discount-total, and profit data.
+- Verified Supabase tokens cryptographically for issuer, audience, expiry, and
+  subject before resolving an active PostgreSQL profile and role.
+- Kept every management mutation OWNER-only. Public delivery-rate responses now
+  expose active customer-facing fields only; the complete rate view is OWNER-only.
+- Hardened uploads to OWNER-only JPEG/PNG/WebP/AVIF files, 5 MB per file and ten
+  files per request, using a fixed `nafah-agro` Cloudinary folder and safe errors.
+- Production 500 responses now hide database codes, details, messages, and stacks.
+  Helmet, JSON-size limits, request IDs, same-origin production CORS, website
+  idempotency, and owner-invitation/protected-route limits remain enabled.
+- Documented that the in-memory rate limiter is a per-Function-instance abuse
+  brake, not a global Vercel quota; Vercel WAF rules are the preferred V1
+  production mitigation.
+- Added a migration that checks cached variant totals before installation, then
+  enforces deferred batch/variant total consistency, allocation state/timestamp
+  consistency, immutable batch-to-variant identity, and reasons for cancelled,
+  failed-delivery, and returned records.
+- Added read-only `npm run inventory:check`. The configured database reported
+  `consistent: true` with no mismatches on 2026-08-04. The new migration itself
+  was not applied externally.
+- Audited `npm run seed`: it remains idempotent and non-destructive. Destructive
+  sample-data reset remains a separate command requiring the explicit
+  `CONFIRM_DEMO_RESET=RESET_NAFAH_AGRO_DEMO` acknowledgement.
+- Removed unnecessary read-only Prisma transactions from catalog/order lists,
+  avoiding transaction-start failures under concurrent page loads. Stock and
+  order writes retain their transactional guarantees.
+- Lazy-loaded every frontend route and major OWNER section. Recharts and
+  TanStack Query remain in the OWNER analytics chunk, outside the initial public
+  route. Product images use lazy decoding/loading where appropriate.
+- Added mobile/table/desktop Playwright coverage, improved footer touch targets,
+  standardized missing-page Bangla copy, and added field-level errors to manual
+  orders and physical sales.
+- Added concise deployment, operations, recovery, backup, incident, demo, and
+  release documentation. Cloudinary records still store secure URLs rather than
+  public IDs, so orphaned remote uploads require manual review.
 
-- `npm run typecheck`: passed.
+## Verification on 2026-08-04
+
+- `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 124 tests passed across fifteen files, including focused
-  analytics recognition/reversal/date/inventory rules, OWNER/CUSTOMER access,
-  Vercel routing, health, unified orders, FIFO inventory, and return dialogs.
-- `npm run build`: passed with non-blocking bundle-size and stale Browserslist
-  data warnings (781.38 kB main JavaScript chunk). The Recharts dashboard is a
-  separate lazy OWNER-only chunk (406.85 kB; 113.03 kB gzip), so it is not part
-  of the public storefront's initial download.
-- Authenticated local Playwright smoke test loaded real sample dashboard data at
-  390 px without page overflow, undersized visible controls, or console errors.
-- `npm run build:server`, `npm run prisma:validate`, `npm run prisma:generate`,
-  and `git diff --check`: passed.
-- Migration `202608040001_milestone_5_analytics_indexes` is checked in but was
-  not applied to Supabase from this workspace.
+- `npm test -- --run`: 151 tests passed across 21 files. This includes analytics
+  recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
+  OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
+  database-integrity source checks, and dialog request behavior.
+- `npm run build`: passed. The public entry chunk changed from 781.38 kB
+  (222.94 kB gzip) to 552.22 kB (160.21 kB gzip), a 29.3% raw and 28.1% gzip
+  reduction. OWNER analytics remains lazy at 433.87 kB (120.56 kB gzip).
+- `npm run build:server`: passed.
+- `npm run prisma:validate`: passed.
+- `npm run prisma:generate`: passed.
+- `npm run inventory:check`: passed against the configured database with no
+  cached stock-total mismatches.
+- `git diff --check`: passed.
+- Playwright with system Chrome: two responsive scenarios passed at 390x844,
+  768x1024, and 1440x900, covering storefront/product/cart and all OWNER tabs;
+  no page overflow, undersized visible mobile controls, or console errors were
+  detected. The Codex in-app browser was unavailable, so system Chrome was used.
+- The production build reports a local-only Vite warning because this workspace's
+  untracked `.env` sets `NODE_ENV=production`; remove it or set `development` for
+  local work. Vercel sets production mode during deployment.
+
+## Environment contract
+
+Vercel runtime/build variables:
+
+- `DATABASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_JWT_AUDIENCE`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `JSON_BODY_LIMIT` only when overriding the safe default
+- `SUPABASE_SERVICE_ROLE_KEY` only when OWNER invitation email is enabled
+
+`DIRECT_URL` belongs in protected local migration/CI configuration, not the
+normal Vercel runtime. Obsolete MongoDB, custom-JWT, admin-unlock,
+cross-origin-frontend, and separate-backend variables are not used.
 
 ## External acceptance required
 
-- Apply all Prisma migrations to a disposable Supabase project and run the seed.
-- Apply `202608040001_milestone_5_analytics_indexes`, then compare dashboard
-  totals manually against known delivered/completed/returned demonstration orders.
-- Confirm there are no historical `ADMIN` profiles; the two-role migration
-  intentionally stops for manual resolution rather than escalating or silently
-  downgrading an identity.
-- Set approved Dhaka and Outside-Dhaka charges with a real OWNER account.
-- Test guest checkout, authenticated ownership, manual confirmed order, FIFO
-  reservation, delivery, cancellation/failure, and both return conditions in a
-  browser against real PostgreSQL.
-- Run a real concurrent final-stock confirmation test.
-- Verify registration/profile trigger, Cloudinary upload, the generated Vercel
-  Function, same-origin behavior, SPA deep links, and production variables in a
-  real Preview deployment.
-- Verify owner invitation email delivery and acceptance with production-like
-  Supabase SMTP/Site URL settings and the Vercel service-role secret.
-- Obtain client-approved delivery charges. Cloudinary and Vercel remain untested.
+- Create or select a disposable Supabase project, take a backup, apply every
+  checked-in Prisma migration, run the safe seed, and rerun the inventory check.
+- Verify Supabase Site URL/redirects for localhost, production, and Preview;
+  test registration/profile trigger, login refresh, password recovery, SMTP,
+  OWNER invitation, and at least two MFA-protected OWNER identities.
+- Configure a Vercel Preview with the required secrets; verify Function detection,
+  `/`, `/shop`, `/admin`, product refreshes, health, JSON API 404s, PostgreSQL,
+  logs/request IDs, and rollback to a known-good deployment.
+- Perform a real authorized Cloudinary upload and render, plus invalid MIME,
+  oversize, over-count, and CUSTOMER-denial checks.
+- Enter client-approved Dhaka and Outside-Dhaka charges, approved opening stock
+  and costs, and verify one concurrent final-stock confirmation.
+- Reconcile live dashboard totals against known physical/delivered/returned
+  orders. Deterministic automated reconciliation is complete; real staging data
+  is still required.
+- Complete a Supabase backup restore drill and approve account ownership,
+  contact email, legal/privacy/return copy, product content, registration policy,
+  and production incident contacts.
 
-## Not started
+## Accepted V1 residuals
 
-- Milestone 6 final accessibility/performance/deployment acceptance.
+- In-memory rate limits are not shared across Vercel instances.
+- Remote Cloudinary orphan cleanup is manual because public IDs are not stored.
+- Generated UI dependencies remain in the repository but are tree-shaken from
+  routes that do not use them; no risky dependency/framework migration was made.
+- React Router prints v7 future-option notices in test stderr; current v6 behavior
+  is correct and upgrading is deferred.
+- Bundle tooling still warns that the shared public chunk exceeds 500 kB raw;
+  route/OWNER code splitting is working and further dependency changes should be
+  evidence-driven rather than a release blocker.

@@ -17,10 +17,9 @@ import type {
   User,
   UnifiedOrder,
 } from './types';
-import { frontendEnv } from './env';
 import { supabase } from './supabase';
 
-const BASE = frontendEnv.VITE_API_URL;
+const BASE = '/api';
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -37,6 +36,30 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+export function apiErrorMessage(body: unknown, status: number): string {
+  if (body && typeof body === 'object' && 'error' in body) {
+    const error = (body as { error?: unknown }).error;
+    if (error && typeof error === 'object') {
+      const details = 'details' in error && error.details && typeof error.details === 'object'
+        ? error.details as { issues?: unknown }
+        : undefined;
+      if (Array.isArray(details?.issues)) {
+        const issues = details.issues.flatMap((issue) => {
+          if (!issue || typeof issue !== 'object' || !('message' in issue) || typeof issue.message !== 'string') return [];
+          const path = 'path' in issue && Array.isArray(issue.path) && issue.path.length > 0
+            ? `${issue.path.join('.')}: `
+            : '';
+          return [`${path}${issue.message}`];
+        });
+        if (issues.length > 0) return issues.join(' ');
+      }
+      if ('message' in error && typeof error.message === 'string') return error.message;
+    }
+    if (typeof error === 'string') return error;
+  }
+  return `Request failed: ${status}`;
 }
 
 async function accessToken(): Promise<string | null> {
@@ -61,7 +84,7 @@ async function request<T>(path: string, options?: RequestInit, explicitToken?: s
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = body?.error?.message ?? body?.error ?? `Request failed: ${response.status}`;
+    const message = apiErrorMessage(body, response.status);
     throw new ApiError(message, body?.error?.code ?? 'REQUEST_FAILED', response.status, body?.error?.details ?? {});
   }
   return body as T;
@@ -353,6 +376,10 @@ export function getDeliveryRates(): Promise<DeliveryRate[]> {
   return requestV1<DeliveryRate[]>('/delivery-rates');
 }
 
+export function getAdminDeliveryRates(): Promise<DeliveryRate[]> {
+  return requestV1<DeliveryRate[]>('/admin/delivery-rates');
+}
+
 export function updateDeliveryRate(
   id: string,
   input: { name?: string; charge?: number | null; isActive?: boolean },
@@ -445,6 +472,6 @@ export async function uploadImages(files: File[]): Promise<string[]> {
     headers: await authorizationHeaders(),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error ?? 'Image upload failed');
-  return body.urls as string[];
+  if (!response.ok) throw new Error(body?.error?.message ?? 'Image upload failed');
+  return body.data.urls as string[];
 }

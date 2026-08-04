@@ -53,7 +53,8 @@ All order sources use `sales_orders`, `sales_order_items`, and
 
 | Method | Endpoint | Access | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/delivery-rates` | Public | Active/inactive Dhaka rates and approved charge |
+| `GET` | `/api/v1/delivery-rates` | Public | Active delivery zones and approved charges only |
+| `GET` | `/api/v1/admin/delivery-rates` | OWNER | All delivery zones, including inactive/unpriced rows |
 | `PATCH` | `/api/v1/delivery-rates/:id` | OWNER | Edit name, nullable charge, or active state |
 | `POST` | `/api/v1/orders/website` | Guest or customer | Idempotent website COD checkout |
 | `GET` | `/api/v1/orders/my` | CUSTOMER/active profile | Own profile-linked WEBSITE orders only |
@@ -143,11 +144,23 @@ Financial rules:
   unit_buying_cost` across remaining batches
 - margin is `gross_profit / product_revenue × 100`, or `null` when product
   revenue is zero
+- authoritative BDT money uses PostgreSQL/Prisma decimal values with two decimal
+  places; proportional line discounts and displayed percentages round half-up
+  (line discounts to 2 places, margins/comparisons to 2 displayed places)
 
 ## Image upload
 
 `POST /api/v1/upload` and `/api/v1/upload/multiple` require an active
-OWNER Supabase profile. They upload to Cloudinary.
+OWNER Supabase profile. They accept JPEG, PNG, WebP, or AVIF only; each file is
+limited to 5 MB and a multiple request is limited to 10 files. Files upload to
+the fixed `nafah-agro` Cloudinary folder. Success uses the standard envelope:
+
+```json
+{ "success": true, "data": { "urls": ["https://res.cloudinary.com/..."] } }
+```
+
+Product records currently retain secure URLs. Remote orphan cleanup is manual
+in V1; product deactivation does not delete a Cloudinary asset.
 
 Unknown `/api/*` requests return a JSON `API_NOT_FOUND` response. Vercel never
 rewrites them to the frontend SPA.

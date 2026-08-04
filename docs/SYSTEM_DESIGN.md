@@ -17,7 +17,8 @@ Supabase Auth         PostgreSQL on Supabase
 Cloudinary product images
 ```
 
-The current React/Vite UI is reused where practical. MongoDB/Mongoose routes and custom JWT authentication may be replaced because there is no production data to migrate.
+The practical React/Vite UI is retained. The active V1 data and identity paths
+are PostgreSQL/Prisma and Supabase Auth; there is no compatibility data path.
 
 The backend is authoritative for authentication, roles, prices, discounts, delivery charges, stock, FIFO allocation, totals, buying costs, profit, and analytics.
 
@@ -137,7 +138,7 @@ products
 product_images
 - id
 - product_id
-- cloudinary_public_id
+- cloudinary_secure_url (stored in the product image URL list)
 - secure_url
 - alt_text
 - display_order
@@ -520,7 +521,8 @@ Every milestone includes:
 - Safe production errors and correlation IDs
 - Transaction and concurrency tests for stock operations
 - Upload MIME, count, and size restrictions
-- Cloudinary public-ID storage and controlled deletion
+- Cloudinary authorization/type/size/count validation; remote orphan cleanup is
+  manual in V1 because product records store secure URLs rather than public IDs
 - Dependency and secret review
 - Append-only audit logging for sensitive actions
 
@@ -533,7 +535,6 @@ VITE_SUPABASE_ANON_KEY
 
 # Backend
 DATABASE_URL
-DIRECT_URL
 SUPABASE_URL
 SUPABASE_JWT_AUDIENCE
 CLOUDINARY_CLOUD_NAME
@@ -543,7 +544,7 @@ NODE_ENV
 JSON_BODY_LIMIT
 ```
 
-The Express API is exported through `api/index.ts` instead of relying on a permanent `app.listen()`. Vercel forwards `/api/(.*)` to this single Function without injecting a named query parameter, and the frontend uses same-origin `/api` in production. Prisma uses the Supabase pooled URL at runtime and the direct URL for migrations.
+The Express API is exported through `api/index.ts` instead of relying on a permanent `app.listen()`. Vercel forwards `/api/(.*)` to this single Function without injecting a named query parameter, and the frontend uses same-origin `/api` in production. Prisma uses the Supabase pooled URL at runtime; the direct URL exists only in protected migration/CI or local operator configuration.
 
 ## 12. Analytics rules
 
@@ -596,6 +597,6 @@ End-to-end:
 - Supabase pooled and direct connections are tested
 - Prisma migrations run through a controlled deployment step
 - Same-origin production requests and HTTPS are enforced; a fixed local CORS allowlist supports Vite development
-- Cloudinary upload/delete is verified
+- Cloudinary upload and rendering are verified; orphan cleanup responsibility is documented
 - Health check includes API and database readiness
 - Production smoke tests, backup responsibility, error monitoring, and rollback instructions are documented

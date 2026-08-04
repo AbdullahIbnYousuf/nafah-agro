@@ -10,7 +10,11 @@ import type { CatalogService } from "../services/catalog.js";
 function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S> {
   try { return schema.parse(value); }
   catch (error) {
-    if (error instanceof ZodError) throw Object.assign(new Error("Request validation failed"), { status: 400, code: "VALIDATION_ERROR", issues: error.issues });
+    if (error instanceof ZodError) throw Object.assign(new Error("Request validation failed"), {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      details: { issues: error.issues },
+    });
     throw error;
   }
 }

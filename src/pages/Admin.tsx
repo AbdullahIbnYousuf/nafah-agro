@@ -2,13 +2,10 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, Loader2, Package, Plus, Settings2, Store, Tag } from 'lucide-react';
 import { toast } from 'sonner';
-import AddProductForm from '@/components/AddProductForm';
-import VariantManager from '@/components/VariantManager';
-import InventoryManager from '@/components/InventoryManager';
-import PhysicalSaleScreen from '@/components/PhysicalSaleScreen';
-import UnifiedOrderManager from '@/components/UnifiedOrderManager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   createCategory,
   getAdminCategories,
@@ -20,6 +17,11 @@ import {
 import type { Category, Product } from '@/lib/types';
 
 const AnalyticsDashboard = lazy(() => import('@/components/AnalyticsDashboard'));
+const AddProductForm = lazy(() => import('@/components/AddProductForm'));
+const VariantManager = lazy(() => import('@/components/VariantManager'));
+const InventoryManager = lazy(() => import('@/components/InventoryManager'));
+const PhysicalSaleScreen = lazy(() => import('@/components/PhysicalSaleScreen'));
+const UnifiedOrderManager = lazy(() => import('@/components/UnifiedOrderManager'));
 
 type Tab = 'dashboard' | 'products' | 'categories' | 'inventory' | 'physical-sales' | 'orders';
 
@@ -56,11 +58,11 @@ export default function Admin() {
       </aside>
       <main className="flex-1 p-4 md:p-8 min-w-0">
         {tab === 'dashboard' && <Suspense fallback={<Loading />}><AnalyticsDashboard /></Suspense>}
-        {tab === 'products' && <Products />}
+        {tab === 'products' && <Suspense fallback={<Loading />}><Products /></Suspense>}
         {tab === 'categories' && <Categories />}
-        {tab === 'inventory' && <InventoryManager />}
-        {tab === 'physical-sales' && <PhysicalSaleScreen />}
-        {tab === 'orders' && <UnifiedOrderManager />}
+        {tab === 'inventory' && <Suspense fallback={<Loading />}><InventoryManager /></Suspense>}
+        {tab === 'physical-sales' && <Suspense fallback={<Loading />}><PhysicalSaleScreen /></Suspense>}
+        {tab === 'orders' && <Suspense fallback={<Loading />}><UnifiedOrderManager /></Suspense>}
       </main>
     </div>
   );
@@ -96,6 +98,10 @@ function Products() {
 function Categories() {
   const [items, setItems] = useState<Category[]>([]);
   const [name, setName] = useState('');
+  const [editing, setEditing] = useState<Category | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editError, setEditError] = useState('');
+  const [saving, setSaving] = useState(false);
   const load = useCallback(() => { void getAdminCategories().then(setItems).catch(() => toast.error('ক্যাটাগরি লোড হয়নি')); }, []);
   useEffect(load, [load]);
   async function add() {
@@ -103,9 +109,33 @@ function Categories() {
     await createCategory({ name: name.trim(), slug: slugify(name) });
     setName(''); load();
   }
+  function openEdit(item: Category) {
+    setEditing(item);
+    setEditName(item.name);
+    setEditError('');
+  }
+
+  async function saveEdit() {
+    const normalized = editName.trim();
+    if (!editing || !normalized) {
+      setEditError('ক্যাটাগরির নাম লিখুন।');
+      return;
+    }
+    setSaving(true);
+    setEditError('');
+    try {
+      await updateCategory(editing.id, { name: normalized, slug: slugify(normalized) });
+      setEditing(null);
+      load();
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : 'ক্যাটাগরি আপডেট হয়নি');
+    } finally {
+      setSaving(false);
+    }
+  }
   return <div><h1 className="text-2xl font-bold mb-6">ক্যাটাগরি</h1><div className="mb-6 grid max-w-lg gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="নতুন ক্যাটাগরি" /><Button onClick={() => void add()}>যোগ করুন</Button></div><div className="space-y-2 max-w-2xl">
-    {items.map((item) => <div key={item.id} className={`flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between ${item.isActive === false ? 'opacity-60' : ''}`}><div className="min-w-0"><strong className="break-words">{item.name}</strong><div className="break-all text-xs text-muted-foreground">/{item.slug} · {item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</div></div><div className="flex items-center justify-end"><button type="button" className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted" aria-label="নাম বদলান" onClick={() => { const next = prompt('ক্যাটাগরির নাম', item.name); if (next) void updateCategory(item.id, { name: next, slug: slugify(next) }).then(load).catch(() => toast.error('ক্যাটাগরি আপডেট হয়নি')); }}><Edit size={16} /></button><Button type="button" size="sm" variant={item.isActive === false ? 'default' : 'outline'} onClick={() => void setCategoryActive(item.id, item.isActive === false).then(load).catch(() => toast.error('ক্যাটাগরির অবস্থা পরিবর্তন হয়নি'))}>{item.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></div></div>)}
-  </div></div>;
+    {items.map((item) => <div key={item.id} className={`flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between ${item.isActive === false ? 'opacity-60' : ''}`}><div className="min-w-0"><strong className="break-words">{item.name}</strong><div className="break-all text-xs text-muted-foreground">/{item.slug} · {item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</div></div><div className="flex items-center justify-end"><button type="button" className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted" aria-label="নাম বদলান" onClick={() => openEdit(item)}><Edit size={16} /></button><Button type="button" size="sm" variant={item.isActive === false ? 'default' : 'outline'} onClick={() => void setCategoryActive(item.id, item.isActive === false).then(load).catch(() => toast.error('ক্যাটাগরির অবস্থা পরিবর্তন হয়নি'))}>{item.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></div></div>)}
+  </div><Dialog open={editing !== null} onOpenChange={(open) => { if (!open && !saving) setEditing(null); }}><DialogContent><DialogHeader><DialogTitle>ক্যাটাগরির নাম পরিবর্তন</DialogTitle><DialogDescription>নাম পরিবর্তন করলে URL স্লাগও নতুন নাম অনুযায়ী বদলাবে।</DialogDescription></DialogHeader><div><Label htmlFor="category-edit-name">ক্যাটাগরির নাম</Label><Input id="category-edit-name" className="mt-2" value={editName} onChange={(event) => { setEditName(event.target.value); setEditError(''); }} aria-invalid={Boolean(editError)} aria-describedby={editError ? 'category-edit-error' : undefined} />{editError && <p id="category-edit-error" role="alert" className="mt-2 text-sm text-destructive">{editError}</p>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={saving}>বন্ধ করুন</Button><Button type="button" onClick={() => void saveEdit()} disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</Button></DialogFooter></DialogContent></Dialog></div>;
 }
 
 function Loading() {

@@ -1,26 +1,7 @@
 import { z } from "zod";
 
-function isApiBaseUrl(value: string) {
-  if (value.startsWith("/")) return true;
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const apiBaseSchema = z
-  .string()
-  .trim()
-  .refine(
-    isApiBaseUrl,
-    "VITE_API_URL must be an absolute URL or a root-relative path",
-  );
-
 export const frontendEnvSchema = z
   .object({
-    VITE_API_URL: apiBaseSchema.default("/api"),
     VITE_SUPABASE_URL: z.string().url().optional(),
     VITE_SUPABASE_ANON_KEY: z.string().min(20).optional(),
   })

@@ -1,22 +1,25 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/contexts/CartContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Index from "./pages/Index";
-import Shop from "./pages/Shop";
-import ProductDetails from "./pages/ProductDetails";
-import Cart from "./pages/Cart";
-import Admin from "./pages/Admin";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import CustomerProfile from "./pages/CustomerProfile";
-import NotFound from "./pages/NotFound";
 import { useAuth } from "@/contexts/AuthContext";
 
-const queryClient = new QueryClient();
+const Index = lazy(() => import("./pages/Index"));
+const Shop = lazy(() => import("./pages/Shop"));
+const ProductDetails = lazy(() => import("./pages/ProductDetails"));
+const Cart = lazy(() => import("./pages/Cart"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const CustomerProfile = lazy(() => import("./pages/CustomerProfile"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+function PageLoading() {
+  return <div className="flex min-h-screen items-center justify-center text-muted-foreground" role="status">লোড হচ্ছে…</div>;
+}
 
 function InvitePasswordRedirect() {
   const { needsPasswordSetup } = useAuth();
@@ -27,14 +30,13 @@ function InvitePasswordRedirect() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+  <TooltipProvider>
       <AuthProvider>
         <CartProvider>
           <Sonner />
           <BrowserRouter>
             <InvitePasswordRedirect />
-            <Routes>
+            <Suspense fallback={<PageLoading />}><Routes>
               <Route path="/" element={<Index />} />
               <Route path="/shop" element={<Shop />} />
               <Route path="/products/:slug" element={<ProductDetails />} />
@@ -58,12 +60,11 @@ const App = () => (
                 }
               />
               <Route path="*" element={<NotFound />} />
-            </Routes>
+            </Routes></Suspense>
           </BrowserRouter>
         </CartProvider>
       </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  </TooltipProvider>
 );
 
 export default App;

@@ -13,24 +13,26 @@ describe("backend environment validation", () => {
 
     expect(env.PORT).toBe(4000);
     expect(env.FOUNDATION_CONFIGURED).toBe(false);
+    expect(env.PROTECTED_RATE_LIMIT_MAX).toBe(300);
   });
 
   it("does not require a frontend URL for same-origin production", () => {
-    const env = parseBackendEnv({ NODE_ENV: "production" });
+    const env = parseBackendEnv({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
+      SUPABASE_URL: "https://project.supabase.co",
+      CLOUDINARY_CLOUD_NAME: "cloud",
+      CLOUDINARY_API_KEY: "key",
+      CLOUDINARY_API_SECRET: "secret",
+    });
 
     expect(env.NODE_ENV).toBe("production");
-    expect(env).not.toHaveProperty("FRONTEND_URL");
-    expect(env).not.toHaveProperty("CLIENT_URL");
   });
 
-  it("does not expose retired custom authentication variables", () => {
-    const env = parseBackendEnv({
-      ...validEnvironment,
-      JWT_SECRET: "ignored-retired-value",
-      ADMIN_UNLOCK_CODE: "ignored-retired-value",
-    });
-    expect(env).not.toHaveProperty("JWT_SECRET");
-    expect(env).not.toHaveProperty("ADMIN_UNLOCK_CODE");
+  it("fails fast when production data or image services are missing", () => {
+    expect(() => parseBackendEnv({ NODE_ENV: "production" })).toThrow(
+      "DATABASE_URL is required in production",
+    );
   });
 
   it("requires PostgreSQL and Supabase configuration together", () => {

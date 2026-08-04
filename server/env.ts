@@ -35,7 +35,7 @@ export const backendEnvSchema = z
       .int()
       .min(1)
       .max(10_000)
-      .default(60),
+      .default(300),
     OWNER_INVITE_RATE_LIMIT_MAX: z.coerce
       .number()
       .int()
@@ -85,6 +85,25 @@ export const backendEnvSchema = z
         path: ["SUPABASE_SERVICE_ROLE_KEY"],
         message: "Owner invitations require DATABASE_URL and SUPABASE_URL",
       });
+    }
+
+    if (env.NODE_ENV === "production") {
+      const requiredProductionValues = [
+        ["DATABASE_URL", env.DATABASE_URL],
+        ["SUPABASE_URL", env.SUPABASE_URL],
+        ["CLOUDINARY_CLOUD_NAME", env.CLOUDINARY_CLOUD_NAME],
+        ["CLOUDINARY_API_KEY", env.CLOUDINARY_API_KEY],
+        ["CLOUDINARY_API_SECRET", env.CLOUDINARY_API_SECRET],
+      ] as const;
+      for (const [name, value] of requiredProductionValues) {
+        if (!value) {
+          ctx.addIssue({
+            code: "custom",
+            path: [name],
+            message: `${name} is required in production`,
+          });
+        }
+      }
     }
   })
   .transform((env) => ({

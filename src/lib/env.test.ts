@@ -2,13 +2,12 @@ import { describe, expect, it } from "vitest";
 import { parseFrontendEnv } from "./env";
 
 describe("frontend environment validation", () => {
-  it("uses the same-origin API by default", () => {
-    expect(parseFrontendEnv({})).toEqual({ VITE_API_URL: "/api" });
+  it("accepts an empty public configuration for isolated tests", () => {
+    expect(parseFrontendEnv({})).toEqual({});
   });
 
   it("accepts a complete public Supabase configuration", () => {
     const env = parseFrontendEnv({
-      VITE_API_URL: "https://api.example.com/api",
       VITE_SUPABASE_URL: "https://project.supabase.co",
       VITE_SUPABASE_ANON_KEY: "public-anon-key-with-enough-length",
     });

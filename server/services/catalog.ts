@@ -126,15 +126,16 @@ export function createCatalogService(prisma: PrismaClient) {
             ? { name: "desc" }
             : { createdAt: "desc" };
       const priceSort = input.sort === "price_asc" || input.sort === "price_desc";
-      const [records, total] = await prisma.$transaction([
-        prisma.product.findMany({
-          where,
-          include: productInclude,
-          orderBy,
-          ...(priceSort ? {} : { skip: (input.page - 1) * input.limit, take: input.limit }),
-        }),
-        prisma.product.count({ where }),
-      ]);
+      // These are independent reads. Avoid opening an interactive transaction
+      // for storefront pagination because pooled/serverless connections can be
+      // briefly exhausted by concurrent page loads.
+      const records = await prisma.product.findMany({
+        where,
+        include: productInclude,
+        orderBy,
+        ...(priceSort ? {} : { skip: (input.page - 1) * input.limit, take: input.limit }),
+      });
+      const total = await prisma.product.count({ where });
       let data = records.map((product) => productDto(product, includeInactive));
       if (priceSort) {
         data = data.sort((a, b) => input.sort === "price_asc" ? a.price - b.price : b.price - a.price);

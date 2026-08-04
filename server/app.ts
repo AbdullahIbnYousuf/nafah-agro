@@ -10,7 +10,7 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { createOrderRouter } from "./routes/orders.js";
 import { createAnalyticsRouter } from "./routes/analytics.js";
-import uploadRoutes from "./routes/upload.js";
+import { createUploadRouter, type UploadImage } from "./routes/upload.js";
 import { createCatalogRouter } from "./routes/catalog.js";
 import { createInventoryRouter } from "./routes/inventory.js";
 import { createAccountRouter } from "./routes/accounts.js";
@@ -56,6 +56,7 @@ export interface AppDependencies {
   accountService?: AccountService;
   analyticsService?: AnalyticsService;
   writeCustomerProfile?: CustomerProfileWriter;
+  uploadImage?: UploadImage;
 }
 
 interface HttpError extends Error {
@@ -487,7 +488,7 @@ export function createApp(dependencies: AppDependencies) {
     });
   }
 
-  app.use("/api/v1/upload", protectedRouteLimiter, authenticate, requireOwner, uploadRoutes);
+  app.use("/api/v1/upload", protectedRouteLimiter, authenticate, requireOwner, createUploadRouter(dependencies.uploadImage));
 
   app.use("/api", (_req, res) => {
     res.status(404).json({
@@ -516,29 +517,34 @@ export function createApp(dependencies: AppDependencies) {
         isProduction && status >= 500 ? "Internal Server Error" : message;
       const requestId = res.getHeader("X-Request-ID");
 
-      console.error(
-        JSON.stringify({
-          time: new Date().toISOString(),
-          level: "error",
-          requestId,
-          method: req.method,
-          path: req.originalUrl,
-          message,
-          stack:
-            !isProduction && error instanceof Error ? error.stack : undefined,
-        }),
-      );
+      const logLine = JSON.stringify({
+        time: new Date().toISOString(),
+        level: status >= 500 ? "error" : "warn",
+        requestId,
+        method: req.method,
+        path: req.originalUrl,
+        message,
+        stack:
+          !isProduction && status >= 500 && error instanceof Error ? error.stack : undefined,
+      });
+      if (status >= 500) console.error(logLine);
+      else console.warn(logLine);
 
       if (req.path.startsWith("/api/v1/")) {
         res.status(status).json({
           success: false,
           error: {
             code:
-              typeof httpError.code === "string"
-                ? httpError.code
-                : "INTERNAL_SERVER_ERROR",
+              isProduction && status >= 500
+                ? "INTERNAL_SERVER_ERROR"
+                : typeof httpError.code === "string"
+                  ? httpError.code
+                  : "INTERNAL_SERVER_ERROR",
             message: responseMessage,
-            details: { ...httpError.details, requestId },
+            details:
+              isProduction && status >= 500
+                ? { requestId }
+                : { ...httpError.details, requestId },
           },
         });
         return;

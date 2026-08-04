@@ -15,6 +15,15 @@ const baseEnvironment = {
   NODE_ENV: "test",
 };
 
+const productionEnvironment = {
+  NODE_ENV: "production",
+  DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
+  SUPABASE_URL: "https://project.supabase.co",
+  CLOUDINARY_CLOUD_NAME: "cloud",
+  CLOUDINARY_API_KEY: "key",
+  CLOUDINARY_API_SECRET: "secret",
+};
+
 function createTestEnv(configureFoundation = false) {
   return parseBackendEnv({
     ...baseEnvironment,
@@ -101,7 +110,12 @@ describe("single-project deployment behavior", () => {
 
   it("does not enable cross-origin access in same-origin production", async () => {
     const response = await request(
-      createApp({ env: parseBackendEnv({ NODE_ENV: "production" }) }),
+      createApp({
+        env: parseBackendEnv(productionEnvironment),
+        checkDatabase: vi.fn(),
+        verifySupabaseToken: vi.fn(),
+        readFoundationRecord: vi.fn(),
+      }),
     )
       .get("/api/v1/health")
       .set("Origin", "https://untrusted.example");
@@ -118,6 +132,110 @@ describe("single-project deployment behavior", () => {
     expect(response.status).toBe(404);
     expect(response.type).toMatch(/json/);
     expect(response.body.error.code).toBe("API_NOT_FOUND");
+  });
+
+  it("hides database codes, details, and messages from production 500 responses", async () => {
+    const profile: ApplicationProfile = {
+      id: "4cd56ef4-56d8-4a22-92fe-887e6f601de6",
+      role: "OWNER",
+      fullName: "Owner",
+      phoneNumber: null,
+      isActive: true,
+    };
+    const response = await request(createApp({
+      env: parseBackendEnv(productionEnvironment),
+      checkDatabase: vi.fn(),
+      verifySupabaseToken: vi.fn(async () => ({ id: profile.id, claims: { sub: profile.id } })),
+      readProfile: vi.fn(async () => profile),
+      readFoundationRecord: vi.fn(async () => {
+        throw Object.assign(new Error("database credential leak"), {
+          code: "P2002",
+          details: { sql: "secret query" },
+        });
+      }),
+    }))
+      .get("/api/v1/foundation")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Internal Server Error",
+    });
+    expect(JSON.stringify(response.body)).not.toMatch(/credential|P2002|secret query/);
+  });
+});
+
+describe("image upload security", () => {
+  const ownerProfile: ApplicationProfile = {
+    id: "4cd56ef4-56d8-4a22-92fe-887e6f601de6",
+    role: "OWNER",
+    fullName: "Initial Owner",
+    phoneNumber: null,
+    isActive: true,
+  };
+
+  function uploadApp(role: ApplicationProfile["role"] = "OWNER") {
+    const uploadImage = vi.fn(async () => "https://res.cloudinary.com/demo/image/upload/sample.webp");
+    const app = createApp({
+      env: createTestEnv(true),
+      verifySupabaseToken: vi.fn(async () => ({
+        id: ownerProfile.id,
+        email: "owner@example.com",
+        claims: { sub: ownerProfile.id },
+      })),
+      readProfile: vi.fn(async () => ({ ...ownerProfile, role })),
+      readFoundationRecord: vi.fn(),
+      checkDatabase: vi.fn(),
+      uploadImage,
+    });
+    return { app, uploadImage };
+  }
+
+  it("requires OWNER authorization before processing an image", async () => {
+    const { app, uploadImage } = uploadApp("CUSTOMER");
+    const response = await request(app)
+      .post("/api/v1/upload/multiple")
+      .set("Authorization", "Bearer valid-token")
+      .attach("images", Buffer.from("image"), { filename: "image.png", contentType: "image/png" });
+    expect(response.status).toBe(403);
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported MIME types", async () => {
+    const { app, uploadImage } = uploadApp();
+    const response = await request(app)
+      .post("/api/v1/upload/multiple")
+      .set("Authorization", "Bearer valid-token")
+      .attach("images", Buffer.from("not-image"), { filename: "payload.svg", contentType: "image/svg+xml" });
+    expect(response.status).toBe(415);
+    expect(response.body.error.code).toBe("UNSUPPORTED_IMAGE_TYPE");
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
+  it("rejects files larger than five megabytes", async () => {
+    const { app, uploadImage } = uploadApp();
+    const response = await request(app)
+      .post("/api/v1/upload/multiple")
+      .set("Authorization", "Bearer valid-token")
+      .attach("images", Buffer.alloc(5 * 1024 * 1024 + 1), { filename: "large.jpg", contentType: "image/jpeg" });
+    expect(response.status).toBe(413);
+    expect(response.body.error.code).toBe("IMAGE_TOO_LARGE");
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
+  it("uploads an allowed image to the fixed Nafah Agro folder", async () => {
+    const { app, uploadImage } = uploadApp();
+    const response = await request(app)
+      .post("/api/v1/upload/multiple")
+      .set("Authorization", "Bearer valid-token")
+      .attach("images", Buffer.from("image"), { filename: "product.webp", contentType: "image/webp" });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      success: true,
+      data: { urls: ["https://res.cloudinary.com/demo/image/upload/sample.webp"] },
+    });
+    expect(uploadImage).toHaveBeenCalledWith(expect.any(Buffer), "nafah-agro");
   });
 });
 
@@ -492,6 +610,31 @@ describe("GET /api/v1/foundation", () => {
         transitionOrder: vi.fn(),
       } as unknown as UnifiedOrderService;
     }
+
+    it("exposes only the public delivery-rate view to guests and reserves the full view for OWNER", async () => {
+      const orders = orderStub();
+      const app = createProtectedApp(ownerProfile, 60, undefined, undefined, orders);
+      const publicResponse = await request(app).get("/api/v1/delivery-rates");
+      const ownerResponse = await request(app)
+        .get("/api/v1/admin/delivery-rates")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(publicResponse.status).toBe(200);
+      expect(ownerResponse.status).toBe(200);
+      expect(orders.listDeliveryRates).toHaveBeenNthCalledWith(1, false);
+      expect(orders.listDeliveryRates).toHaveBeenNthCalledWith(2, true);
+    });
+
+    it("denies CUSTOMER access to the full delivery-rate view", async () => {
+      const orders = orderStub();
+      const response = await request(createProtectedApp(
+        { ...ownerProfile, role: "CUSTOMER" }, 60, undefined, undefined, orders,
+      ))
+        .get("/api/v1/admin/delivery-rates")
+        .set("Authorization", "Bearer valid-token");
+      expect(response.status).toBe(403);
+      expect(orders.listDeliveryRates).not.toHaveBeenCalled();
+    });
 
     it("allows guest website COD checkout without authentication", async () => {
       const orders = orderStub();

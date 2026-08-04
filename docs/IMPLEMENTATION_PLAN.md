@@ -6,7 +6,7 @@
 - Use Supabase Auth, PostgreSQL/Prisma, Express, Zod, Cloudinary, BDT,
   `Asia/Dhaka`, Sunday–Saturday reporting, FIFO only, and guest COD.
 - Authorization, validation, invariants, security, and tests belong in each slice.
-- There is no MongoDB data migration or compatibility phase.
+- There is no compatibility-data migration or dual-write phase.
 
 ## Milestone 1 — Foundation
 
@@ -48,8 +48,8 @@ Implemented order:
 5. Processing and delivery consume reservations and recognize payment/financials.
 6. Cancellation or failed delivery releases reservations and records a reason.
 7. Whole SELLABLE returns restore cost-preserving stock; DAMAGED returns do not.
-8. Replace cart, profile history, and admin consumers; remove Mongo/Mongoose and
-   fake coupon/payment UI.
+8. Replace cart, profile history, and management consumers; remove obsolete
+   data paths and fake coupon/payment UI.
 
 Acceptance gate before Milestone 5:
 
@@ -77,9 +77,10 @@ Status: complete in local code; migration and live-data acceptance remain.
 
 ## Milestone 6 — Security, testing, polish, deployment
 
-Status: cross-feature work exists; final gate not started.
+Status: local hardening implemented; external staging/production gate remains.
 
-- Complete authorization/abuse, FIFO invariant, order lifecycle, accessibility,
-  responsive, performance, logging/recovery, and production smoke checks.
-- Deploy the combined frontend/API Vercel project, PostgreSQL/Auth to Supabase, images to
-  Cloudinary; verify CORS/domains and rollback notes.
+- Local authorization, strict validation, upload limits, FIFO constraints,
+  order dialogs, responsive polish, route/section splitting, safe seed checks,
+  recovery notes, and deterministic analytics tests are part of the review.
+- Apply migrations and complete the disposable Supabase/Cloudinary/Vercel
+  Preview checklist before approving production. Deployment is not automatic.

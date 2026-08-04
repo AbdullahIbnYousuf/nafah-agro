@@ -139,7 +139,7 @@ const ProductDetails = () => {
           <div>
             <div className="aspect-square bg-muted rounded-lg overflow-hidden flex items-center justify-center">
               {product.images.length > 0 ? (
-                <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                <img src={product.images[0]} alt={product.name} decoding="async" className="w-full h-full object-cover" />
               ) : (
                 <div className="flex flex-col items-center gap-3 text-muted-foreground">
                   <Leaf size={64} className="text-secondary" />
@@ -152,7 +152,7 @@ const ProductDetails = () => {
               <div className="grid grid-cols-4 gap-2 mt-3">
                 {product.images.slice(1).map((img, i) => (
                   <div key={i} className="aspect-square bg-muted rounded overflow-hidden">
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   </div>
                 ))}
               </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -231,7 +231,7 @@ function StockAlertList({ title, rows, empty }: { title: string; rows: Analytics
   return <div className="rounded-lg border"><h3 className="border-b px-3 py-2 font-semibold">{title}</h3>{rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{empty}</p> : <div className="divide-y">{rows.slice(0, 10).map((row) => <div key={row.productVariantId} className="flex items-center justify-between gap-3 p-3 text-sm"><div className="min-w-0"><strong className="block truncate">{row.productName} · {row.variantName}</strong><span className="text-xs text-muted-foreground">{row.sku} · সীমা {count(row.lowStockThreshold)}</span></div><span className="shrink-0 font-bold">{count(row.availableStock)}</span></div>)}</div>}</div>;
 }
 
-export default function AnalyticsDashboard() {
+function AnalyticsDashboardContent() {
   const today = new Date(Date.now() + 6 * 60 * 60 * 1_000).toISOString().slice(0, 10);
   const [preset, setPreset] = useState<AnalyticsPreset>('month');
   const [draftRange, setDraftRange] = useState({ from: today, to: today });
@@ -261,4 +261,12 @@ export default function AnalyticsDashboard() {
     {query.isError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center"><AlertTriangle className="mx-auto mb-2 text-destructive" /><h2 className="font-bold">ড্যাশবোর্ড লোড করা যায়নি</h2><p className="mt-1 text-sm text-muted-foreground">{query.error instanceof Error ? query.error.message : 'আবার চেষ্টা করুন।'}</p><Button className="mt-4" onClick={() => void query.refetch()}>আবার চেষ্টা করুন</Button></div>}
     {query.data && <DashboardContent data={query.data} />}
   </div>;
+}
+
+const analyticsQueryClient = new QueryClient();
+
+export default function AnalyticsDashboard() {
+  return <QueryClientProvider client={analyticsQueryClient}>
+    <AnalyticsDashboardContent />
+  </QueryClientProvider>;
 }

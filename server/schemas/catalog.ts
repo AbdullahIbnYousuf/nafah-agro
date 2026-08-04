@@ -8,7 +8,7 @@ const sku = z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9._-]+$/).transfor
 export const categoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug,
-});
+}).strict();
 
 export const categoryUpdateSchema = categoryCreateSchema.partial().extend({
   isActive: z.boolean().optional(),
@@ -29,9 +29,9 @@ export const productCreateSchema = z.object({
     sku,
     sellingPrice: money,
     lowStockThreshold: z.number().int().min(0).max(1_000_000).default(5),
-  }),
+  }).strict(),
   priceReason: z.string().trim().min(3).max(300),
-});
+}).strict();
 
 export const productUpdateSchema = z.object({
   name: z.string().trim().min(1).max(180).optional(),
@@ -44,7 +44,7 @@ export const productUpdateSchema = z.object({
   images: z.array(z.string().url()).max(12).optional(),
   youtubeLinks: z.array(z.string().url()).max(8).optional(),
   attributes: z.array(z.unknown()).max(20).optional(),
-}).refine((value) => Object.keys(value).some((key) => value[key as keyof typeof value] !== undefined));
+}).strict().refine((value) => Object.keys(value).some((key) => value[key as keyof typeof value] !== undefined));
 
 export const variantCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -53,7 +53,7 @@ export const variantCreateSchema = z.object({
   lowStockThreshold: z.number().int().min(0).max(1_000_000).default(5),
   isDefault: z.boolean().default(false),
   priceReason: z.string().trim().min(3).max(300),
-});
+}).strict();
 
 export const variantUpdateSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
@@ -61,7 +61,7 @@ export const variantUpdateSchema = z.object({
   lowStockThreshold: z.number().int().min(0).max(1_000_000).optional(),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),
-})
+}).strict()
   .refine((value) => Object.keys(value).length > 0)
   .refine(
     (value) => !(value.isDefault === true && value.isActive === false),
@@ -71,15 +71,15 @@ export const variantUpdateSchema = z.object({
 export const priceChangeSchema = z.object({
   sellingPrice: money,
   reason: z.string().trim().min(3).max(300),
-});
+}).strict();
 
 export const bulkPriceChangeSchema = z.object({
   reason: z.string().trim().min(3).max(300),
   updates: z.array(z.object({
     variantId: uuid,
     sellingPrice: money,
-  })).min(2).max(100),
-}).superRefine((value, context) => {
+  }).strict()).min(2).max(100),
+}).strict().superRefine((value, context) => {
   const ids = value.updates.map((update) => update.variantId);
   if (new Set(ids).size !== ids.length) {
     context.addIssue({
@@ -100,7 +100,7 @@ export const productListSchema = z.object({
   sort: z.enum(["newest", "oldest", "price_asc", "price_desc", "name_asc", "name_desc"]).default("newest"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(24),
-});
+}).strict();
 
 export type CategoryCreate = z.infer<typeof categoryCreateSchema>;
 export type CategoryUpdate = z.infer<typeof categoryUpdateSchema>;

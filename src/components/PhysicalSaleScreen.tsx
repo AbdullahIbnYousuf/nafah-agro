@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales } from '@/lib/api';
 import type { PhysicalSale, Product, ProductVariant } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
@@ -24,6 +25,8 @@ export default function PhysicalSaleScreen() {
   const [discount, setDiscount] = useState('0');
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState<PhysicalSale | null>(null);
+  const [projectedLoss, setProjectedLoss] = useState<unknown>(null);
+  const [errors, setErrors] = useState<{ items?: string; phone?: string; discount?: string; submit?: string }>({});
 
   const load = useCallback(() => {
     Promise.all([getAdminProducts({ limit: 100 }), getPhysicalSales(20)])
@@ -54,8 +57,12 @@ export default function PhysicalSaleScreen() {
   }
 
   async function saveSale(confirmUnprofitable = false) {
-    if (lines.length === 0) { toast.error('কমপক্ষে একটি পণ্য যোগ করুন'); return; }
-    if (discountNumber < 0 || discountNumber > subtotal) { toast.error('ডিসকাউন্ট সাবটোটালের বেশি হতে পারবে না'); return; }
+    const nextErrors: typeof errors = {};
+    if (lines.length === 0) nextErrors.items = 'কমপক্ষে একটি পণ্য যোগ করুন।';
+    if (customerPhone.trim() && (customerPhone.trim().length < 7 || customerPhone.trim().length > 30)) nextErrors.phone = 'ফোন নম্বর ৭ থেকে ৩০ অক্ষরের মধ্যে লিখুন।';
+    if (!Number.isFinite(discountNumber) || discountNumber < 0 || discountNumber > subtotal) nextErrors.discount = 'ডিসকাউন্ট শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
+    if (Object.keys(nextErrors).length > 0) { setErrors(nextErrors); return; }
+    setErrors({});
     setSaving(true);
     try {
       const result = await createPhysicalSale({
@@ -67,19 +74,16 @@ export default function PhysicalSaleScreen() {
       });
       setCompleted(result);
       setLines([]); setCustomerName(''); setCustomerPhone(''); setDiscount('0');
+      setProjectedLoss(null);
       toast.success(`বিক্রয় ${result.orderNumber} সম্পন্ন হয়েছে`);
       load();
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'UNPROFITABLE_SALE_CONFIRMATION_REQUIRED') {
-        const projected = error.details?.projectedGrossProfit;
-        const proceed = window.confirm(`সতর্কতা: এই বিক্রয়ে আনুমানিক মোট লাভ ৳${projected ?? 'ঋণাত্মক'} হবে। তারপরও বিক্রয় সম্পন্ন করবেন?`);
-        if (proceed) {
-          setSaving(false);
-          await saveSale(true);
-          return;
-        }
+      if (!confirmUnprofitable && error instanceof ApiError && error.code === 'UNPROFITABLE_SALE_CONFIRMATION_REQUIRED') {
+        setProjectedLoss(error.details?.projectedGrossProfit ?? 'ঋণাত্মক');
+      } else if (confirmUnprofitable) {
+        throw error;
       } else {
-        toast.error(getErrorMessage(error, 'বিক্রয় সম্পন্ন হয়নি'));
+        setErrors({ submit: getErrorMessage(error, 'বিক্রয় সম্পন্ন হয়নি') });
       }
     } finally {
       setSaving(false);
@@ -96,23 +100,24 @@ export default function PhysicalSaleScreen() {
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
-        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_90px_auto]"><div className="min-w-0"><strong className="break-words">{line.product.name}</strong><div className="text-xs text-muted-foreground">{line.variant.name} · ৳{line.variant.sellingPrice}</div></div><Input aria-label={`${line.product.name} পরিমাণ`} className="w-full" type="number" min="1" max={line.variant.availableStock} value={line.quantity} onChange={(event) => setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, quantity: Math.max(1, Math.min(Number(event.target.value) || 1, item.variant.availableStock)) } : item))} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}</div>
-        <div className="grid sm:grid-cols-2 gap-3"><Field label="ক্রেতার নাম (ঐচ্ছিক)"><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></Field><Field label="ফোন (ঐচ্ছিক)"><Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></Field></div>
-        <Field label="ডিসকাউন্ট (৳)"><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => setDiscount(event.target.value)} /></Field>
-        {discountNumber > subtotal && <p className="text-sm text-destructive">ডিসকাউন্ট সাবটোটালের বেশি হতে পারবে না।</p>}
+        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_90px_auto]"><div className="min-w-0"><strong className="break-words">{line.product.name}</strong><div className="text-xs text-muted-foreground">{line.variant.name} · ৳{line.variant.sellingPrice}</div></div><Input aria-label={`${line.product.name} পরিমাণ`} className="w-full" type="number" min="1" max={line.variant.availableStock} value={line.quantity} onChange={(event) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, quantity: Math.max(1, Math.min(Number(event.target.value) || 1, item.variant.availableStock)) } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
+        <div className="grid sm:grid-cols-2 gap-3"><Field label="ক্রেতার নাম (ঐচ্ছিক)"><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></Field><Field label="ফোন (ঐচ্ছিক)" error={errors.phone}><Input value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field></div>
+        <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
-        <Button className="w-full" disabled={saving || lines.length === 0} onClick={() => void saveSale()}><Plus size={16} className="mr-2" />{saving ? 'সম্পন্ন হচ্ছে…' : 'CASH বিক্রয় সম্পন্ন করুন'}</Button>
+        {errors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{errors.submit}</p>}
+        <Button className="w-full min-h-11" disabled={saving || lines.length === 0} onClick={() => void saveSale()}><Plus size={16} className="mr-2" />{saving ? 'সম্পন্ন হচ্ছে…' : 'CASH বিক্রয় সম্পন্ন করুন'}</Button>
       </section>
     </div>
 
     {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label="মার্জিন" value={completed.grossProfitMargin === null ? '—' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
 
     <section><h2 className="font-semibold text-lg mb-3">সাম্প্রতিক ফিজিক্যাল বিক্রয়</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">নম্বর / সময়</th><th className="text-right p-3">বিক্রয়</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-right p-3">মোট লাভ</th><th className="text-right p-3">মার্জিন</th></tr></thead><tbody>{recentSales.map((sale) => <tr key={sale.id} className="border-t"><td className="p-3"><strong>{sale.orderNumber}</strong><div className="text-xs text-muted-foreground">{new Date(sale.completedAt).toLocaleString('bn-BD')}</div></td><td className="p-3 text-right">৳{sale.grandTotal.toFixed(2)}</td><td className="p-3 text-right">৳{sale.totalBuyingCost.toFixed(2)}</td><td className={`p-3 text-right font-medium ${sale.grossProfit < 0 ? 'text-destructive' : ''}`}>৳{sale.grossProfit.toFixed(2)}</td><td className="p-3 text-right">{sale.grossProfitMargin === null ? '—' : `${sale.grossProfitMargin.toFixed(2)}%`}</td></tr>)}</tbody></table></div></section>
+    <ProfitWarningDialog open={projectedLoss !== null} projectedGrossProfit={projectedLoss} onClose={() => setProjectedLoss(null)} onConfirm={() => saveSale(true)} />
   </div>;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div><Label className="text-xs">{label}</Label><div className="mt-1">{children}</div></div>;
+function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
+  return <div><Label className="text-xs">{label}</Label><div className="mt-1">{children}</div>{error && <p role="alert" className="mt-1 text-sm text-destructive">{error}</p>}</div>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

@@ -35,7 +35,12 @@ export function createOrderRouter(
   const management = [protectedLimiter, authenticate, requireOwner];
 
   router.get("/delivery-rates", async (_req, res, next) => {
-    try { res.json({ success: true, data: await service.listDeliveryRates() }); }
+    try { res.json({ success: true, data: await service.listDeliveryRates(false) }); }
+    catch (error) { next(error); }
+  });
+
+  router.get("/admin/delivery-rates", ...management, async (_req, res, next) => {
+    try { res.json({ success: true, data: await service.listDeliveryRates(true) }); }
     catch (error) { next(error); }
   });
 

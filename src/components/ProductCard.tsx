@@ -14,7 +14,7 @@ const ProductCard = ({ product }: Props) => {
     >
       <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
         {product.images.length > 0 ? (
-          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={product.images[0]} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <Leaf size={40} className="text-secondary" />

@@ -11,13 +11,12 @@ const Footer = () => (
         <div>
           <h3 className="text-lg font-bold mb-3 text-accent">লিংক</h3>
           <ul className="space-y-1 text-sm opacity-80">
-            <li><a href="/" className="hover:text-accent transition-colors">হোম</a></li>
-            <li><a href="/shop" className="hover:text-accent transition-colors">দোকান</a></li>
+            <li><a href="/" className="inline-flex min-h-11 min-w-11 items-center hover:text-accent transition-colors">হোম</a></li>
+            <li><a href="/shop" className="inline-flex min-h-11 min-w-11 items-center hover:text-accent transition-colors">দোকান</a></li>
           </ul>
         </div>
         <div>
           <h3 className="text-lg font-bold mb-3 text-accent">যোগাযোগ</h3>
-          <p className="text-sm opacity-80">ফোন: ০১৭XXXXXXXX</p>
           <p className="text-sm opacity-80">ইমেইল: info@nafahagro.com</p>
         </div>
       </div>

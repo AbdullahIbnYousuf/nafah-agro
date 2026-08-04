@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, JWTPayload, jwtVerify } from "jose";
+import { createRemoteJWKSet, JWTPayload, jwtVerify, type JWTVerifyGetKey } from "jose";
 
 export interface VerifiedSupabaseUser {
   id: string;
@@ -13,12 +13,11 @@ export type SupabaseTokenVerifier = (
 export function createSupabaseTokenVerifier(
   supabaseUrl: string,
   audience = "authenticated",
+  keyResolver?: JWTVerifyGetKey,
 ): SupabaseTokenVerifier {
   const baseUrl = supabaseUrl.replace(/\/+$/, "");
   const issuer = `${baseUrl}/auth/v1`;
-  const jwks = createRemoteJWKSet(
-    new URL(`${issuer}/.well-known/jwks.json`),
-  );
+  const jwks = keyResolver ?? createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`));
 
   return async (token: string) => {
     const { payload } = await jwtVerify(token, jwks, {

@@ -312,8 +312,12 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
   }
 
   return {
-    async listDeliveryRates() {
-      const rates = await prisma.deliveryRate.findMany({ orderBy: { code: "asc" } });
+    async listDeliveryRates(includeInactive = false) {
+      const rates = await prisma.deliveryRate.findMany({
+        where: includeInactive ? undefined : { isActive: true },
+        select: { id: true, code: true, name: true, charge: true, isActive: true },
+        orderBy: { code: "asc" },
+      });
       return rates.map((rate) => ({ ...rate, charge: moneyNumber(rate.charge) }));
     },
 
@@ -399,10 +403,14 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
           ...(input.dateTo ? { lte: new Date(input.dateTo) } : {}),
         } } : {}),
       };
-      const [orders, total] = await prisma.$transaction([
-        prisma.salesOrder.findMany({ where, include: orderInclude, orderBy: { placedAt: "desc" }, skip: (input.page - 1) * input.limit, take: input.limit }),
-        prisma.salesOrder.count({ where }),
-      ]);
+      const orders = await prisma.salesOrder.findMany({
+        where,
+        include: orderInclude,
+        orderBy: { placedAt: "desc" },
+        skip: (input.page - 1) * input.limit,
+        take: input.limit,
+      });
+      const total = await prisma.salesOrder.count({ where });
       return { data: orders.map(orderDto), total, page: input.page, limit: input.limit, totalPages: Math.ceil(total / input.limit) };
     },
 
