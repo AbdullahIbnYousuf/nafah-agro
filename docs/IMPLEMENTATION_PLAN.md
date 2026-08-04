@@ -14,7 +14,8 @@ Status: complete in code; live Supabase/Vercel proof remains.
 
 - npm/Node baseline, Express security, safe errors, health/rate limits.
 - Prisma/Supabase connectivity, profiles, token verification, role guards, and
-  controlled first-owner command.
+  controlled repeatable owner command. Active roles are OWNER and CUSTOMER;
+  multiple owners are allowed and the final active owner is database-protected.
 
 ## Milestone 2 — Catalog and price history
 
@@ -40,7 +41,7 @@ Implemented order:
 1. Extend the existing sales order/item/allocation tables; add delivery rates.
 2. Guest/registered WEBSITE COD begins pending with server-only pricing and an
    idempotency key; pending stock is unchanged.
-3. OWNER/ADMIN confirmation reserves exact FIFO allocations transactionally.
+3. OWNER confirmation reserves exact FIFO allocations transactionally.
 4. FACEBOOK/PHONE/WHATSAPP/OTHER orders can begin pending or confirmed.
 5. Processing and delivery consume reservations and recognize payment/financials.
 6. Cancellation or failed delivery releases reservations and records a reason.
@@ -52,7 +53,7 @@ Acceptance gate before Milestone 5:
 
 - Apply migration/seed on disposable Supabase.
 - Enter client-approved Dhaka/outside-Dhaka rates.
-- Use real OWNER, ADMIN, CUSTOMER, and guest sessions to demonstrate every order
+- Use real OWNER, CUSTOMER, and guest sessions to demonstrate every order
   transition and denial; verify a concurrent final-stock confirmation.
 - Confirm existing physical-shop sales still complete and appear in unified list.
 - Run full local checks and browser smoke tests; do not deploy yet.
@@ -63,7 +64,7 @@ Status: not started.
 
 - Revenue/profit recognized for delivered delivery orders and completed physical
   sales only; whole returns reverse recognition by return status.
-- Inventory value, buying cost, gross profit, and margin visible to OWNER/ADMIN.
+- Inventory value, buying cost, gross profit, and margin visible to OWNER.
 - Sunday–Saturday BDT reporting. No expense/net-profit/category-performance work.
 
 ## Milestone 6 — Security, testing, polish, deployment

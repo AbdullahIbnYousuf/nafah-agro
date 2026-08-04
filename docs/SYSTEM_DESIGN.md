@@ -79,7 +79,7 @@ Supabase Auth owns login identities. PostgreSQL owns application profiles.
 ```text
 profiles
 - id: UUID, primary key; equals Supabase Auth user ID
-- role: OWNER | ADMIN | CUSTOMER
+- role: OWNER | CUSTOMER
 - full_name
 - phone_number
 - is_active
@@ -93,9 +93,13 @@ Authentication flow:
 2. Frontend sends the Supabase access token as a bearer token.
 3. Express verifies token signature, issuer, audience, and expiry.
 4. Express loads the profile and checks `is_active`.
-5. Route authorization checks `OWNER`, `ADMIN`, or `CUSTOMER`.
+5. Route authorization checks `OWNER` or `CUSTOMER`.
 
-Guest checkout is unauthenticated and creates an order without a profile ID. The initial owner is created through a one-time controlled script or protected operational procedure. Only the owner can create/disable admins. Supabase service-role credentials are backend-only.
+Guest checkout is unauthenticated and creates an order without a profile ID.
+Owners are created through a repeatable controlled command for distinct Supabase
+Auth identities; there is no public privileged-registration endpoint. Multiple
+owners are allowed, and a database trigger preserves at least one active owner.
+Supabase service-role credentials are backend-only.
 
 ## 5. Core database model
 
@@ -294,7 +298,7 @@ delivery_rates
 - updated_at
 ```
 
-Only owner/admin can update rates; updater and timestamp are stored. The two
+Only owners can update rates; updater and timestamp are stored. The two
 rows start with null charges, and checkout rejects them until the client-approved
 charges are entered.
 
@@ -330,7 +334,7 @@ logs rather than this V1 table.
 
 ### Stock decrease adjustment
 
-1. Require owner/admin and a reason.
+1. Require an owner and a reason.
 2. Lock available batches in FIFO order.
 3. Reject insufficient stock.
 4. Reduce batch available quantities.
@@ -422,7 +426,7 @@ The backend:
 5. Does not reserve stock.
 6. Replays the same response for a valid repeated idempotency key and rejects key reuse with a different payload.
 
-Only owner/admin manual-order endpoints accept discounts. Discount is allocated proportionally across items using a deterministic rounding rule. A discount cannot exceed subtotal. For a physical or immediately confirmed manual order, the unprofitable warning is evaluated in the creation transaction. For a pending manual order, it is evaluated when confirmation selects the FIFO batches. If projected profit is negative, an explicit owner/admin override confirmation is required and audited before the transaction continues.
+Only owner manual-order endpoints accept discounts. Discount is allocated proportionally across items using a deterministic rounding rule. A discount cannot exceed subtotal. For a physical or immediately confirmed manual order, the unprofitable warning is evaluated in the creation transaction. For a pending manual order, it is evaluated when confirmation selects the FIFO batches. If projected profit is negative, an explicit owner override confirmation is required and audited before the transaction continues.
 
 ## 8. Allowed status transitions
 
@@ -453,7 +457,6 @@ Application routes use `/api/v1`; business logic is not duplicated in the Vercel
 ```text
 /api/v1/health
 /api/v1/auth
-/api/v1/admins
 /api/v1/categories
 /api/v1/products
 /api/v1/variants
@@ -543,7 +546,7 @@ The Express API is exported through `api/index.ts` instead of relying on a perma
 - Inventory value is the sum of `(available_quantity + reserved_quantity) × unit_buying_cost`
 - Date boundaries use `Asia/Dhaka`
 - Weeks run Sunday through Saturday
-- Owner and admins can access all V1 financial and inventory analytics
+- Owners can access all V1 financial and inventory analytics
 
 ## 13. Required tests
 
@@ -557,7 +560,7 @@ Unit:
 
 Integration:
 
-- Owner/admin/customer/guest permissions
+- Owner/customer/guest permissions
 - Price history transaction
 - Batch creation and stock adjustments
 - FIFO reservation, consumption, release, and insufficient-stock rejection
@@ -571,7 +574,7 @@ Integration:
 End-to-end:
 
 - Guest COD order
-- Owner/admin login and admin management
+- Multiple-owner login and owner-only management access
 - Product/variant/price update
 - Purchase and physical sale
 - Delivery confirmation, delivery, cancellation, and failed delivery

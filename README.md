@@ -7,17 +7,17 @@ single order lifecycle across every sales source.
 
 ## Current features
 
-- Roles are `OWNER`, `ADMIN`, and `CUSTOMER`, resolved from active PostgreSQL
-  profiles after Supabase token verification.
+- Active application roles are `OWNER` and `CUSTOMER`, resolved from active
+  PostgreSQL profiles after Supabase token verification. Multiple owners are allowed.
 - Public storefront reads active PostgreSQL categories, products, and variants.
-- OWNER/ADMIN manage products, unique SKUs, immutable selling-price history,
+- OWNER profiles manage products, unique SKUs, immutable selling-price history,
   purchases, stock adjustments, FIFO batches, and physical CASH sales.
 - Guest and registered customers can place website COD orders. Checkout sends
   variant IDs and quantities only; Express reloads all prices and delivery rates.
-- Website orders start `PENDING` without stock reservation. OWNER/ADMIN
+- Website orders start `PENDING` without stock reservation. An OWNER
   confirmation reserves exact FIFO batches; delivery consumes reservations;
   cancellation or failed delivery releases them.
-- OWNER/ADMIN can create Facebook, phone, WhatsApp, or other delivery orders as
+- OWNER profiles can create Facebook, phone, WhatsApp, or other delivery orders as
   pending or confirmed, and manage every source from one screen.
 - Whole sellable returns restore stock at captured costs. Whole damaged returns
   do not restore stock. Return status supplies the reversal signal while original
@@ -99,19 +99,26 @@ DATABASE_URL="postgresql://...pooler..." DIRECT_URL="postgresql://...direct..." 
   npm run seed
 ```
 
+The two-role migration intentionally stops if it finds a historical `ADMIN`
+profile instead of silently changing that user's privileges. Resolve any such
+row deliberately before rerunning `prisma migrate deploy`.
+
 The Milestone 4 migration inserts `Dhaka` and `Outside Dhaka` delivery-rate rows
-with `NULL` charges intentionally. Before checkout testing, an OWNER/ADMIN must
+with `NULL` charges intentionally. Before checkout testing, an OWNER must
 set approved charges from the admin order screen.
 
-Create the first user in Supabase Auth, copy its UUID, then create the owner
+Create a user in Supabase Auth, copy its UUID, then grant that identity an owner
 profile through the controlled command:
 
 ```bash
 npm run owner:create -- --user-id UUID --full-name "Owner Name" --phone 01XXXXXXXXX --confirm
 ```
 
-There is no public OWNER/ADMIN registration endpoint. Customer registration
-requires phone metadata and can create only a `CUSTOMER` profile.
+Repeat the command with a different Auth UUID to create additional owners. It
+never upgrades an existing customer profile, and the database blocks deleting,
+deactivating, or demoting the final active owner. There is no public OWNER
+registration endpoint. Customer registration requires phone metadata and can
+create only a `CUSTOMER` profile.
 
 ## Verification
 

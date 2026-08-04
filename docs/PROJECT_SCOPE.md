@@ -23,18 +23,11 @@ There is no real database data to preserve. MongoDB, Mongoose, custom JWT authen
 ### OWNER
 
 - Has full business access
-- Creates and disables admins
-- Cannot be removed or disabled by an admin
+- Multiple owner accounts are allowed and have the same business access
+- Owner access is granted only through a controlled operational command
+- The final active owner cannot be deleted, disabled, or demoted
 - Can view buying costs, inventory value, gross profit, and profit margins
 - Can manage prices, stock batches, adjustments, orders, discounts, and delivery rates
-
-### ADMIN
-
-- Multiple admin accounts are allowed
-- Can manage products, variants, images, prices, stock batches, adjustments, and orders
-- Can enter physical-shop and manual delivery orders
-- Can view buying costs, inventory value, gross profit, and profit margins
-- Cannot create, disable, or modify the owner
 
 ### CUSTOMER
 
@@ -52,7 +45,7 @@ There is no real database data to preserve. MongoDB, Mongoose, custom JWT authen
 
 ## 4. Product and price management
 
-Owner and admins can:
+Owners can:
 
 - Create, edit, activate, and deactivate categories and products
 - Add Cloudinary images, descriptions, tags, and featured status
@@ -132,7 +125,7 @@ Failed delivery uses `CANCELLED` plus a required `FAILED_DELIVERY:` reason in V1
 
 - Begin as `PENDING`
 - Do not reserve stock at creation
-- Reserve FIFO stock when an owner/admin changes the order to `CONFIRMED`
+- Reserve FIFO stock when an owner changes the order to `CONFIRMED`
 - Consume reserved stock when marked `DELIVERED`
 - Count revenue and gross profit only when delivered
 - Release reserved stock when cancelled or marked failed delivery
@@ -175,11 +168,11 @@ Checkout clients submit only variant IDs, quantities, customer/delivery informat
 
 Discount rules:
 
-- Only owner/admin can add or modify discounts
+- Only owners can add or modify discounts
 - Guest/customer website checkout cannot invent a discount
 - Discount cannot be negative or exceed subtotal
 - The system warns when a discount makes the order unprofitable
-- Owner/admin may continue only after an explicit confirmation
+- An owner may continue only after an explicit confirmation
 - The warning override and actor are audited
 
 Delivery pricing uses a small `delivery_rates` table. V1 plans:
@@ -197,7 +190,7 @@ Application constants:
 - Business timezone: `Asia/Dhaka`
 - Reporting week: Sunday through Saturday
 
-Owner and admins can view:
+Owners can view:
 
 - Today, yesterday, current week, current month, custom date range, and previous-period comparison
 - Recognized revenue
@@ -217,9 +210,9 @@ Category-performance analytics are outside V1.
 
 - Supabase Auth access tokens are verified by Express
 - Application profiles store role, name, phone, and active state
-- No public owner/admin registration
-- Initial owner creation is a controlled one-time process
-- Disabled admins lose API access
+- No public owner registration
+- Owner creation is a repeatable controlled process for new Supabase Auth identities
+- The database preserves at least one active owner
 - Zod validates every API input and rejects unknown sensitive fields
 - Use strict CORS, Helmet, rate limiting, request-size limits, safe errors, and environment validation
 - Uploads enforce role, MIME type, file size, and file-count limits
@@ -232,7 +225,7 @@ Category-performance analytics are outside V1.
 
 V1 is complete when:
 
-- Owner and multiple admins authenticate securely
+- Multiple owners authenticate securely
 - Optional customer accounts work
 - Guests can place server-priced COD orders
 - Products, variants, images, and price history are manageable

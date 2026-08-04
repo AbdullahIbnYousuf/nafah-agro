@@ -5,7 +5,7 @@ export interface Category {
   isActive?: boolean;
 }
 
-export type Role = 'OWNER' | 'ADMIN' | 'CUSTOMER';
+export type Role = 'OWNER' | 'CUSTOMER';
 
 export interface ProductVariant {
   id: string;
@@ -101,17 +101,6 @@ export interface PhysicalSale {
   items: PhysicalSaleItem[];
 }
 
-export interface AttributeOption {
-  label: string;
-  value: string;
-  priceModifier: number; // added to base price
-}
-
-export interface AttributeGroup {
-  name: string;
-  options: AttributeOption[];
-}
-
 export interface Product {
   id: string;
   name: string;
@@ -121,7 +110,6 @@ export interface Product {
   categoryId: string;
   images: string[];
   youtubeLinks: string[];
-  attributes: AttributeGroup[];
   stock: number;
   featured: boolean;
   tags: string[];
@@ -147,7 +135,6 @@ export interface CartItem {
   variantName: string;
   sku: string;
   quantity: number;
-  selectedAttributes: Record<string, string>; // groupName -> optionValue
   unitPrice: number;
 }
 

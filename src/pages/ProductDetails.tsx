@@ -17,7 +17,6 @@ const ProductDetails = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedAttrs, setSelectedAttrs] = useState<Record<string, string>>({});
   const [selectedVariantId, setSelectedVariantId] = useState('');
 
   useEffect(() => {
@@ -26,11 +25,6 @@ const ProductDetails = () => {
       .then(([prod, cats]) => {
         if (prod) {
           setProduct(prod);
-          const initial: Record<string, string> = {};
-          prod.attributes.forEach(g => {
-            if (g.options.length > 0) initial[g.name] = g.options[0].value;
-          });
-          setSelectedAttrs(initial);
           const variants = (prod.variants ?? []).filter(variant => variant.isActive);
           setSelectedVariantId(
             variants.find(variant => variant.id === prod.defaultVariantId)?.id
@@ -76,15 +70,6 @@ const ProductDetails = () => {
     ?? activeVariants[0];
   const currentPrice = selectedVariant?.sellingPrice ?? product.price;
 
-  const getSelectedLabels = () => {
-    const labels: Record<string, string> = {};
-    product.attributes.forEach(group => {
-      const opt = group.options.find(o => o.value === selectedAttrs[group.name]);
-      if (opt) labels[group.name] = opt.label;
-    });
-    return labels;
-  };
-
   const cartItem = items.find(i => i.productVariantId === selectedVariant?.id);
   const quantityInCart = cartItem?.quantity ?? 0;
 
@@ -102,7 +87,6 @@ const ProductDetails = () => {
         variantName: selectedVariant.name,
         sku: selectedVariant.sku,
         quantity: 1,
-        selectedAttributes: selectedAttrs,
         unitPrice: currentPrice,
       });
       toast.success('কার্টে যোগ করা হয়েছে!');
@@ -130,7 +114,6 @@ const ProductDetails = () => {
         variantName: selectedVariant.name,
         sku: selectedVariant.sku,
         quantity: 1,
-        selectedAttributes: selectedAttrs,
         unitPrice: currentPrice,
       });
     }
@@ -212,7 +195,7 @@ const ProductDetails = () => {
 
             {activeVariants.length > 1 && (
               <div className="mb-6">
-                <h3 className="font-semibold mb-2">ভ্যারিয়েন্ট</h3>
+                <h3 className="font-semibold mb-2">বিকল্প নির্বাচন করুন</h3>
                 <div className="flex flex-wrap gap-2">
                   {activeVariants.map(variant => (
                     <button
@@ -227,29 +210,6 @@ const ProductDetails = () => {
                 </div>
               </div>
             )}
-
-            {product.attributes.map(group => (
-              <div key={group.name} className="mb-6">
-                <h3 className="font-semibold mb-2">
-                  {group.name}: <span className="text-secondary">{getSelectedLabels()[group.name]}</span>
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {group.options.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setSelectedAttrs(prev => ({ ...prev, [group.name]: opt.value }))}
-                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                        selectedAttrs[group.name] === opt.value
-                          ? 'border-secondary bg-secondary text-secondary-foreground'
-                          : 'border-border hover:border-secondary'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
 
             <div className="mb-6 text-sm text-muted-foreground">
               {selectedVariant ? `${selectedVariant.name} · SKU ${selectedVariant.sku}` : 'কোনো সক্রিয় ভ্যারিয়েন্ট নেই'}। স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।

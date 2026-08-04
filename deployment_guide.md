@@ -37,7 +37,8 @@ git diff --check
 
 Create the first Supabase Auth user and run the controlled owner command shown
 in `README.md`. Test `/api/v1/health`, `/api/v1/auth/me`, and protected routes
-with real OWNER, ADMIN, and CUSTOMER access tokens.
+with real OWNER and CUSTOMER access tokens. Run the controlled owner command
+again with another Supabase Auth UUID when a second owner is required.
 
 ## Exact Vercel dashboard settings
 

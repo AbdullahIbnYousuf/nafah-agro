@@ -7,19 +7,18 @@ import logo from '@/assets/logo.avif';
 
 const roleBadge: Record<string, { label: string; className: string }> = {
   OWNER: { label: 'ওনার', className: 'bg-amber-500/20 text-amber-200' },
-  ADMIN: { label: 'অ্যাডমিন', className: 'bg-red-500/20 text-red-300' },
   CUSTOMER: { label: 'কাস্টমার', className: 'bg-green-500/20 text-green-300' },
 };
 
 const Navbar = () => {
   const { totalItems } = useCart();
-  const { user, isAuthenticated, logout, isAdminOrOwner } = useAuth();
+  const { user, isAuthenticated, logout, isOwner } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [
     { to: '/', label: 'হোম' },
     { to: '/shop', label: 'দোকান' },
-    ...(isAdminOrOwner ? [{ to: '/admin', label: 'অ্যাডমিন প্যানেল' }] : []),
+    ...(isOwner ? [{ to: '/admin', label: 'পরিচালনা প্যানেল' }] : []),
     ...(isAuthenticated ? [{ to: '/profile', label: 'প্রোফাইল' }] : []),
   ];
 

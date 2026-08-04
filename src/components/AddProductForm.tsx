@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Category, Product, AttributeGroup, AttributeOption } from '@/lib/types';
+import { Category, Product } from '@/lib/types';
 import { createProduct, updateProduct, uploadImages, getProductTags } from '@/lib/api';
 import { getErrorMessage } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -32,9 +32,6 @@ function slugify(text: string) {
     .replace(/^-+|-+$/g, '');
 }
 
-const emptyOption = (): AttributeOption => ({ label: '', value: '', priceModifier: 0 });
-const emptyGroup = (): AttributeGroup => ({ name: '', options: [emptyOption()] });
-
 const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) => {
   const isEdit = !!editProduct;
 
@@ -55,9 +52,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
 
   const [youtubeLinks, setYoutubeLinks] = useState<string[]>(
     editProduct?.youtubeLinks?.length ? editProduct.youtubeLinks : ['']
-  );
-  const [attributes, setAttributes] = useState<AttributeGroup[]>(
-    editProduct?.attributes ?? []
   );
   const [tags, setTags] = useState<string[]>(editProduct?.tags ?? []);
   const [tagInput, setTagInput] = useState('');
@@ -116,35 +110,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   }
   function removeTag(i: number) { setTags(prev => prev.filter((_, idx) => idx !== i)); }
 
-  function addAttributeGroup() { setAttributes(prev => [...prev, emptyGroup()]); }
-  function removeAttributeGroup(gi: number) {
-    setAttributes(prev => prev.filter((_, i) => i !== gi));
-  }
-  function updateGroupName(gi: number, val: string) {
-    setAttributes(prev => prev.map((g, i) => (i === gi ? { ...g, name: val } : g)));
-  }
-  function addOption(gi: number) {
-    setAttributes(prev =>
-      prev.map((g, i) => (i === gi ? { ...g, options: [...g.options, emptyOption()] } : g))
-    );
-  }
-  function removeOption(gi: number, oi: number) {
-    setAttributes(prev =>
-      prev.map((g, i) =>
-        i === gi ? { ...g, options: g.options.filter((_, j) => j !== oi) } : g
-      )
-    );
-  }
-  function updateOption(gi: number, oi: number, field: keyof AttributeOption, val: string | number) {
-    setAttributes(prev =>
-      prev.map((g, i) =>
-        i === gi
-          ? { ...g, options: g.options.map((o, j) => (j === oi ? { ...o, [field]: val } : o)) }
-          : g
-      )
-    );
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return toast.error('পণ্যের নাম দিন');
@@ -161,10 +126,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
 
       const allImages = [...existingImages, ...uploadedUrls];
       const cleanYoutubeLinks = youtubeLinks.filter(l => l.trim() !== '');
-      const cleanAttributes = attributes.filter(
-        g => g.name.trim() !== '' && g.options.some(o => o.label.trim() !== '')
-      );
-
       const payload = {
         name: name.trim(),
         slug: slug.trim() || slugify(name.trim()),
@@ -177,7 +138,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         featured,
         images: allImages,
         youtubeLinks: cleanYoutubeLinks,
-        attributes: cleanAttributes,
         tags,
       };
 
@@ -480,98 +440,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
             </div>
           </section>
 
-          {/* Attributes */}
-          <section>
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-1">
-              অ্যাট্রিবিউট / বিকল্প
-            </h3>
-            <p className="text-xs text-muted-foreground mb-3">
-              যেমন: পরিমাণ → ১ লিটার, ২ লিটার; ওজন → ২৫০ গ্রাম, ৫০০ গ্রাম
-            </p>
-
-            {attributes.length === 0 && (
-              <div className="text-sm text-muted-foreground bg-muted/40 rounded-md px-3 py-2 mb-3">
-                কোনো অ্যাট্রিবিউট নেই — সরল পণ্যের জন্য এটি ঐচ্ছিক
-              </div>
-            )}
-
-            {attributes.map((group, gi) => (
-              <div key={gi} className="bg-card border border-border rounded-lg p-4 mb-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <Input
-                    value={group.name}
-                    onChange={e => updateGroupName(gi, e.target.value)}
-                    placeholder="অ্যাট্রিবিউটের নাম (যেমন: পরিমাণ)"
-                    className="bg-background font-medium"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeAttributeGroup(gi)}
-                    className="text-destructive hover:text-destructive/80 p-1 flex-shrink-0"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {group.options.map((opt, oi) => (
-                    <div key={oi} className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 items-center">
-                      <Input
-                        value={opt.label}
-                        onChange={e => updateOption(gi, oi, 'label', e.target.value)}
-                        placeholder="নাম (১ লিটার)"
-                        className="bg-background text-sm"
-                      />
-                      <Input
-                        value={opt.value}
-                        onChange={e => updateOption(gi, oi, 'value', e.target.value)}
-                        placeholder="মান (1L)"
-                        className="bg-background text-sm font-mono"
-                      />
-                      <Input
-                        type="number"
-                        value={opt.priceModifier}
-                        onChange={e => updateOption(gi, oi, 'priceModifier', Number(e.target.value))}
-                        placeholder="+৳০"
-                        className="bg-background text-sm text-center"
-                      />
-                      {group.options.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeOption(gi, oi)}
-                          className="text-destructive hover:text-destructive/80"
-                        >
-                          <X size={15} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <div className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 text-xs text-muted-foreground pl-1">
-                    <span>প্রদর্শনী নাম</span>
-                    <span>ইন্টার্নাল মান</span>
-                    <span className="text-center">মূল্য পরিবর্তন</span>
-                    <span />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => addOption(gi)}
-                  className="mt-2 text-xs text-secondary hover:text-secondary/80 flex items-center gap-1 font-medium"
-                >
-                  <Plus size={13} /> বিকল্প যোগ করুন
-                </button>
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={addAttributeGroup}
-              className="text-sm text-secondary hover:text-secondary/80 flex items-center gap-1 font-medium border border-dashed border-secondary/40 rounded-md px-3 py-2 w-full justify-center hover:bg-secondary/5 transition-colors"
-            >
-              <Plus size={15} /> নতুন অ্যাট্রিবিউট গ্রুপ যোগ করুন
-            </button>
-          </section>
         </form>
 
         {/* Footer actions */}

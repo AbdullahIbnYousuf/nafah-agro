@@ -37,16 +37,6 @@ const prisma = new PrismaClient({
 
 try {
   await prisma.$transaction(async (transaction) => {
-    const existingOwner = await transaction.profile.findFirst({
-      where: { role: "OWNER" },
-      select: { id: true },
-    });
-    if (existingOwner) {
-      throw new Error(
-        `An OWNER profile already exists (${existingOwner.id}); no changes were made`,
-      );
-    }
-
     const existingProfile = await transaction.profile.findUnique({
       where: { id: input.userId },
       select: { role: true },

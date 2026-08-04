@@ -41,7 +41,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen md:flex bg-background">
       <aside className="w-full md:w-64 bg-primary text-primary-foreground p-4">
-        <Link to="/" className="block text-xl font-bold text-accent mb-6">নাফাহ এগ্রো অ্যাডমিন</Link>
+        <Link to="/" className="block text-xl font-bold text-accent mb-6">নাফাহ এগ্রো পরিচালনা</Link>
         <nav className="space-y-1">
           {links.map(({ tab: itemTab, label, icon: Icon }) => (
             <button key={itemTab} type="button" onClick={() => setTab(itemTab)}

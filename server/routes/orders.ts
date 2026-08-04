@@ -28,11 +28,11 @@ export function createOrderRouter(
   service: UnifiedOrderService,
   optionalAuthenticate: RequestHandler,
   authenticate: RequestHandler,
-  requireAdminOrOwner: RequestHandler,
+  requireOwner: RequestHandler,
   protectedLimiter: RequestHandler,
 ) {
   const router = Router();
-  const management = [protectedLimiter, authenticate, requireAdminOrOwner];
+  const management = [protectedLimiter, authenticate, requireOwner];
 
   router.get("/delivery-rates", async (_req, res, next) => {
     try { res.json({ success: true, data: await service.listDeliveryRates() }); }

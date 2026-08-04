@@ -27,11 +27,11 @@ function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S
 export function createInventoryRouter(
   service: InventoryService,
   authenticate: RequestHandler,
-  requireAdminOrOwner: RequestHandler,
+  requireOwner: RequestHandler,
   protectedLimiter: RequestHandler,
 ) {
   const router = Router();
-  const protectedRoute = [protectedLimiter, authenticate, requireAdminOrOwner];
+  const protectedRoute = [protectedLimiter, authenticate, requireOwner];
 
   router.get("/stock-batches", ...protectedRoute, async (req, res, next) => {
     try {

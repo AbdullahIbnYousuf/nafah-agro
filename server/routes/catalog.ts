@@ -18,11 +18,11 @@ function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S
 export function createCatalogRouter(
   service: CatalogService,
   authenticate: RequestHandler,
-  requireAdminOrOwner: RequestHandler,
+  requireOwner: RequestHandler,
   protectedLimiter: RequestHandler,
 ) {
   const router = Router();
-  const protectedRoute = [protectedLimiter, authenticate, requireAdminOrOwner];
+  const protectedRoute = [protectedLimiter, authenticate, requireOwner];
 
   router.get("/categories", async (_req, res, next) => {
     try { res.json({ success: true, data: await service.listCategories() }); } catch (error) { next(error); }

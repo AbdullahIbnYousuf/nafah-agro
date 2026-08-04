@@ -19,7 +19,6 @@ import {
   type SupabaseTokenVerifier,
 } from "./lib/supabaseAuth.js";
 import {
-  requireAdminOrOwner,
   requireAuthenticated,
   requireOwner,
   requireSupabaseUser,
@@ -293,13 +292,6 @@ export function createApp(dependencies: AppDependencies) {
     sendFoundationRecord,
   );
   app.get(
-    "/api/v1/foundation/admin",
-    protectedRouteLimiter,
-    authenticate,
-    requireAdminOrOwner,
-    sendFoundationRecord,
-  );
-  app.get(
     "/api/v1/foundation/owner",
     protectedRouteLimiter,
     authenticate,
@@ -378,7 +370,7 @@ export function createApp(dependencies: AppDependencies) {
       createCatalogRouter(
         catalogService,
         authenticate,
-        requireAdminOrOwner,
+        requireOwner,
         protectedRouteLimiter,
       ),
     );
@@ -397,7 +389,7 @@ export function createApp(dependencies: AppDependencies) {
       createInventoryRouter(
         inventoryService,
         authenticate,
-        requireAdminOrOwner,
+        requireOwner,
         protectedRouteLimiter,
       ),
     );
@@ -420,7 +412,7 @@ export function createApp(dependencies: AppDependencies) {
         orderService,
         optionalAuthenticate,
         authenticate,
-        requireAdminOrOwner,
+        requireOwner,
         protectedRouteLimiter,
       ),
     );
@@ -433,7 +425,7 @@ export function createApp(dependencies: AppDependencies) {
     });
   }
 
-  app.use("/api/v1/upload", protectedRouteLimiter, authenticate, requireAdminOrOwner, uploadRoutes);
+  app.use("/api/v1/upload", protectedRouteLimiter, authenticate, requireOwner, uploadRoutes);
 
   app.use("/api", (_req, res) => {
     res.status(404).json({

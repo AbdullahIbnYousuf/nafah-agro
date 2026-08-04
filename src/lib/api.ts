@@ -128,7 +128,6 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
       tags: product.tags,
       images: product.images,
       youtubeLinks: product.youtubeLinks,
-      attributes: product.attributes,
       initialVariant: {
         name: product.variantName || 'Default',
         sku: product.sku,
@@ -152,7 +151,6 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
       tags: data.tags,
       images: data.images,
       youtubeLinks: data.youtubeLinks,
-      attributes: data.attributes,
       isActive: data.isActive,
     }),
   });
@@ -385,7 +383,7 @@ export function transitionOrder(
   });
 }
 
-// Cloudinary upload route protected by Supabase OWNER/ADMIN middleware.
+// Cloudinary upload route protected by Supabase OWNER middleware.
 export async function uploadImages(files: File[]): Promise<string[]> {
   const form = new FormData();
   files.forEach((file) => form.append('images', file));

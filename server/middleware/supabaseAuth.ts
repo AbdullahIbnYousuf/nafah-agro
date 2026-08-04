@@ -149,4 +149,3 @@ function requireRoles(...roles: ApplicationProfile["role"][]): RequestHandler {
 }
 
 export const requireOwner = requireRoles("OWNER");
-export const requireAdminOrOwner = requireRoles("ADMIN", "OWNER");

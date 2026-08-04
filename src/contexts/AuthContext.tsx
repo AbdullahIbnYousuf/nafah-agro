@@ -25,7 +25,6 @@ interface AuthContextValue {
   register: (name: string, phoneNumber: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isOwner: boolean;
-  isAdminOrOwner: boolean;
   isCustomer: boolean;
   isAuthenticated: boolean;
 }
@@ -163,7 +162,6 @@ export function AuthProvider({
     register,
     logout,
     isOwner: user?.role === 'OWNER',
-    isAdminOrOwner: user?.role === 'OWNER' || user?.role === 'ADMIN',
     isCustomer: user?.role === 'CUSTOMER',
     isAuthenticated: Boolean(user && session),
   }), [loading, login, logout, register, session, user]);

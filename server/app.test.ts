@@ -232,41 +232,24 @@ describe("GET /api/v1/foundation", () => {
     expect(response.body.error.code).toBe("PROFILE_INACTIVE");
   });
 
-  it("denies a customer access to an admin route", async () => {
+  it("denies a customer access to an owner route", async () => {
     const response = await request(
       createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }),
     )
-      .get("/api/v1/foundation/admin")
+      .get("/api/v1/foundation/owner")
       .set("Authorization", "Bearer valid-token");
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe("INSUFFICIENT_ROLE");
   });
 
-  it("allows an admin to access an admin route", async () => {
-    const response = await request(
-      createProtectedApp({ ...ownerProfile, role: "ADMIN" }),
-    )
-      .get("/api/v1/foundation/admin")
+  it("allows an owner to access the owner route", async () => {
+    const response = await request(createProtectedApp())
+      .get("/api/v1/foundation/owner")
       .set("Authorization", "Bearer valid-token");
 
     expect(response.status).toBe(200);
-    expect(response.body.data.authenticatedUser.role).toBe("ADMIN");
-  });
-
-  it("allows only an owner to access the owner route", async () => {
-    const adminResponse = await request(
-      createProtectedApp({ ...ownerProfile, role: "ADMIN" }),
-    )
-      .get("/api/v1/foundation/owner")
-      .set("Authorization", "Bearer valid-token");
-    const ownerResponse = await request(createProtectedApp())
-      .get("/api/v1/foundation/owner")
-      .set("Authorization", "Bearer valid-token");
-
-    expect(adminResponse.status).toBe(403);
-    expect(adminResponse.body.error.code).toBe("INSUFFICIENT_ROLE");
-    expect(ownerResponse.status).toBe(200);
+    expect(response.body.data.authenticatedUser.role).toBe("OWNER");
   });
 
   it("rate limits repeated protected requests", async () => {
@@ -346,9 +329,9 @@ describe("GET /api/v1/foundation", () => {
       } as unknown as CatalogService;
     }
 
-    it.each(["OWNER", "ADMIN"] as const)("allows %s to create a category", async (role) => {
+    it("allows an OWNER to create a category", async () => {
       const catalog = catalogStub();
-      const response = await request(createProtectedApp({ ...ownerProfile, role }, 60, catalog))
+      const response = await request(createProtectedApp(ownerProfile, 60, catalog))
         .post("/api/v1/categories")
         .set("Authorization", "Bearer valid-token")
         .send({ name: "Dairy", slug: "dairy" });
@@ -383,9 +366,9 @@ describe("GET /api/v1/foundation", () => {
       } as unknown as InventoryService;
     }
 
-    it.each(["OWNER", "ADMIN"] as const)("allows %s to create purchases", async (role) => {
+    it("allows an OWNER to create purchases", async () => {
       const inventory = inventoryStub();
-      const response = await request(createProtectedApp({ ...ownerProfile, role }, 60, undefined, inventory))
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, inventory))
         .post("/api/v1/purchases")
         .set("Authorization", "Bearer valid-token")
         .send({
@@ -451,9 +434,9 @@ describe("GET /api/v1/foundation", () => {
       expect(orders.createWebsiteOrder).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: "guest-checkout-001" }), undefined);
     });
 
-    it.each(["OWNER", "ADMIN"] as const)("allows %s to list unified orders", async (role) => {
+    it("allows an OWNER to list unified orders", async () => {
       const orders = orderStub();
-      const response = await request(createProtectedApp({ ...ownerProfile, role }, 60, undefined, undefined, orders))
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, undefined, orders))
         .get("/api/v1/orders")
         .set("Authorization", "Bearer valid-token");
       expect(response.status).toBe(200);

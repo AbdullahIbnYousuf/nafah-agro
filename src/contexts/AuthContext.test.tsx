@@ -59,12 +59,12 @@ describe('Supabase frontend authentication', () => {
 
   it('logs in through Supabase and then loads the authoritative profile', async () => {
     const client = authClient();
-    const loadProfile = vi.fn<ProfileLoader>().mockResolvedValue(profile('ADMIN'));
+    const loadProfile = vi.fn<ProfileLoader>().mockResolvedValue(profile('OWNER'));
     render(<AuthProvider client={client} loadProfile={loadProfile}><AuthProbe /></AuthProvider>);
     await screen.findByText('guest');
     await act(async () => screen.getByText('login').click());
     expect(client.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'user@example.com', password: 'password' });
-    expect(await screen.findByText('ADMIN')).toBeInTheDocument();
+    expect(await screen.findByText('OWNER')).toBeInTheDocument();
   });
 
   it('registers only a CUSTOMER profile request with the required phone metadata', async () => {
@@ -128,7 +128,7 @@ describe('protected frontend routes', () => {
           <Routes>
             <Route path="/login" element={<div>login page</div>} />
             <Route path="/" element={<div>storefront</div>} />
-            <Route path="/admin" element={<ProtectedRoute roles={['OWNER', 'ADMIN']}><div>admin panel</div></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute roles={['OWNER']}><div>management panel</div></ProtectedRoute>} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>,
@@ -140,12 +140,12 @@ describe('protected frontend routes', () => {
     expect(await screen.findByText('login page')).toBeInTheDocument();
   });
 
-  it.each(['OWNER', 'ADMIN'] as const)('allows %s into admin routes', async (role) => {
-    renderRoute(role);
-    expect(await screen.findByText('admin panel')).toBeInTheDocument();
+  it('allows an OWNER into management routes', async () => {
+    renderRoute('OWNER');
+    expect(await screen.findByText('management panel')).toBeInTheDocument();
   });
 
-  it('denies a CUSTOMER access to admin routes', async () => {
+  it('denies a CUSTOMER access to management routes', async () => {
     renderRoute('CUSTOMER');
     await waitFor(() => expect(screen.getByText('storefront')).toBeInTheDocument());
   });

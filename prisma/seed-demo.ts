@@ -33,13 +33,7 @@ const products = [
     featured: true,
     tags: ["rice", "staple", "family"],
     images: [image("photo-1586201375761-83865001e31c")],
-    attributes: [{
-      name: "Weight",
-      options: [
-        { label: "5 kg", value: "5-kg", priceModifier: 0 },
-        { label: "10 kg", value: "10-kg", priceModifier: 560 },
-      ],
-    }],
+    attributes: [],
     variants: [
       { name: "5 kg", sku: "NA-RICE-MINI-5KG", price: 620, cost: 480, quantity: 30, isDefault: true },
       { name: "10 kg", sku: "NA-RICE-MINI-10KG", price: 1180, cost: 920, quantity: 20 },
@@ -68,13 +62,7 @@ const products = [
     featured: true,
     tags: ["oil", "cold-pressed", "mustard"],
     images: [image("photo-1474979266404-7eaacbcd87c5")],
-    attributes: [{
-      name: "Volume",
-      options: [
-        { label: "1 litre", value: "1-litre", priceModifier: 0 },
-        { label: "5 litres", value: "5-litres", priceModifier: 1370 },
-      ],
-    }],
+    attributes: [],
     variants: [
       { name: "1 litre", sku: "NA-OIL-MUSTARD-1L", price: 380, cost: 270, quantity: 35, isDefault: true },
       { name: "5 litres", sku: "NA-OIL-MUSTARD-5L", price: 1750, cost: 1280, quantity: 12 },
@@ -89,13 +77,7 @@ const products = [
     featured: true,
     tags: ["honey", "natural", "sundarbans"],
     images: [image("photo-1587049352846-4a222e784d38")],
-    attributes: [{
-      name: "Weight",
-      options: [
-        { label: "500 g", value: "500-g", priceModifier: 0 },
-        { label: "1 kg", value: "1-kg", priceModifier: 430 },
-      ],
-    }],
+    attributes: [],
     variants: [
       { name: "500 g", sku: "NA-HONEY-RAW-500G", price: 520, cost: 360, quantity: 30, isDefault: true },
       { name: "1 kg", sku: "NA-HONEY-RAW-1KG", price: 950, cost: 680, quantity: 18 },

@@ -13,7 +13,7 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
 
 ## Completed in code
 
-- Supabase Auth, active PostgreSQL profiles, OWNER/ADMIN/CUSTOMER authorization,
+- Supabase Auth, active PostgreSQL profiles, OWNER/CUSTOMER authorization,
   strict environment validation, Express security/rate limits, and health checks.
 - PostgreSQL categories, products, variants, unique SKUs, current price, immutable
   price history, purchases, stock batches, reason-required adjustments, FIFO
@@ -22,7 +22,7 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
   PHYSICAL_SHOP, FACEBOOK, PHONE, WHATSAPP, and OTHER.
 - Guest website COD sends no financial fields, is idempotent, and starts pending
   without reservation. Authenticated checkout attaches the verified profile.
-- OWNER/ADMIN confirmation reserves exact FIFO batches in a serializable
+- OWNER confirmation reserves exact FIFO batches in a serializable
   transaction; insufficient/concurrently changed stock rejects the operation.
 - Manual delivery orders can start pending or confirmed. Delivery consumes
   reservations and marks COD paid. Cancellation/failed delivery releases stock
@@ -36,6 +36,8 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
   database-enforced append-only `audit_logs` in the same transaction.
 - Storefront cart, customer website-order history, and unified admin management
   use `/api/v1`. Fake coupons and online/card/mobile-payment choices are removed.
+- Product pages use sellable variants as the only package/weight selector, so
+  the selected label, SKU, price, stock identity, and cart item cannot diverge.
 - Mongo startup, Mongoose dependency/model, `/api/orders`, Mongo utility, and
   `MONGO_URI` have been removed.
 - A single-project Vercel layout is prepared: Vite outputs `dist`,
@@ -46,27 +48,34 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
   upload route was versioned and the duplicate legacy health route was removed.
 - `FRONTEND_URL`/`CLIENT_URL` are removed. Production adds no cross-origin
   access; local Vite development retains a fixed localhost allowlist and proxy.
+- Multiple OWNER profiles are supported through the controlled CLI workflow;
+  owner-only route guards protect all management operations, and a migration
+  removes the retired role and prevents loss of the final active owner.
 
 ## Local verification on 2026-08-01
 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 91 tests passed across nine files, including focused
+- `npm test -- --run`: 91 tests passed across eleven files, including focused
   Vercel routing, same-origin/local CORS, health, API 404, unified-order,
   inventory, authorization, and return-dialog coverage.
 - `npm run build`: passed with non-blocking bundle-size and stale Browserslist
-  data warnings (747.61 kB main JavaScript chunk).
+  data warnings (743.96 kB main JavaScript chunk).
 - Built Vite preview smoke test: `/`, `/admin`, `/shop`, and
   `/products/demo-slug` each returned `200 text/html`.
 - `npm run build:server`, `npm run prisma:validate`, `npm run prisma:generate`,
   and `git diff --check`: passed.
-- Migration `202608010002_milestone_4_unified_orders` is checked in but has not
-  been applied to Supabase.
+- Migrations `202608010002_milestone_4_unified_orders` and
+  `202608010001_multiple_owners` are checked in but have not been applied to
+  Supabase from this workspace.
 
 ## External acceptance required
 
 - Apply all Prisma migrations to a disposable Supabase project and run the seed.
-- Set approved Dhaka and Outside-Dhaka charges with a real OWNER/ADMIN account.
+- Confirm there are no historical `ADMIN` profiles; the two-role migration
+  intentionally stops for manual resolution rather than escalating or silently
+  downgrading an identity.
+- Set approved Dhaka and Outside-Dhaka charges with a real OWNER account.
 - Test guest checkout, authenticated ownership, manual confirmed order, FIFO
   reservation, delivery, cancellation/failure, and both return conditions in a
   browser against real PostgreSQL.
