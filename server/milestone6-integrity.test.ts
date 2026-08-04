@@ -17,7 +17,8 @@ describe('Milestone 6 integrity safeguards', () => {
     const migration = readFileSync(migrationPath, 'utf8');
     expect(migration).toContain('order_allocations_state_timestamps_valid');
     expect(migration).toContain('sales_orders_status_reason_required');
-    expect(migration).toContain("status NOT IN ('CANCELLED', 'FAILED_DELIVERY')");
+    expect(migration).toContain("status <> 'CANCELLED'");
+    expect(migration).not.toContain("status NOT IN ('CANCELLED', 'FAILED_DELIVERY')");
     expect(migration).toContain('sales_orders_return_reason_required');
   });
 

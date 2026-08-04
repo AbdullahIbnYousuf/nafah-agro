@@ -92,9 +92,12 @@ ALTER TABLE public.order_allocations
     OR (state = 'RELEASED' AND reserved_at IS NOT NULL AND consumed_at IS NULL AND released_at IS NOT NULL)
   );
 
+-- Both ordinary cancellation and a failed-delivery action persist as
+-- SalesOrderStatus CANCELLED. The service distinguishes a failed delivery by
+-- prefixing status_reason with "FAILED_DELIVERY:"; it is not a status value.
 ALTER TABLE public.sales_orders
   ADD CONSTRAINT sales_orders_status_reason_required CHECK (
-    status NOT IN ('CANCELLED', 'FAILED_DELIVERY')
+    status <> 'CANCELLED'
     OR (status_reason IS NOT NULL AND btrim(status_reason) <> '')
   ),
   ADD CONSTRAINT sales_orders_return_reason_required CHECK (
