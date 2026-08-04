@@ -65,6 +65,8 @@ describe('product variant selection', () => {
     expect(await screen.findByText('Premium Miniket Rice')).toBeInTheDocument();
     expect(screen.getByText('বিকল্প নির্বাচন করুন')).toBeInTheDocument();
     expect(screen.queryByText(/^Weight:/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '5 kg · ৳620' })).toHaveClass('min-h-11');
+    expect(screen.getByRole('button', { name: 'কার্টে যোগ করুন' })).toHaveClass('min-h-12');
 
     fireEvent.click(screen.getByRole('button', { name: '10 kg · ৳1180' }));
     expect(screen.getByText(/10 kg · SKU NA-RICE-MINI-10KG/)).toBeInTheDocument();

@@ -119,7 +119,7 @@ export default function InventoryManager() {
   if (loading) return <div className="py-16 text-center text-muted-foreground">ইনভেন্টরি লোড হচ্ছে…</div>;
 
   return <div className="space-y-8">
-    <div className="flex items-center justify-between"><div><h1 className="text-2xl font-bold">ক্রয় ও FIFO ইনভেন্টরি</h1><p className="text-sm text-muted-foreground">ব্যাচই মূল স্টক রেকর্ড; সরাসরি স্টক ওভাররাইট করা হয় না</p></div><Button variant="outline" onClick={load}><RefreshCw size={15} className="mr-2" />রিফ্রেশ</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">ক্রয় ও FIFO ইনভেন্টরি</h1><p className="text-sm text-muted-foreground">ব্যাচই মূল স্টক রেকর্ড; সরাসরি স্টক ওভাররাইট করা হয় না</p></div><Button variant="outline" onClick={load}><RefreshCw size={15} className="mr-2" />রিফ্রেশ</Button></div>
 
     <form onSubmit={submitPurchase} className="bg-card border rounded-lg p-5 space-y-4">
       <h2 className="font-semibold text-lg">নতুন ক্রয়</h2>
@@ -130,14 +130,14 @@ export default function InventoryManager() {
         <Field label="একক ক্রয়মূল্য (৳)"><Input type="number" min="0.01" step="0.01" value={row.unitBuyingCost} onChange={(event) => setRow(index, { unitBuyingCost: event.target.value })} /></Field>
         <Button type="button" variant="ghost" aria-label="আইটেম বাদ দিন" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}><Trash2 size={16} /></Button>
       </div>)}</div>
-      <div className="flex justify-between"><Button type="button" variant="outline" onClick={() => setRows((current) => [...current, { productVariantId: '', quantity: '', unitBuyingCost: '' }])}><Plus size={15} className="mr-2" />আরেকটি আইটেম</Button><Button type="submit" disabled={savingPurchase}>{savingPurchase ? 'সংরক্ষণ হচ্ছে…' : 'ক্রয় সংরক্ষণ'}</Button></div>
+      <div className="grid gap-2 sm:flex sm:justify-between"><Button className="w-full sm:w-auto" type="button" variant="outline" onClick={() => setRows((current) => [...current, { productVariantId: '', quantity: '', unitBuyingCost: '' }])}><Plus size={15} className="mr-2" />আরেকটি আইটেম</Button><Button className="w-full sm:w-auto" type="submit" disabled={savingPurchase}>{savingPurchase ? 'সংরক্ষণ হচ্ছে…' : 'ক্রয় সংরক্ষণ'}</Button></div>
     </form>
 
     <form onSubmit={submitAdjustment} className="bg-card border rounded-lg p-5 space-y-4">
       <h2 className="font-semibold text-lg">কারণসহ স্টক সমন্বয়</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
         <Field label="ভ্যারিয়েন্ট"><VariantSelect variants={variants} value={adjustVariantId} onChange={setAdjustVariantId} /></Field>
-        <Field label="ধরন"><select className="w-full h-10 border rounded-md bg-background px-3" value={direction} onChange={(event) => setDirection(event.target.value as 'INCREASE' | 'DECREASE')}><option value="DECREASE">কমাবেন (FIFO)</option><option value="INCREASE">বাড়াবেন (নতুন ব্যাচ)</option></select></Field>
+        <Field label="ধরন"><select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={direction} onChange={(event) => setDirection(event.target.value as 'INCREASE' | 'DECREASE')}><option value="DECREASE">কমাবেন (FIFO)</option><option value="INCREASE">বাড়াবেন (নতুন ব্যাচ)</option></select></Field>
         <Field label="পরিমাণ"><Input type="number" min="1" step="1" value={adjustQuantity} onChange={(event) => setAdjustQuantity(event.target.value)} /></Field>
         {direction === 'INCREASE' && <Field label="একক ক্রয়মূল্য (৳)"><Input type="number" min="0.01" step="0.01" value={adjustCost} onChange={(event) => setAdjustCost(event.target.value)} /></Field>}
         {direction === 'INCREASE' && <Field label="ব্যাচের তারিখ"><Input type="date" value={adjustDate} onChange={(event) => setAdjustDate(event.target.value)} /></Field>}
@@ -151,7 +151,7 @@ export default function InventoryManager() {
 }
 
 function VariantSelect({ variants, value, onChange }: { variants: Array<{ product: Product; variant: ProductVariant }>; value: string; onChange: (value: string) => void }) {
-  return <select className="w-full h-10 border rounded-md bg-background px-3" value={value} onChange={(event) => onChange(event.target.value)}><option value="">নির্বাচন করুন</option>{variants.map(({ product, variant }) => <option key={variant.id} value={variant.id}>{product.name} — {variant.name} ({variant.sku}) · স্টক {variant.availableStock}</option>)}</select>;
+  return <select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={value} onChange={(event) => onChange(event.target.value)}><option value="">নির্বাচন করুন</option>{variants.map(({ product, variant }) => <option key={variant.id} value={variant.id}>{product.name} — {variant.name} ({variant.sku}) · স্টক {variant.availableStock}</option>)}</select>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -129,8 +129,8 @@ const ProductDetails = () => {
     <div className="min-h-screen flex flex-col">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8 flex-1">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+      <div className="container mx-auto flex-1 px-4 py-6 sm:py-8">
+        <button onClick={() => navigate(-1)} className="-ml-2 mb-6 flex min-h-11 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
           <ArrowLeft size={18} /> পিছনে যান
         </button>
 
@@ -179,7 +179,7 @@ const ProductDetails = () => {
                 {category.name}
               </span>
             )}
-            <h1 className="text-3xl font-bold mb-3">{product.name}</h1>
+            <h1 className="mb-3 break-words text-2xl font-bold sm:text-3xl">{product.name}</h1>
             {product.tags?.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {product.tags.map(tag => (
@@ -202,7 +202,7 @@ const ProductDetails = () => {
                       key={variant.id}
                       type="button"
                       onClick={() => setSelectedVariantId(variant.id)}
-                      className={`px-4 py-2 rounded-lg border text-sm font-medium ${selectedVariant?.id === variant.id ? 'border-secondary bg-secondary text-secondary-foreground' : 'border-border'}`}
+                      className={`min-h-11 rounded-lg border px-4 py-2 text-sm font-medium ${selectedVariant?.id === variant.id ? 'border-secondary bg-secondary text-secondary-foreground' : 'border-border'}`}
                     >
                       {variant.name} · ৳{variant.sellingPrice}
                     </button>
@@ -222,14 +222,14 @@ const ProductDetails = () => {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleDecreaseQuantity}
-                    className="w-10 h-10 rounded-full border-2 border-secondary flex items-center justify-center hover:bg-secondary/10 transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-secondary transition-colors hover:bg-secondary/10"
                   >
                     <Minus size={18} className="text-secondary" />
                   </button>
                   <span className="text-xl font-bold w-12 text-center">{quantityInCart}</span>
                   <button
                     onClick={handleAddToCart}
-                    className="w-10 h-10 rounded-full border-2 border-secondary flex items-center justify-center hover:bg-secondary/10 transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-secondary transition-colors hover:bg-secondary/10"
                   >
                     <Plus size={18} className="text-secondary" />
                   </button>
@@ -241,7 +241,7 @@ const ProductDetails = () => {
               <Button
                 onClick={handleAddToCart}
                 size="lg"
-                className="flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                className="min-h-12 flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90 md:min-h-11"
                 disabled={!selectedVariant}
               >
                 <ShoppingCart className="mr-2" size={20} />
@@ -250,7 +250,7 @@ const ProductDetails = () => {
               <Button
                 onClick={handleBuyNow}
                 size="lg"
-                className="flex-1"
+                className="min-h-12 flex-1 md:min-h-11"
                 disabled={!selectedVariant}
               >
                 <CreditCard className="mr-2" size={20} />

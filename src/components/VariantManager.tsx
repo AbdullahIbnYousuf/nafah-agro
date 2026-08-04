@@ -101,15 +101,15 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
     <>
       <button type="button" aria-label="বন্ধ করুন" className="fixed inset-0 z-40 bg-foreground/30" onClick={onClose} />
       <section className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-background shadow-2xl flex flex-col">
-        <header className="flex items-center justify-between px-5 py-4 bg-primary text-primary-foreground">
-          <div>
-            <h2 className="text-lg font-bold">{product.name}: ভ্যারিয়েন্ট ও দাম</h2>
+        <header className="flex items-start justify-between gap-3 bg-primary px-4 py-4 text-primary-foreground sm:px-5">
+          <div className="min-w-0">
+            <h2 className="break-words text-lg font-bold">{product.name}: ভ্যারিয়েন্ট ও দাম</h2>
             <p className="text-xs opacity-80">SKU অনন্য; প্রতিটি দাম পরিবর্তনে ইতিহাস তৈরি হয়</p>
           </div>
-          <button type="button" onClick={onClose} className="p-1"><X size={20} /></button>
+          <button type="button" aria-label="বন্ধ করুন" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-primary-foreground/10"><X size={20} /></button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+        <div className="flex-1 space-y-6 overflow-y-auto p-3 sm:p-5">
           <form onSubmit={handleCreate} className="border rounded-lg p-4 space-y-3">
             <h3 className="font-semibold flex items-center gap-2"><Plus size={17} />নতুন ভ্যারিয়েন্ট</h3>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -119,9 +119,9 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
               <Field label="লো-স্টক সীমা"><Input type="number" min="0" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
             </div>
             <Field label="প্রাথমিক দামের কারণ"><Input value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
-            <div className="flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />ডিফল্ট ভ্যারিয়েন্ট</label>
-              <Button type="submit" disabled={creating}>{creating ? 'যোগ হচ্ছে…' : 'ভ্যারিয়েন্ট যোগ করুন'}</Button>
+            <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
+              <label className="flex min-h-11 items-center gap-2 text-sm"><input className="h-5 w-5" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />ডিফল্ট ভ্যারিয়েন্ট</label>
+              <Button className="w-full sm:w-auto" type="submit" disabled={creating}>{creating ? 'যোগ হচ্ছে…' : 'ভ্যারিয়েন্ট যোগ করুন'}</Button>
             </div>
           </form>
 

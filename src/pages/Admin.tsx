@@ -41,16 +41,16 @@ export default function Admin() {
   return (
     <div className="min-h-screen md:flex bg-background">
       <aside className="w-full md:w-64 bg-primary text-primary-foreground p-4">
-        <Link to="/" className="block text-xl font-bold text-accent mb-6">নাফাহ এগ্রো পরিচালনা</Link>
-        <nav className="space-y-1">
+        <Link to="/" className="mb-4 flex min-h-11 items-center text-xl font-bold text-accent md:mb-6">নাফাহ এগ্রো পরিচালনা</Link>
+        <nav aria-label="পরিচালনা বিভাগ" className="flex gap-2 overflow-x-auto pb-2 md:block md:space-y-1 md:overflow-visible md:pb-0">
           {links.map(({ tab: itemTab, label, icon: Icon }) => (
             <button key={itemTab} type="button" onClick={() => setTab(itemTab)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm ${tab === itemTab ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/20'}`}>
+              className={`flex min-h-11 w-auto shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm md:w-full md:gap-3 md:px-4 md:py-3 ${tab === itemTab ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/20'}`}>
               <Icon size={18} />{label}
             </button>
           ))}
         </nav>
-        <Button asChild variant="ghost" className="mt-8 text-primary-foreground/80">
+        <Button asChild variant="ghost" className="mt-4 text-primary-foreground/80 md:mt-8">
           <Link to="/"><ArrowLeft size={16} className="mr-2" />সাইটে ফিরুন</Link>
         </Button>
       </aside>
@@ -106,11 +106,11 @@ function Products() {
   const close = () => { setShowForm(false); setEditing(undefined); };
   if (loading) return <Loading />;
   return <div>
-    <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold">পণ্য</h1><Button onClick={() => setShowForm(true)}><Plus size={16} className="mr-2" />নতুন পণ্য</Button></div>
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">পণ্য</h1><Button onClick={() => setShowForm(true)}><Plus size={16} className="mr-2" />নতুন পণ্য</Button></div>
     {(showForm || editing) && <AddProductForm categories={categories.filter((category) => category.isActive !== false)} editProduct={editing} onClose={close} onCreated={() => { close(); load(); }} />}
     {managing && <VariantManager product={managing} onClose={() => setManaging(undefined)} onUpdated={(updated) => { setManaging(updated); setProducts((current) => current.map((item) => item.id === updated.id ? updated : item)); }} />}
     <div className="bg-card border rounded-lg overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">নাম</th><th className="text-left p-3">ডিফল্ট SKU</th><th className="text-right p-3">দাম</th><th className="text-center p-3">ভ্যারিয়েন্ট</th><th className="text-center p-3">অবস্থা</th><th className="p-3" /></tr></thead><tbody>
-      {products.map((product) => <tr key={product.id} className={`border-t ${product.isActive === false ? 'opacity-60' : ''}`}><td className="p-3 font-medium">{product.name}</td><td className="p-3">{product.sku ?? '—'}</td><td className="p-3 text-right">৳{product.price}</td><td className="p-3 text-center">{product.variants?.length ?? 0}</td><td className="p-3 text-center">{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</td><td className="p-3 text-right whitespace-nowrap"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => setManaging(product)} className="p-2"><Settings2 size={16} /></button><button type="button" aria-label="সম্পাদনা" onClick={() => setEditing(product)} className="p-2"><Edit size={16} /></button><Button type="button" size="sm" variant={product.isActive === false ? 'default' : 'outline'} onClick={() => void setProductActive(product.id, product.isActive === false).then(load).catch(() => toast.error('পণ্যের অবস্থা পরিবর্তন হয়নি'))}>{product.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></td></tr>)}
+      {products.map((product) => <tr key={product.id} className={`border-t ${product.isActive === false ? 'opacity-60' : ''}`}><td className="p-3 font-medium">{product.name}</td><td className="p-3">{product.sku ?? '—'}</td><td className="p-3 text-right">৳{product.price}</td><td className="p-3 text-center">{product.variants?.length ?? 0}</td><td className="p-3 text-center">{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</td><td className="whitespace-nowrap p-3 text-right"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => setManaging(product)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="সম্পাদনা" onClick={() => setEditing(product)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button><Button type="button" size="sm" variant={product.isActive === false ? 'default' : 'outline'} onClick={() => void setProductActive(product.id, product.isActive === false).then(load).catch(() => toast.error('পণ্যের অবস্থা পরিবর্তন হয়নি'))}>{product.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></td></tr>)}
     </tbody></table></div>
   </div>;
 }
@@ -125,8 +125,8 @@ function Categories() {
     await createCategory({ name: name.trim(), slug: slugify(name) });
     setName(''); load();
   }
-  return <div><h1 className="text-2xl font-bold mb-6">ক্যাটাগরি</h1><div className="flex gap-2 max-w-lg mb-6"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="নতুন ক্যাটাগরি" /><Button onClick={() => void add()}>যোগ করুন</Button></div><div className="space-y-2 max-w-2xl">
-    {items.map((item) => <div key={item.id} className={`bg-card border rounded-lg p-3 flex items-center justify-between ${item.isActive === false ? 'opacity-60' : ''}`}><div><strong>{item.name}</strong><div className="text-xs text-muted-foreground">/{item.slug} · {item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</div></div><div><button type="button" className="p-2" aria-label="নাম বদলান" onClick={() => { const next = prompt('ক্যাটাগরির নাম', item.name); if (next) void updateCategory(item.id, { name: next, slug: slugify(next) }).then(load).catch(() => toast.error('ক্যাটাগরি আপডেট হয়নি')); }}><Edit size={16} /></button><Button type="button" size="sm" variant={item.isActive === false ? 'default' : 'outline'} onClick={() => void setCategoryActive(item.id, item.isActive === false).then(load).catch(() => toast.error('ক্যাটাগরির অবস্থা পরিবর্তন হয়নি'))}>{item.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></div></div>)}
+  return <div><h1 className="text-2xl font-bold mb-6">ক্যাটাগরি</h1><div className="mb-6 grid max-w-lg gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="নতুন ক্যাটাগরি" /><Button onClick={() => void add()}>যোগ করুন</Button></div><div className="space-y-2 max-w-2xl">
+    {items.map((item) => <div key={item.id} className={`flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between ${item.isActive === false ? 'opacity-60' : ''}`}><div className="min-w-0"><strong className="break-words">{item.name}</strong><div className="break-all text-xs text-muted-foreground">/{item.slug} · {item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</div></div><div className="flex items-center justify-end"><button type="button" className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted" aria-label="নাম বদলান" onClick={() => { const next = prompt('ক্যাটাগরির নাম', item.name); if (next) void updateCategory(item.id, { name: next, slug: slugify(next) }).then(load).catch(() => toast.error('ক্যাটাগরি আপডেট হয়নি')); }}><Edit size={16} /></button><Button type="button" size="sm" variant={item.isActive === false ? 'default' : 'outline'} onClick={() => void setCategoryActive(item.id, item.isActive === false).then(load).catch(() => toast.error('ক্যাটাগরির অবস্থা পরিবর্তন হয়নি'))}>{item.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></div></div>)}
   </div></div>;
 }
 

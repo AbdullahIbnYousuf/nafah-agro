@@ -100,7 +100,7 @@ export default function Cart() {
   );
 
   if (items.length === 0) return (
-    <div className="min-h-screen flex flex-col"><Navbar /><main className="flex-1 flex items-center justify-center"><div className="text-center">
+    <div className="min-h-screen flex flex-col"><Navbar /><main className="flex flex-1 items-center justify-center px-4"><div className="text-center">
       <ShoppingBag size={64} className="mx-auto text-muted-foreground/40 mb-4" />
       <h1 className="text-2xl font-bold mb-2">আপনার কার্ট খালি</h1>
       <Button asChild><Link to="/shop">দোকানে যান</Link></Button>
@@ -108,25 +108,25 @@ export default function Cart() {
   );
 
   return <div className="min-h-screen flex flex-col"><Navbar /><main className="container mx-auto px-4 py-8 flex-1">
-    <div className="flex justify-between items-center mb-6"><h1 className="text-3xl font-bold">কার্ট</h1><Button variant="ghost" className="text-destructive" onClick={clearCart}><Trash2 size={16} className="mr-1" />সব মুছুন</Button></div>
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-2"><h1 className="text-2xl font-bold sm:text-3xl">কার্ট</h1><Button variant="ghost" className="text-destructive" onClick={clearCart}><Trash2 size={16} className="mr-1" />সব মুছুন</Button></div>
     <div className="grid lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-4">{items.map(item => {
         const product = productMap[item.productId];
-        return <div key={item.productVariantId} className="bg-card rounded-lg border p-4 flex gap-4">
-          <div className="w-20 h-20 bg-muted rounded overflow-hidden">{product?.images[0] && <img src={product.images[0]} alt="" className="w-full h-full object-cover" />}</div>
-          <div className="flex-1"><div className="font-semibold">{item.productName}</div><div className="text-xs text-muted-foreground">{item.variantName} · {item.sku}</div>
-            <div className="flex justify-between items-center mt-3"><div className="flex gap-2 items-center">
-              <button aria-label="পরিমাণ কমান" onClick={() => updateQuantity(item.productVariantId, item.quantity - 1)} className="w-8 h-8 rounded-full border flex items-center justify-center"><Minus size={14} /></button>
+        return <div key={item.productVariantId} className="flex gap-3 rounded-lg border bg-card p-3 sm:gap-4 sm:p-4">
+          <div className="h-20 w-20 shrink-0 overflow-hidden rounded bg-muted">{product?.images[0] && <img src={product.images[0]} alt="" className="h-full w-full object-cover" />}</div>
+          <div className="min-w-0 flex-1"><div className="break-words font-semibold">{item.productName}</div><div className="break-all text-xs text-muted-foreground">{item.variantName} · {item.sku}</div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2">
+              <button aria-label="পরিমাণ কমান" onClick={() => updateQuantity(item.productVariantId, item.quantity - 1)} className="flex h-11 w-11 items-center justify-center rounded-full border transition-colors hover:bg-muted"><Minus size={16} /></button>
               <span>{item.quantity}</span>
-              <button aria-label="পরিমাণ বাড়ান" onClick={() => updateQuantity(item.productVariantId, item.quantity + 1)} className="w-8 h-8 rounded-full border flex items-center justify-center"><Plus size={14} /></button>
-            </div><div className="flex gap-3 items-center"><strong>৳{item.unitPrice * item.quantity}</strong><button aria-label="সরান" className="text-destructive" onClick={() => removeItem(item.productVariantId)}><Trash2 size={16} /></button></div></div>
+              <button aria-label="পরিমাণ বাড়ান" onClick={() => updateQuantity(item.productVariantId, item.quantity + 1)} className="flex h-11 w-11 items-center justify-center rounded-full border transition-colors hover:bg-muted"><Plus size={16} /></button>
+            </div><div className="ml-auto flex items-center gap-2"><strong>৳{item.unitPrice * item.quantity}</strong><button aria-label="কার্ট থেকে সরান" className="flex h-11 w-11 items-center justify-center rounded-md text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.productVariantId)}><Trash2 size={18} /></button></div></div>
           </div>
         </div>;
       })}</div>
-      <aside className="bg-card rounded-lg border p-6 h-fit sticky top-24">
+      <aside className="h-fit rounded-lg border bg-card p-4 sm:p-6 lg:sticky lg:top-24">
         <h2 className="font-bold text-lg mb-4">অর্ডার সারাংশ</h2>
         <div className="flex justify-between text-sm"><span>কার্টের আনুমানিক সাবটোটাল</span><span>৳{totalPrice}</span></div>
-        <div className="mt-4"><Label>ডেলিভারি এলাকা *</Label><div className="space-y-2 mt-2">{rates.map(rate => <label key={rate.id} className={`block border rounded p-3 cursor-pointer ${deliveryRateId === rate.id ? 'border-secondary bg-secondary/10' : ''}`}><input type="radio" className="mr-2" checked={deliveryRateId === rate.id} onChange={() => setDeliveryRateId(rate.id)} />{rate.name} — {rate.charge === null ? 'চার্জ নির্ধারিত নয়' : `৳${rate.charge}`}</label>)}</div></div>
+        <div className="mt-4"><Label>ডেলিভারি এলাকা *</Label><div className="mt-2 space-y-2">{rates.map(rate => <label key={rate.id} className={`flex min-h-12 cursor-pointer items-center rounded border p-3 ${deliveryRateId === rate.id ? 'border-secondary bg-secondary/10' : ''}`}><input type="radio" className="mr-2 h-5 w-5 shrink-0" checked={deliveryRateId === rate.id} onChange={() => setDeliveryRateId(rate.id)} />{rate.name} — {rate.charge === null ? 'চার্জ নির্ধারিত নয়' : `৳${rate.charge}`}</label>)}</div></div>
         <div className="border-t mt-4 pt-4 flex justify-between font-bold"><span>আনুমানিক মোট</span><span>{estimatedTotal === null ? '—' : `৳${estimatedTotal}`}</span></div>
         <p className="text-xs text-muted-foreground mt-2">চূড়ান্ত দাম, ছাড় ও ডেলিভারি চার্জ সার্ভার যাচাই করে নির্ধারণ করবে।</p>
         {!showCheckout ? <><Button className="w-full mt-4" onClick={() => setShowCheckout(true)}>অতিথি বা অ্যাকাউন্ট দিয়ে অর্ডার করুন</Button><Button asChild variant="ghost" className="w-full mt-2"><Link to="/shop"><ArrowLeft size={16} className="mr-1" />আরও পণ্য</Link></Button></> : <div className="mt-5 space-y-3 border-t pt-4">

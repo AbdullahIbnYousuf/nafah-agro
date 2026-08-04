@@ -88,8 +88,8 @@ const Shop = () => {
       <Navbar />
 
       <div className="container mx-auto px-4 py-8 flex-1">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">আমাদের পণ্যসমূহ</h1>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-bold sm:text-3xl">আমাদের পণ্যসমূহ</h1>
           {!loading && total > 0 && (
             <span className="text-sm text-muted-foreground">মোট পণ্য: {formatBanglaNumber(total)}</span>
           )}
@@ -106,7 +106,7 @@ const Shop = () => {
               className="pl-10 bg-card"
             />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <button aria-label="খোঁজার লেখা মুছুন" onClick={() => setSearch('')} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground md:h-10 md:w-10">
                 <X size={14} />
               </button>
             )}
@@ -155,7 +155,7 @@ const Shop = () => {
         <div className="flex flex-wrap items-center gap-2 mb-6">
           <button
             onClick={() => setFeaturedOnly(f => !f)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border transition-all ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm transition-all md:min-h-9 ${
               featuredOnly
                 ? 'border-secondary bg-secondary/15 text-secondary font-medium'
                 : 'border-border text-muted-foreground hover:border-secondary/50'
@@ -166,16 +166,16 @@ const Shop = () => {
           </button>
 
           {tagFilter && (
-            <span className="flex items-center gap-1 text-sm bg-secondary/15 text-secondary px-3 py-1.5 rounded-full font-medium">
+            <span className="flex min-h-11 items-center gap-1 rounded-full bg-secondary/15 px-3 text-sm font-medium text-secondary md:min-h-9">
               #{tagFilter}
-              <button onClick={() => setTagFilter('')} className="hover:text-destructive ml-0.5">
+              <button aria-label={`${tagFilter} ট্যাগ মুছুন`} onClick={() => setTagFilter('')} className="ml-0.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
                 <X size={13} />
               </button>
             </span>
           )}
 
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-destructive underline ml-auto">
+            <button onClick={clearFilters} className="ml-auto min-h-11 rounded-md px-2 text-xs text-muted-foreground underline hover:bg-muted hover:text-destructive md:min-h-9">
               সব ফিল্টার মুছুন
             </button>
           )}
@@ -195,7 +195,7 @@ const Shop = () => {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-10">
-                <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                <Button aria-label="আগের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
                   <ChevronLeft size={16} />
                 </Button>
 
@@ -208,14 +208,14 @@ const Shop = () => {
                       size="sm"
                       variant={page === item ? 'default' : 'outline'}
                       onClick={() => setPage(item as number)}
-                      className={page === item ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : ''}
+                      className={`min-w-11 ${page === item ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : ''}`}
                     >
                       {formatBanglaNumber(item)}
                     </Button>
                   )
                 )}
 
-                <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+                <Button aria-label="পরের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
                   <ChevronRight size={16} />
                 </Button>
               </div>
@@ -225,7 +225,7 @@ const Shop = () => {
           <div className="text-center py-20 text-muted-foreground">
             <p className="text-lg">কোনো পণ্য পাওয়া যায়নি</p>
             {hasActiveFilters && (
-              <button onClick={clearFilters} className="mt-3 text-sm text-secondary hover:underline">
+              <button onClick={clearFilters} className="mt-3 min-h-11 rounded-md px-3 text-sm text-secondary hover:bg-muted hover:underline">
                 ফিল্টার মুছে আবার চেষ্টা করুন
               </button>
             )}

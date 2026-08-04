@@ -27,7 +27,7 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-lg">
       <div className="container mx-auto flex items-center justify-between py-3 px-4">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex min-h-11 items-center gap-2" aria-label="নাফাহ এগ্রো হোম">
           <img src={logo} alt="নাফাহ এগ্রো" className="h-10 w-10 rounded-full bg-primary-foreground/10" />
           <span className="text-xl font-bold tracking-wide">নাফাহ এগ্রো</span>
         </Link>
@@ -61,16 +61,23 @@ const Navbar = () => {
         </div>
 
         {/* Mobile toggle */}
-        <div className="flex md:hidden items-center gap-3">
-          <Link to="/cart" className="relative hover:text-accent transition-colors">
+        <div className="flex items-center gap-1 md:hidden">
+          <Link to="/cart" aria-label="কার্ট" className="relative flex h-11 w-11 items-center justify-center rounded-md transition-colors hover:bg-primary-foreground/10 hover:text-accent">
             <ShoppingCart size={22} />
             {totalItems > 0 && (
-              <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+              <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-bold text-accent-foreground">
                 {totalItems}
               </span>
             )}
           </Link>
-          <button onClick={() => setMobileOpen(!mobileOpen)}>
+          <button
+            type="button"
+            aria-label={mobileOpen ? 'মেনু বন্ধ করুন' : 'মেনু খুলুন'}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-navigation"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="flex h-11 w-11 items-center justify-center rounded-md transition-colors hover:bg-primary-foreground/10"
+          >
             {mobileOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
@@ -78,13 +85,13 @@ const Navbar = () => {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden bg-primary border-t border-secondary/30 px-4 pb-4">
+        <div id="mobile-navigation" className="border-t border-secondary/30 bg-primary px-4 pb-4 md:hidden">
           {navLinks.map(l => (
             <Link
               key={l.to}
               to={l.to}
               onClick={() => setMobileOpen(false)}
-              className="block py-2 hover:text-accent transition-colors font-medium"
+              className="flex min-h-11 items-center rounded-md font-medium transition-colors hover:bg-primary-foreground/10 hover:text-accent"
             >
               {l.label}
             </Link>
@@ -95,7 +102,7 @@ const Navbar = () => {
               <Link
                 to="/profile"
                 onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 py-2 hover:text-accent transition-colors"
+                className="flex min-h-11 items-center gap-2 rounded-md transition-colors hover:bg-primary-foreground/10 hover:text-accent"
               >
                 <UserIcon size={16} />
                 <span className="text-sm">{user.name}</span>
@@ -103,10 +110,10 @@ const Navbar = () => {
                   {roleBadge[user.role]?.label}
                 </span>
               </Link>
-              {isOwner && <Link to="/admin" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 py-2 hover:text-accent transition-colors"><Settings size={16} />পরিচালনা প্যানেল</Link>}
+              {isOwner && <Link to="/admin" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-2 rounded-md transition-colors hover:bg-primary-foreground/10 hover:text-accent"><Settings size={16} />পরিচালনা প্যানেল</Link>}
               <button
                 onClick={() => { void logout(); setMobileOpen(false); }}
-                className="flex items-center gap-2 py-2 hover:text-accent transition-colors font-medium"
+                className="flex min-h-11 w-full items-center gap-2 rounded-md font-medium transition-colors hover:bg-primary-foreground/10 hover:text-accent"
               >
                 <LogOut size={16} />
                 লগআউট
@@ -116,7 +123,7 @@ const Navbar = () => {
             <Link
               to="/login"
               onClick={() => setMobileOpen(false)}
-              className="block py-2 hover:text-accent transition-colors font-medium"
+              className="flex min-h-11 items-center rounded-md font-medium transition-colors hover:bg-primary-foreground/10 hover:text-accent"
             >
               লগইন
             </Link>
