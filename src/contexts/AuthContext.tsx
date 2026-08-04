@@ -9,13 +9,14 @@ import {
 } from 'react';
 import type { AuthChangeEvent, Session, SupabaseClient } from '@supabase/supabase-js';
 import type { User } from '@/lib/types';
-import { ApiError, completeCustomerProfile, getCurrentProfile } from '@/lib/api';
+import { ApiError, completeCustomerProfile, getCurrentProfile, updateMyProfile } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 export type ProfileLoader = (accessToken: string) => Promise<User>;
 export type ProfileCompleter = (
   accessToken: string,
 ) => Promise<User>;
+export type ProfileUpdater = (input: { fullName: string; phoneNumber: string }) => Promise<User>;
 
 interface AuthContextValue {
   user: User | null;
@@ -24,6 +25,10 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, phoneNumber: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  updateProfile: (fullName: string, phoneNumber: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  setInitialPassword: (newPassword: string) => Promise<void>;
+  needsPasswordSetup: boolean;
   isOwner: boolean;
   isCustomer: boolean;
   isAuthenticated: boolean;
@@ -36,6 +41,7 @@ interface AuthProviderProps {
   client?: SupabaseClient;
   loadProfile?: ProfileLoader;
   completeProfile?: ProfileCompleter;
+  saveProfile?: ProfileUpdater;
 }
 
 export function AuthProvider({
@@ -43,6 +49,7 @@ export function AuthProvider({
   client = supabase,
   loadProfile = getCurrentProfile,
   completeProfile = completeCustomerProfile,
+  saveProfile = updateMyProfile,
 }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -154,6 +161,33 @@ export function AuthProvider({
     setUser(null);
   }, [client]);
 
+  const updateProfile = useCallback(async (fullName: string, phoneNumber: string) => {
+    const updated = await saveProfile({ fullName, phoneNumber });
+    setUser(updated);
+  }, [saveProfile]);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    if (!user?.email) throw new Error('This account does not have an email address.');
+    const { error: verificationError } = await client.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+    if (verificationError) throw new Error('Current password is incorrect.');
+    const { error } = await client.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  }, [client, user?.email]);
+
+  const setInitialPassword = useCallback(async (newPassword: string) => {
+    const { data, error } = await client.auth.updateUser({
+      password: newPassword,
+      data: { nafah_owner_invite_pending: false },
+    });
+    if (error) throw error;
+    if (data.user) {
+      setSession(current => current ? { ...current, user: data.user } : current);
+    }
+  }, [client]);
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     session,
@@ -161,10 +195,14 @@ export function AuthProvider({
     login,
     register,
     logout,
+    updateProfile,
+    changePassword,
+    setInitialPassword,
+    needsPasswordSetup: session?.user.user_metadata?.nafah_owner_invite_pending === true,
     isOwner: user?.role === 'OWNER',
     isCustomer: user?.role === 'CUSTOMER',
     isAuthenticated: Boolean(user && session),
-  }), [loading, login, logout, register, session, user]);
+  }), [changePassword, loading, login, logout, register, session, setInitialPassword, updateProfile, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

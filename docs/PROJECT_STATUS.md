@@ -51,16 +51,21 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
 - Multiple OWNER profiles are supported through the controlled CLI workflow;
   owner-only route guards protect all management operations, and a migration
   removes the retired role and prevents loss of the final active owner.
+- The role-aware profile screen supports audited name/phone updates,
+  reauthenticated password changes, customer order history, an owner management
+  panel, secure email invitations, and reason-required owner activation changes.
+  First-owner bootstrap remains CLI-only; invitation requires the backend-only
+  Supabase service-role key and configured SMTP/Site URL.
 
 ## Local verification on 2026-08-01
 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 91 tests passed across eleven files, including focused
+- `npm test -- --run`: 107 tests passed across fourteen files, including focused
   Vercel routing, same-origin/local CORS, health, API 404, unified-order,
   inventory, authorization, and return-dialog coverage.
 - `npm run build`: passed with non-blocking bundle-size and stale Browserslist
-  data warnings (743.96 kB main JavaScript chunk).
+  data warnings (776.48 kB main JavaScript chunk).
 - Built Vite preview smoke test: `/`, `/admin`, `/shop`, and
   `/products/demo-slug` each returned `200 text/html`.
 - `npm run build:server`, `npm run prisma:validate`, `npm run prisma:generate`,
@@ -83,6 +88,8 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
 - Verify registration/profile trigger, Cloudinary upload, the generated Vercel
   Function, same-origin behavior, SPA deep links, and production variables in a
   real Preview deployment.
+- Verify owner invitation email delivery and acceptance with production-like
+  Supabase SMTP/Site URL settings and the Vercel service-role secret.
 - Obtain client-approved delivery charges. Cloudinary and Vercel remain untested.
 
 ## Not started

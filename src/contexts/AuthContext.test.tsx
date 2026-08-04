@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import type { Role, User } from '@/lib/types';
 import { ApiError } from '@/lib/api';
-import { AuthProvider, useAuth, type ProfileCompleter, type ProfileLoader } from './AuthContext';
+import { AuthProvider, useAuth, type ProfileCompleter, type ProfileLoader, type ProfileUpdater } from './AuthContext';
 
 const session = {
   access_token: 'supabase-access-token',
@@ -32,19 +32,25 @@ function authClient(restoredSession: Session | null = null) {
       signInWithPassword: vi.fn().mockResolvedValue({ data: { session, user: session.user }, error: null }),
       signUp: vi.fn().mockResolvedValue({ data: { session: null, user: session.user }, error: null }),
       signOut: vi.fn().mockResolvedValue({ error: null }),
+      updateUser: vi.fn().mockResolvedValue({ data: { user: session.user }, error: null }),
     },
   } as unknown as SupabaseClient;
   return client;
 }
 
 function AuthProbe() {
-  const { login, register, user } = useAuth();
+  const { login, register, updateProfile, changePassword, setInitialPassword, needsPasswordSetup, user } = useAuth();
   const [registrationError, setRegistrationError] = useState('');
   return <div>
     <span>{user?.role ?? 'guest'}</span>
+    <span>{user?.name ?? 'no name'}</span>
+    <span>{needsPasswordSetup ? 'password setup required' : 'password ready'}</span>
     <button onClick={() => void login('user@example.com', 'password')}>login</button>
     <button onClick={() => void register('User', '01700000000', 'user@example.com', 'password').catch((error: Error) => setRegistrationError(error.message))}>register</button>
     <button onClick={() => void register('User', '', 'user@example.com', 'password').catch(() => undefined)}>register without phone</button>
+    <button onClick={() => void updateProfile('Updated User', '01800000000')}>update profile</button>
+    <button onClick={() => void changePassword('old-password', 'new-password')}>change password</button>
+    <button onClick={() => void setInitialPassword('invited-password')}>set initial password</button>
     {registrationError && <span>{registrationError}</span>}
   </div>;
 }
@@ -116,6 +122,44 @@ describe('Supabase frontend authentication', () => {
     );
     expect(await screen.findByText('CUSTOMER')).toBeInTheDocument();
     expect(completeProfile).toHaveBeenCalledWith('supabase-access-token');
+  });
+
+  it('updates the authoritative profile and refreshes context state', async () => {
+    const updated = { ...profile('CUSTOMER'), name: 'Updated User', phoneNumber: '01800000000' };
+    const saveProfile = vi.fn<ProfileUpdater>().mockResolvedValue(updated);
+    render(<AuthProvider client={authClient(session)} loadProfile={vi.fn<ProfileLoader>().mockResolvedValue(profile('CUSTOMER'))} saveProfile={saveProfile}><AuthProbe /></AuthProvider>);
+    expect(await screen.findByText('CUSTOMER')).toBeInTheDocument();
+    await act(async () => screen.getByText('update profile').click());
+    expect(saveProfile).toHaveBeenCalledWith({ fullName: 'Updated User', phoneNumber: '01800000000' });
+    expect(await screen.findByText('Updated User')).toBeInTheDocument();
+  });
+
+  it('reauthenticates before changing the Supabase password', async () => {
+    const client = authClient(session);
+    render(<AuthProvider client={client} loadProfile={vi.fn<ProfileLoader>().mockResolvedValue(profile('OWNER'))}><AuthProbe /></AuthProvider>);
+    expect(await screen.findByText('OWNER')).toBeInTheDocument();
+    await act(async () => screen.getByText('change password').click());
+    expect(client.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'user@example.com', password: 'old-password' });
+    expect(client.auth.updateUser).toHaveBeenCalledWith({ password: 'new-password' });
+  });
+
+  it('lets an invited owner set the initial password without an old password', async () => {
+    const invitedSession = {
+      ...session,
+      user: { ...session.user, user_metadata: { nafah_owner_invite_pending: true } },
+    } as Session;
+    const client = authClient(invitedSession);
+    vi.mocked(client.auth.updateUser).mockResolvedValue({
+      data: { user: { ...invitedSession.user, user_metadata: { nafah_owner_invite_pending: false } } },
+      error: null,
+    } as Awaited<ReturnType<typeof client.auth.updateUser>>);
+    render(<AuthProvider client={client} loadProfile={vi.fn<ProfileLoader>().mockResolvedValue(profile('OWNER'))}><AuthProbe /></AuthProvider>);
+    expect(await screen.findByText('password setup required')).toBeInTheDocument();
+    await act(async () => screen.getByText('set initial password').click());
+    expect(client.auth.updateUser).toHaveBeenCalledWith({
+      password: 'invited-password', data: { nafah_owner_invite_pending: false },
+    });
+    expect(await screen.findByText('password ready')).toBeInTheDocument();
   });
 });
 

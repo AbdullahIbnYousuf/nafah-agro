@@ -36,12 +36,22 @@ export const backendEnvSchema = z
       .min(1)
       .max(10_000)
       .default(60),
+    OWNER_INVITE_RATE_LIMIT_MAX: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(5),
     CLOUDINARY_CLOUD_NAME: optionalString,
     CLOUDINARY_API_KEY: optionalString,
     CLOUDINARY_API_SECRET: optionalString,
     DATABASE_URL: optionalPostgresUrl,
     DIRECT_URL: optionalPostgresUrl,
     SUPABASE_URL: optionalUrl,
+    SUPABASE_SERVICE_ROLE_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().trim().min(20).optional(),
+    ),
     SUPABASE_JWT_AUDIENCE: z.string().trim().default("authenticated"),
   })
   .superRefine((env, ctx) => {
@@ -68,10 +78,21 @@ export const backendEnvSchema = z
         message: "DATABASE_URL and SUPABASE_URL must be provided together",
       });
     }
+
+    if (env.SUPABASE_SERVICE_ROLE_KEY && foundationCount < foundationValues.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SUPABASE_SERVICE_ROLE_KEY"],
+        message: "Owner invitations require DATABASE_URL and SUPABASE_URL",
+      });
+    }
   })
   .transform((env) => ({
     ...env,
     FOUNDATION_CONFIGURED: Boolean(env.DATABASE_URL && env.SUPABASE_URL),
+    OWNER_INVITATIONS_CONFIGURED: Boolean(
+      env.DATABASE_URL && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY,
+    ),
   }));
 
 export type BackendEnv = z.infer<typeof backendEnvSchema>;

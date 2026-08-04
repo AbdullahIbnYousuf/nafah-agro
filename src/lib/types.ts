@@ -223,3 +223,20 @@ export interface User {
   role: Role;
   isActive: boolean;
 }
+
+export interface OwnerAccount {
+  id: string;
+  role: 'OWNER';
+  fullName: string;
+  phoneNumber: string | null;
+  email: string | null;
+  isActive: boolean;
+  invitedAt: string | null;
+  lastSignInAt: string | null;
+  createdAt: string;
+}
+
+export interface OwnerManagementState {
+  owners: OwnerAccount[];
+  invitationsConfigured: boolean;
+}

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Loader2, X, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { formatBanglaNumber } from '@/lib/utils';
 
 const LIMIT = 12;
 
@@ -90,7 +91,7 @@ const Shop = () => {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">আমাদের পণ্যসমূহ</h1>
           {!loading && total > 0 && (
-            <span className="text-sm text-muted-foreground">{total}টি পণ্য</span>
+            <span className="text-sm text-muted-foreground">মোট পণ্য: {formatBanglaNumber(total)}</span>
           )}
         </div>
 
@@ -209,7 +210,7 @@ const Shop = () => {
                       onClick={() => setPage(item as number)}
                       className={page === item ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : ''}
                     >
-                      {item}
+                      {formatBanglaNumber(item)}
                     </Button>
                   )
                 )}

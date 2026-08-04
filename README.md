@@ -61,6 +61,7 @@ override for intentionally bypassing the proxy.
 | `DIRECT_URL` | CLI only | Direct/session URL for migrations and seeds |
 | `SUPABASE_URL` | backend | Supabase issuer and JWKS base URL |
 | `SUPABASE_JWT_AUDIENCE` | backend | Usually `authenticated` |
+| `SUPABASE_SERVICE_ROLE_KEY` | backend only | Required for an OWNER to invite additional owners; never expose to Vite |
 | `VITE_SUPABASE_URL` | public frontend | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | public frontend | Publishable/anon key; never service-role |
 | `VITE_API_URL` | optional public frontend | Local override; defaults to same-origin `/api` and should be unset on Vercel |
@@ -68,6 +69,7 @@ override for intentionally bypassing the proxy.
 | `CLOUDINARY_API_KEY` | backend | Optional image-service credential |
 | `CLOUDINARY_API_SECRET` | backend | Optional secret; never expose through Vite |
 | `PROTECTED_RATE_LIMIT_MAX` | backend | Protected requests per IP/window |
+| `OWNER_INVITE_RATE_LIMIT_MAX` | backend | Owner invitation attempts per IP/window; defaults to 5 |
 | `RATE_LIMIT_WINDOW_MS` | backend | Rate-limit window |
 | `JSON_BODY_LIMIT` | backend | JSON request-size limit |
 
@@ -119,6 +121,14 @@ never upgrades an existing customer profile, and the database blocks deleting,
 deactivating, or demoting the final active owner. There is no public OWNER
 registration endpoint. Customer registration requires phone metadata and can
 create only a `CUSTOMER` profile.
+
+After the first owner can sign in, `/profile` provides the normal workflow for
+inviting and activating/deactivating additional owners. Configure the backend-only
+`SUPABASE_SERVICE_ROLE_KEY`, Supabase Site URL, approved redirect URLs, and SMTP
+before testing email invitations. The invite workflow creates a distinct Auth
+identity and OWNER profile, records an audit log, blocks self-deactivation, and
+requires a reason for status changes. An invited owner is redirected to the
+profile screen and must set an initial password before using the rest of the app.
 
 ## Verification
 

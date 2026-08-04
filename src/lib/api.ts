@@ -3,6 +3,8 @@ import type {
   DeliveryRate,
   OrderSource,
   OrderStatus,
+  OwnerAccount,
+  OwnerManagementState,
   OrdersPage,
   Product,
   ProductsPage,
@@ -78,6 +80,41 @@ export function completeCustomerProfile(
   return requestV1<User>('/auth/complete-customer-profile', {
     method: 'POST',
   }, token);
+}
+
+export function updateMyProfile(input: {
+  fullName: string;
+  phoneNumber: string;
+}): Promise<User> {
+  return requestV1<User>('/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getOwners(): Promise<OwnerManagementState> {
+  return requestV1<OwnerManagementState>('/owners');
+}
+
+export function inviteOwner(input: {
+  fullName: string;
+  phoneNumber: string;
+  email: string;
+}): Promise<OwnerAccount> {
+  return requestV1<OwnerAccount>('/owners/invitations', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function setOwnerActive(
+  ownerId: string,
+  input: { isActive: boolean; reason: string },
+): Promise<OwnerAccount> {
+  return requestV1<OwnerAccount>(`/owners/${ownerId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 }
 
 export interface GetProductsParams {

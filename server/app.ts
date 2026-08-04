@@ -12,6 +12,7 @@ import { createOrderRouter } from "./routes/orders.js";
 import uploadRoutes from "./routes/upload.js";
 import { createCatalogRouter } from "./routes/catalog.js";
 import { createInventoryRouter } from "./routes/inventory.js";
+import { createAccountRouter } from "./routes/accounts.js";
 import type { BackendEnv } from "./env.js";
 import { getPrismaClient } from "./lib/prisma.js";
 import {
@@ -38,6 +39,8 @@ import {
 import { createCatalogService, type CatalogService } from "./services/catalog.js";
 import { createInventoryService, type InventoryService } from "./services/inventory.js";
 import { createUnifiedOrderService, type UnifiedOrderService } from "./services/orders.js";
+import { createAccountService, type AccountService } from "./services/accounts.js";
+import { createOwnerAuthAdmin } from "./lib/supabaseAdmin.js";
 
 export interface AppDependencies {
   env: BackendEnv;
@@ -48,6 +51,7 @@ export interface AppDependencies {
   catalogService?: CatalogService;
   inventoryService?: InventoryService;
   orderService?: UnifiedOrderService;
+  accountService?: AccountService;
   writeCustomerProfile?: CustomerProfileWriter;
 }
 
@@ -85,11 +89,15 @@ function getFoundationDependencies(env: BackendEnv) {
       catalogService: undefined,
       inventoryService: undefined,
       orderService: undefined,
+      accountService: undefined,
       writeCustomerProfile: undefined,
     };
   }
 
   const prisma = getPrismaClient(env.DATABASE_URL);
+  const ownerAuthAdmin = env.SUPABASE_SERVICE_ROLE_KEY
+    ? createOwnerAuthAdmin(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+    : undefined;
   return {
     verifySupabaseToken: createSupabaseTokenVerifier(
       env.SUPABASE_URL,
@@ -101,6 +109,7 @@ function getFoundationDependencies(env: BackendEnv) {
     catalogService: createCatalogService(prisma),
     inventoryService: createInventoryService(prisma),
     orderService: createUnifiedOrderService(prisma),
+    accountService: createAccountService(prisma, ownerAuthAdmin),
     writeCustomerProfile: createCustomerProfileWriter(prisma),
   };
 }
@@ -124,6 +133,7 @@ export function createApp(dependencies: AppDependencies) {
   const catalogService = dependencies.catalogService ?? getDefaults().catalogService;
   const inventoryService = dependencies.inventoryService ?? getDefaults().inventoryService;
   const orderService = dependencies.orderService ?? getDefaults().orderService;
+  const accountService = dependencies.accountService ?? getDefaults().accountService;
   const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
   const localDevelopmentOrigins = new Set([
     "http://localhost:8080",
@@ -140,6 +150,20 @@ export function createApp(dependencies: AppDependencies) {
       error: {
         code: "RATE_LIMIT_EXCEEDED",
         message: "Too many protected API requests. Try again later.",
+        details: {},
+      },
+    },
+  });
+  const ownerInviteLimiter = rateLimit({
+    windowMs: dependencies.env.RATE_LIMIT_WINDOW_MS,
+    limit: dependencies.env.OWNER_INVITE_RATE_LIMIT_MAX,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: {
+        code: "OWNER_INVITE_RATE_LIMITED",
+        message: "Too many owner invitation attempts. Try again later.",
         details: {},
       },
     },
@@ -363,6 +387,19 @@ export function createApp(dependencies: AppDependencies) {
       }
     },
   );
+
+  if (accountService) {
+    app.use(
+      "/api/v1",
+      createAccountRouter(
+        accountService,
+        authenticate,
+        requireOwner,
+        protectedRouteLimiter,
+        ownerInviteLimiter,
+      ),
+    );
+  }
 
   if (catalogService) {
     app.use(

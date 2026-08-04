@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Menu, X, LogOut, User as UserIcon } from 'lucide-react';
+import { ChevronDown, Settings, ShoppingCart, Menu, X, LogOut, User as UserIcon } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import logo from '@/assets/logo.avif';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const roleBadge: Record<string, { label: string; className: string }> = {
   OWNER: { label: 'ওনার', className: 'bg-amber-500/20 text-amber-200' },
@@ -18,8 +22,6 @@ const Navbar = () => {
   const navLinks = [
     { to: '/', label: 'হোম' },
     { to: '/shop', label: 'দোকান' },
-    ...(isOwner ? [{ to: '/admin', label: 'পরিচালনা প্যানেল' }] : []),
-    ...(isAuthenticated ? [{ to: '/profile', label: 'প্রোফাইল' }] : []),
   ];
 
   return (
@@ -47,22 +49,10 @@ const Navbar = () => {
           </Link>
 
           {isAuthenticated && user ? (
-            <div className="flex items-center gap-3">
-              <Link to="/profile" className="flex items-center gap-2 hover:text-accent transition-colors">
-                <UserIcon size={18} />
-                <span className="text-sm font-medium">{user.name}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${roleBadge[user.role]?.className}`}>
-                  {roleBadge[user.role]?.label}
-                </span>
-              </Link>
-              <button
-                onClick={() => void logout()}
-                className="hover:text-accent transition-colors"
-                title="লগআউট"
-              >
-                <LogOut size={18} />
-              </button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><button type="button" className="flex items-center gap-2 hover:text-accent transition-colors"><UserIcon size={18} /><span className="text-sm font-medium max-w-32 truncate">{user.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${roleBadge[user.role]?.className}`}>{roleBadge[user.role]?.label}</span><ChevronDown size={14} /></button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56"><DropdownMenuLabel><span className="block truncate">{user.name}</span><span className="block text-xs font-normal text-muted-foreground truncate">{user.email}</span></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem asChild><Link to="/profile"><UserIcon size={16} className="mr-2" />আমার প্রোফাইল</Link></DropdownMenuItem>{isOwner && <DropdownMenuItem asChild><Link to="/admin"><Settings size={16} className="mr-2" />পরিচালনা প্যানেল</Link></DropdownMenuItem>}<DropdownMenuSeparator /><DropdownMenuItem onSelect={() => void logout()} className="text-destructive"><LogOut size={16} className="mr-2" />লগআউট</DropdownMenuItem></DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Link to="/login" className="hover:text-accent transition-colors font-medium">
               লগইন
@@ -113,6 +103,7 @@ const Navbar = () => {
                   {roleBadge[user.role]?.label}
                 </span>
               </Link>
+              {isOwner && <Link to="/admin" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 py-2 hover:text-accent transition-colors"><Settings size={16} />পরিচালনা প্যানেল</Link>}
               <button
                 onClick={() => { void logout(); setMobileOpen(false); }}
                 className="flex items-center gap-2 py-2 hover:text-accent transition-colors font-medium"

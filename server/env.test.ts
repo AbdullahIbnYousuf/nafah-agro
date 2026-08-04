@@ -41,4 +41,21 @@ describe("backend environment validation", () => {
       }),
     ).toThrow("DATABASE_URL and SUPABASE_URL must be provided together");
   });
+
+  it("keeps owner invitations disabled unless the backend-only service key is configured", () => {
+    const disabled = parseBackendEnv({
+      ...validEnvironment,
+      DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
+      SUPABASE_URL: "https://project.supabase.co",
+    });
+    const enabled = parseBackendEnv({
+      ...validEnvironment,
+      DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role-key-with-enough-length",
+    });
+
+    expect(disabled.OWNER_INVITATIONS_CONFIGURED).toBe(false);
+    expect(enabled.OWNER_INVITATIONS_CONFIGURED).toBe(true);
+  });
 });

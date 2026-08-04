@@ -6,7 +6,7 @@ import { z } from "zod";
 const argumentsSchema = z.object({
   userId: z.string().uuid("user ID must be a Supabase Auth UUID"),
   fullName: z.string().trim().min(1).max(120),
-  phoneNumber: z.string().trim().min(7).max(30).optional(),
+  phoneNumber: z.string().trim().min(7).max(30),
   confirmed: z.literal(true, {
     errorMap: () => ({
       message: "pass --confirm to acknowledge OWNER privilege creation",

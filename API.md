@@ -14,9 +14,17 @@ verifies the Supabase token, loads the active PostgreSQL profile, and enforces
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/health` | Public | API/PostgreSQL readiness |
 | `GET` | `/api/v1/auth/me` | Active profile | Resolve token to profile |
+| `PATCH` | `/api/v1/auth/me` | Active profile | Update own name and required phone |
 | `POST` | `/api/v1/auth/complete-customer-profile` | Supabase user | Recover only the token subject's CUSTOMER profile |
 | `GET` | `/api/v1/foundation` | Active profile | PostgreSQL proof endpoint |
 | `GET` | `/api/v1/foundation/owner` | OWNER | Owner-only proof |
+| `GET` | `/api/v1/owners` | OWNER | List owner profiles and Auth invitation/sign-in state |
+| `POST` | `/api/v1/owners/invitations` | OWNER | Send a Supabase email invitation and create an OWNER profile |
+| `PATCH` | `/api/v1/owners/:id/status` | OWNER | Reason-required activate/deactivate; self/final-owner protected |
+
+Owner invitations require the backend-only `SUPABASE_SERVICE_ROLE_KEY`. Public
+registration always creates `CUSTOMER`; metadata can never grant OWNER. The CLI
+workflow remains the bootstrap/recovery path for the first owner.
 
 ## Catalog and inventory
 

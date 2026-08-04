@@ -16,6 +16,8 @@ Status: complete in code; live Supabase/Vercel proof remains.
 - Prisma/Supabase connectivity, profiles, token verification, role guards, and
   controlled repeatable owner command. Active roles are OWNER and CUSTOMER;
   multiple owners are allowed and the final active owner is database-protected.
+- Role-aware self-service profile, reauthenticated password change, and audited
+  OWNER-only invitations/status management are complete in code.
 
 ## Milestone 2 — Catalog and price history
 

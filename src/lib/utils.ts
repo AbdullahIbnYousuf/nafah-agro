@@ -8,3 +8,9 @@ export function cn(...inputs: ClassValue[]) {
 export function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
+
+const banglaNumberFormatter = new Intl.NumberFormat("bn-BD");
+
+export function formatBanglaNumber(value: number): string {
+  return banglaNumberFormatter.format(value);
+}

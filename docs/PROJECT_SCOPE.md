@@ -25,6 +25,7 @@ There is no real database data to preserve. MongoDB, Mongoose, custom JWT authen
 - Has full business access
 - Multiple owner accounts are allowed and have the same business access
 - Owner access is granted only through a controlled operational command
+- After bootstrap, an active owner can email-invite additional owners from the profile screen
 - The final active owner cannot be deleted, disabled, or demoted
 - Can view buying costs, inventory value, gross profit, and profit margins
 - Can manage prices, stock batches, adjustments, orders, discounts, and delivery rates
@@ -210,6 +211,7 @@ Category-performance analytics are outside V1.
 
 - Supabase Auth access tokens are verified by Express
 - Application profiles store role, name, phone, and active state
+- Users can update their own name/phone and change password after reauthentication
 - No public owner registration
 - Owner creation is a repeatable controlled process for new Supabase Auth identities
 - The database preserves at least one active owner

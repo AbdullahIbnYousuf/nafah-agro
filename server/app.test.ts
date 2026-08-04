@@ -8,6 +8,7 @@ import type { ApplicationProfile } from "./services/profiles.js";
 import type { CatalogService } from "./services/catalog.js";
 import type { InventoryService } from "./services/inventory.js";
 import type { UnifiedOrderService } from "./services/orders.js";
+import type { AccountService } from "./services/accounts.js";
 
 const baseEnvironment = {
   NODE_ENV: "test",
@@ -134,6 +135,7 @@ describe("GET /api/v1/foundation", () => {
     catalogService?: CatalogService,
     inventoryService?: InventoryService,
     orderService?: UnifiedOrderService,
+    accountService?: AccountService,
   ) {
     return createApp({
       env: parseBackendEnv({
@@ -160,6 +162,7 @@ describe("GET /api/v1/foundation", () => {
       catalogService,
       inventoryService,
       orderService,
+      accountService,
     });
   }
 
@@ -209,6 +212,74 @@ describe("GET /api/v1/foundation", () => {
       phoneNumber: null,
       role: "OWNER",
       isActive: true,
+    });
+  });
+
+  it("updates the authenticated user's own profile", async () => {
+    const accountService = {
+      updateOwnProfile: vi.fn(async () => ({ ...ownerProfile, fullName: "Updated Owner", phoneNumber: "01700000000" })),
+      listOwners: vi.fn(), inviteOwner: vi.fn(), setOwnerActive: vi.fn(),
+    } as unknown as AccountService;
+    const response = await request(createProtectedApp(ownerProfile, 60, undefined, undefined, undefined, accountService))
+      .patch("/api/v1/auth/me")
+      .set("Authorization", "Bearer valid-token")
+      .send({ fullName: "Updated Owner", phoneNumber: "01700000000" });
+
+    expect(response.status).toBe(200);
+    expect(accountService.updateOwnProfile).toHaveBeenCalledWith(ownerProfile.id, {
+      fullName: "Updated Owner", phoneNumber: "01700000000",
+    });
+    expect(response.body.data).toMatchObject({ name: "Updated Owner", role: "OWNER" });
+  });
+
+  describe("owner account API", () => {
+    function accountStub() {
+      return {
+        updateOwnProfile: vi.fn(),
+        listOwners: vi.fn(async () => []),
+        inviteOwner: vi.fn(async () => ({ id: "owner-2", role: "OWNER", fullName: "Second Owner" })),
+        setOwnerActive: vi.fn(async () => ({ id: "owner-2", role: "OWNER", isActive: false })),
+      } as unknown as AccountService;
+    }
+
+    it("allows an OWNER to invite another owner", async () => {
+      const accountService = accountStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, undefined, undefined, accountService))
+        .post("/api/v1/owners/invitations")
+        .set("Authorization", "Bearer valid-token")
+        .send({ fullName: "Second Owner", phoneNumber: "01800000000", email: "second@example.com" });
+      expect(response.status).toBe(201);
+      expect(accountService.inviteOwner).toHaveBeenCalledWith(ownerProfile.id, {
+        fullName: "Second Owner", phoneNumber: "01800000000", email: "second@example.com",
+      });
+    });
+
+    it("denies CUSTOMER access before owner services run", async () => {
+      const accountService = accountStub();
+      const response = await request(createProtectedApp(
+        { ...ownerProfile, role: "CUSTOMER" }, 60, undefined, undefined, undefined, accountService,
+      ))
+        .get("/api/v1/owners")
+        .set("Authorization", "Bearer valid-token");
+      expect(response.status).toBe(403);
+      expect(accountService.listOwners).not.toHaveBeenCalled();
+    });
+
+    it("validates owner invitations and status reasons", async () => {
+      const accountService = accountStub();
+      const app = createProtectedApp(ownerProfile, 60, undefined, undefined, undefined, accountService);
+      const inviteResponse = await request(app)
+        .post("/api/v1/owners/invitations")
+        .set("Authorization", "Bearer valid-token")
+        .send({ fullName: "Second Owner", phoneNumber: "1", email: "invalid" });
+      const statusResponse = await request(app)
+        .patch("/api/v1/owners/10000000-0000-4000-8000-000000000002/status")
+        .set("Authorization", "Bearer valid-token")
+        .send({ isActive: false, reason: "x" });
+      expect(inviteResponse.status).toBe(400);
+      expect(statusResponse.status).toBe(400);
+      expect(accountService.inviteOwner).not.toHaveBeenCalled();
+      expect(accountService.setOwnerActive).not.toHaveBeenCalled();
     });
   });
 

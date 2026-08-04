@@ -63,6 +63,7 @@ values:
 | `DATABASE_URL` | Supabase pooled runtime URL; server only |
 | `SUPABASE_URL` | Supabase project URL; server only |
 | `SUPABASE_JWT_AUDIENCE` | `authenticated` |
+| `SUPABASE_SERVICE_ROLE_KEY` | required for owner invitation; server only, never `VITE_` |
 | `VITE_SUPABASE_URL` | same project URL; intentionally public |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/publishable key; intentionally public |
 | `CLOUDINARY_CLOUD_NAME` | required for image upload |
@@ -79,6 +80,11 @@ domain.
 
 Never place PostgreSQL credentials, the Cloudinary secret, or a direct database
 URL in a `VITE_` variable.
+
+Set the Supabase Auth Site URL to the production Vercel URL, allow the needed
+Preview URLs, and configure production SMTP before accepting owner invitations.
+The first owner is still bootstrapped with `npm run owner:create`; subsequent
+owners should be invited from the owner-only profile screen.
 
 ## Local development
 

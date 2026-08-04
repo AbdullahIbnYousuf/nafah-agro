@@ -101,6 +101,15 @@ Auth identities; there is no public privileged-registration endpoint. Multiple
 owners are allowed, and a database trigger preserves at least one active owner.
 Supabase service-role credentials are backend-only.
 
+The controlled command bootstraps the first owner. Afterward an active owner may
+invite another owner through an OWNER-only endpoint backed by the Supabase Admin
+API. The service-role key never reaches the browser. Invitation/profile creation
+uses compensating Auth cleanup on database failure; invitations and status
+changes are audited. Owners cannot deactivate themselves, and every status
+change requires a reason. Invite metadata marks the account for initial-password
+setup; after the invite session is established, the frontend redirects to the
+protected profile screen and clears that marker when Supabase accepts a password.
+
 ## 5. Core database model
 
 ### Categories and products
