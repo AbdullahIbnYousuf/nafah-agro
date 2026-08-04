@@ -1,5 +1,7 @@
 import type {
   Category,
+  AnalyticsDashboardData,
+  AnalyticsPreset,
   DeliveryRate,
   OrderSource,
   OrderStatus,
@@ -418,6 +420,19 @@ export function transitionOrder(
   return requestV1<UnifiedOrder>(`/orders/${id}/status`, {
     method: 'PATCH', body: JSON.stringify(action),
   });
+}
+
+export function getAnalyticsDashboard(input: {
+  preset: AnalyticsPreset;
+  from?: string;
+  to?: string;
+}): Promise<AnalyticsDashboardData> {
+  const query = new URLSearchParams({ preset: input.preset });
+  if (input.preset === 'custom' && input.from && input.to) {
+    query.set('from', input.from);
+    query.set('to', input.to);
+  }
+  return requestV1<AnalyticsDashboardData>(`/analytics/dashboard?${query}`);
 }
 
 // Cloudinary upload route protected by Supabase OWNER middleware.

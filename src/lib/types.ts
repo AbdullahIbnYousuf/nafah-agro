@@ -240,3 +240,74 @@ export interface OwnerManagementState {
   owners: OwnerAccount[];
   invitationsConfigured: boolean;
 }
+
+export type AnalyticsPreset = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+
+export interface ComparedAnalyticsMetric {
+  value: number | null;
+  previousValue: number | null;
+  absoluteChange: number | null;
+  percentChange: number | null;
+}
+
+export interface AnalyticsProductRow {
+  productId: string;
+  productVariantId: string;
+  productName: string;
+  variantName: string;
+  sku: string;
+  quantity: number;
+  productRevenue: number;
+  fifoCost: number;
+  grossProfit: number;
+  grossMargin: number | null;
+}
+
+export interface AnalyticsStockVariant {
+  productVariantId: string;
+  productName: string;
+  variantName: string;
+  sku: string;
+  availableStock: number;
+  reservedStock: number;
+  onHandStock: number;
+  lowStockThreshold: number;
+}
+
+export interface AnalyticsDashboardData {
+  generatedAt: string;
+  currency: 'BDT';
+  timezone: 'Asia/Dhaka';
+  week: { startsOn: 'SUNDAY'; endsOn: 'SATURDAY' };
+  range: {
+    preset: AnalyticsPreset;
+    current: { from: string; to: string };
+    previous: { from: string; to: string };
+  };
+  summary: {
+    recognizedSales: ComparedAnalyticsMetric;
+    productRevenue: ComparedAnalyticsMetric;
+    deliveryCharges: ComparedAnalyticsMetric;
+    grossProfit: ComparedAnalyticsMetric;
+    grossMargin: ComparedAnalyticsMetric;
+    recognizedOrderCount: ComparedAnalyticsMetric;
+    unitsSold: ComparedAnalyticsMetric;
+    averageOrderValue: ComparedAnalyticsMetric;
+    pendingCodOrderCount: number;
+    lowStockVariantCount: number;
+    outOfStockVariantCount: number;
+  };
+  trend: Array<{ date: string; recognizedSales: number; grossProfit: number }>;
+  salesBySource: Array<{ source: OrderSource; orderCount: number; recognizedSales: number }>;
+  bestSelling: AnalyticsProductRow[];
+  mostProfitable: AnalyticsProductRow[];
+  inventory: {
+    availableUnits: number;
+    reservedUnits: number;
+    onHandUnits: number;
+    fifoValuation: number;
+    lowStock: AnalyticsStockVariant[];
+    outOfStock: AnalyticsStockVariant[];
+  };
+  pendingCod: { total: number; pending: number; confirmed: number; processing: number };
+}

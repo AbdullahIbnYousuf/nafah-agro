@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, Loader2, Package, Plus, Settings2, Store, Tag } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,13 +13,13 @@ import {
   createCategory,
   getAdminCategories,
   getAdminProducts,
-  getCategories,
-  getProducts,
   setCategoryActive,
   setProductActive,
   updateCategory,
 } from '@/lib/api';
 import type { Category, Product } from '@/lib/types';
+
+const AnalyticsDashboard = lazy(() => import('@/components/AnalyticsDashboard'));
 
 type Tab = 'dashboard' | 'products' | 'categories' | 'inventory' | 'physical-sales' | 'orders';
 
@@ -55,7 +55,7 @@ export default function Admin() {
         </Button>
       </aside>
       <main className="flex-1 p-4 md:p-8 min-w-0">
-        {tab === 'dashboard' && <Dashboard />}
+        {tab === 'dashboard' && <Suspense fallback={<Loading />}><AnalyticsDashboard /></Suspense>}
         {tab === 'products' && <Products />}
         {tab === 'categories' && <Categories />}
         {tab === 'inventory' && <InventoryManager />}
@@ -64,28 +64,6 @@ export default function Admin() {
       </main>
     </div>
   );
-}
-
-function Dashboard() {
-  const [summary, setSummary] = useState<{ products: number; categories: number } | null>(null);
-  useEffect(() => {
-    Promise.all([getProducts({ limit: 1 }), getCategories()])
-      .then(([products, categories]) => setSummary({ products: products.total, categories: categories.length }))
-      .catch(() => toast.error('ড্যাশবোর্ড লোড করা যায়নি'));
-  }, []);
-  if (!summary) return <Loading />;
-  return <div>
-    <h1 className="text-2xl font-bold mb-6">ড্যাশবোর্ড</h1>
-    <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
-      <Stat label="পণ্য" value={summary.products} icon={Package} />
-      <Stat label="ক্যাটাগরি" value={summary.categories} icon={Tag} />
-    </div>
-    <p className="mt-6 text-sm text-muted-foreground">ক্যাটালগ, ইনভেন্টরি ও অর্ডার এক জায়গা থেকে পরিচালনা করুন।</p>
-  </div>;
-}
-
-function Stat({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Package }) {
-  return <div className="bg-card rounded-lg border p-5"><Icon className="text-secondary mb-2" /><div className="text-3xl font-bold">{value}</div><div className="text-muted-foreground">{label}</div></div>;
 }
 
 function Products() {

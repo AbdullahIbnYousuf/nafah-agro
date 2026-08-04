@@ -1,15 +1,14 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 ## Summary
 
-Milestones 1–4 are complete in local code. Milestone 4 replaces every remaining
-MongoDB order flow with one PostgreSQL order system while preserving Milestone 3
-physical-shop behavior. No external migration, real Supabase/Cloudinary test,
-or analytics dashboard was performed. Vercel now serves the frontend and shared
-Express Function. Its named API rewrite capture was found to enter `req.query`
-and break strict admin list validation; the rewrite now uses an unnamed capture.
+Milestones 1–5 are complete in local code. The OWNER analytics dashboard now
+uses PostgreSQL order snapshots, FIFO allocations, batches, and variant totals.
+A read-only authenticated smoke test succeeded against the configured sample
+database; the new migration, deployment, and production-data reconciliation
+were not performed. The existing single-project Vercel architecture is unchanged.
 
 ## Completed in code
 
@@ -56,27 +55,40 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
   panel, secure email invitations, and reason-required owner activation changes.
   First-owner bootstrap remains CLI-only; invitation requires the backend-only
   Supabase service-role key and configured SMTP/Site URL.
+- OWNER-only analytics provides Today, Yesterday, Sunday–Saturday week, calendar
+  month, and validated custom ranges with previous equivalent-period comparison.
+  Completed physical sales and delivered orders contribute positive events;
+  sellable/damaged returns contribute negative events on the return date.
+- Dashboard sections cover recognized grand-total sales, product revenue,
+  delivery charges, FIFO gross profit/margin, order/unit/AOV metrics, daily
+  trend, source grouping, variant rankings, open COD work, and authoritative
+  batch-based inventory valuation/stock alerts.
+- Migration `202608040001_milestone_5_analytics_indexes` adds only the
+  `delivered_at` and `returned_at` indexes required by the event-range queries.
 
-## Local verification on 2026-08-01
+## Local verification on 2026-08-04
 
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 107 tests passed across fourteen files, including focused
-  Vercel routing, same-origin/local CORS, health, API 404, unified-order,
-  inventory, authorization, and return-dialog coverage.
+- `npm test -- --run`: 124 tests passed across fifteen files, including focused
+  analytics recognition/reversal/date/inventory rules, OWNER/CUSTOMER access,
+  Vercel routing, health, unified orders, FIFO inventory, and return dialogs.
 - `npm run build`: passed with non-blocking bundle-size and stale Browserslist
-  data warnings (776.48 kB main JavaScript chunk).
-- Built Vite preview smoke test: `/`, `/admin`, `/shop`, and
-  `/products/demo-slug` each returned `200 text/html`.
+  data warnings (781.38 kB main JavaScript chunk). The Recharts dashboard is a
+  separate lazy OWNER-only chunk (406.85 kB; 113.03 kB gzip), so it is not part
+  of the public storefront's initial download.
+- Authenticated local Playwright smoke test loaded real sample dashboard data at
+  390 px without page overflow, undersized visible controls, or console errors.
 - `npm run build:server`, `npm run prisma:validate`, `npm run prisma:generate`,
   and `git diff --check`: passed.
-- Migrations `202608010002_milestone_4_unified_orders` and
-  `202608010001_multiple_owners` are checked in but have not been applied to
-  Supabase from this workspace.
+- Migration `202608040001_milestone_5_analytics_indexes` is checked in but was
+  not applied to Supabase from this workspace.
 
 ## External acceptance required
 
 - Apply all Prisma migrations to a disposable Supabase project and run the seed.
+- Apply `202608040001_milestone_5_analytics_indexes`, then compare dashboard
+  totals manually against known delivered/completed/returned demonstration orders.
 - Confirm there are no historical `ADMIN` profiles; the two-role migration
   intentionally stops for manual resolution rather than escalating or silently
   downgrading an identity.
@@ -94,5 +106,4 @@ and break strict admin list validation; the rewrite now uses an unnamed capture.
 
 ## Not started
 
-- Milestone 5 analytics dashboard and reporting.
 - Milestone 6 final accessibility/performance/deployment acceptance.

@@ -253,6 +253,8 @@ model SalesOrder {
   @@index([customerProfileId, placedAt])
   @@index([customerPhone])
   @@index([completedAt])
+  @@index([deliveredAt])
+  @@index([returnedAt])
   @@map("sales_orders")
 }
 

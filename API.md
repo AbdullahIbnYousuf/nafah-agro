@@ -110,6 +110,40 @@ Status actions:
 List filters: `source`, `status`, ISO `dateFrom`, ISO `dateTo`, `orderNumber`,
 `phone`, `page`, and `limit`.
 
+## OWNER analytics
+
+`GET /api/v1/analytics/dashboard` requires an active `OWNER` profile and returns
+the full dashboard in one response. Supported query forms:
+
+```text
+?preset=today
+?preset=yesterday
+?preset=week
+?preset=month
+?preset=custom&from=2026-08-01&to=2026-08-31
+```
+
+Custom dates are inclusive, validated `YYYY-MM-DD` values, must be ordered, and
+may span at most 366 days. All boundaries use `Asia/Dhaka`; weeks run Sunday
+through Saturday. The response contains current/previous ranges, compared
+summary metrics, daily trend, all six sources, best-selling and most-profitable
+variants, current inventory/alerts, and pending COD counts.
+
+Financial rules:
+
+- physical sales contribute on `completed_at`; delivery orders contribute on
+  `delivered_at`
+- total recognized sales use the captured order `grand_total`
+- product revenue is captured `subtotal - discount_total`
+- gross profit is product revenue minus exact FIFO allocation costs
+- delivery charge contributes to total recognized sales but not product profit
+- sellable and damaged whole returns add equal negative financial, quantity,
+  and FIFO-cost events on `returned_at`; they do not rewrite the original day
+- FIFO inventory value is `(available_quantity + reserved_quantity) ×
+  unit_buying_cost` across remaining batches
+- margin is `gross_profit / product_revenue × 100`, or `null` when product
+  revenue is zero
+
 ## Image upload
 
 `POST /api/v1/upload` and `/api/v1/upload/multiple` require an active

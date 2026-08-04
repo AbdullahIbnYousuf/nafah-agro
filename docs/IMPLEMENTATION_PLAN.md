@@ -62,12 +62,18 @@ Acceptance gate before Milestone 5:
 
 ## Milestone 5 — Analytics
 
-Status: not started.
+Status: complete in local code; migration and live-data acceptance remain.
 
-- Revenue/profit recognized for delivered delivery orders and completed physical
-  sales only; whole returns reverse recognition by return status.
-- Inventory value, buying cost, gross profit, and margin visible to OWNER.
-- Sunday–Saturday BDT reporting. No expense/net-profit/category-performance work.
+- One OWNER-only `/api/v1/analytics/dashboard` response provides preset/custom
+  Dhaka ranges, equivalent-period comparisons, summary metrics, daily trend,
+  sales by source, product/variant rankings, FIFO inventory value/alerts, and
+  open COD counts.
+- Delivered delivery orders and completed physical sales create positive events;
+  whole returns create equal negative events on the return date using immutable
+  order/item/allocation snapshots.
+- TanStack Query caches the responsive Bangla dashboard; Recharts is lazy-loaded
+  only with the analytics component. No expense, net-profit, export, or
+  category-performance subsystem was added.
 
 ## Milestone 6 — Security, testing, polish, deployment
 

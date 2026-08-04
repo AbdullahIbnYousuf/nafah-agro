@@ -9,6 +9,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { createOrderRouter } from "./routes/orders.js";
+import { createAnalyticsRouter } from "./routes/analytics.js";
 import uploadRoutes from "./routes/upload.js";
 import { createCatalogRouter } from "./routes/catalog.js";
 import { createInventoryRouter } from "./routes/inventory.js";
@@ -40,6 +41,7 @@ import { createCatalogService, type CatalogService } from "./services/catalog.js
 import { createInventoryService, type InventoryService } from "./services/inventory.js";
 import { createUnifiedOrderService, type UnifiedOrderService } from "./services/orders.js";
 import { createAccountService, type AccountService } from "./services/accounts.js";
+import { createAnalyticsService, type AnalyticsService } from "./services/analytics.js";
 import { createOwnerAuthAdmin } from "./lib/supabaseAdmin.js";
 
 export interface AppDependencies {
@@ -52,6 +54,7 @@ export interface AppDependencies {
   inventoryService?: InventoryService;
   orderService?: UnifiedOrderService;
   accountService?: AccountService;
+  analyticsService?: AnalyticsService;
   writeCustomerProfile?: CustomerProfileWriter;
 }
 
@@ -90,6 +93,7 @@ function getFoundationDependencies(env: BackendEnv) {
       inventoryService: undefined,
       orderService: undefined,
       accountService: undefined,
+      analyticsService: undefined,
       writeCustomerProfile: undefined,
     };
   }
@@ -110,6 +114,7 @@ function getFoundationDependencies(env: BackendEnv) {
     inventoryService: createInventoryService(prisma),
     orderService: createUnifiedOrderService(prisma),
     accountService: createAccountService(prisma, ownerAuthAdmin),
+    analyticsService: createAnalyticsService(prisma),
     writeCustomerProfile: createCustomerProfileWriter(prisma),
   };
 }
@@ -134,6 +139,7 @@ export function createApp(dependencies: AppDependencies) {
   const inventoryService = dependencies.inventoryService ?? getDefaults().inventoryService;
   const orderService = dependencies.orderService ?? getDefaults().orderService;
   const accountService = dependencies.accountService ?? getDefaults().accountService;
+  const analyticsService = dependencies.analyticsService ?? getDefaults().analyticsService;
   const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
   const localDevelopmentOrigins = new Set([
     "http://localhost:8080",
@@ -455,6 +461,25 @@ export function createApp(dependencies: AppDependencies) {
     );
   } else {
     app.use(["/api/v1/orders", "/api/v1/delivery-rates"], (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} },
+      });
+    });
+  }
+
+  if (analyticsService) {
+    app.use(
+      "/api/v1",
+      createAnalyticsRouter(
+        analyticsService,
+        authenticate,
+        requireOwner,
+        protectedRouteLimiter,
+      ),
+    );
+  } else {
+    app.use("/api/v1/analytics", (_req, res) => {
       res.status(503).json({
         success: false,
         error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} },

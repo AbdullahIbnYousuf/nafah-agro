@@ -9,6 +9,7 @@ import type { CatalogService } from "./services/catalog.js";
 import type { InventoryService } from "./services/inventory.js";
 import type { UnifiedOrderService } from "./services/orders.js";
 import type { AccountService } from "./services/accounts.js";
+import type { AnalyticsService } from "./services/analytics.js";
 
 const baseEnvironment = {
   NODE_ENV: "test",
@@ -136,6 +137,7 @@ describe("GET /api/v1/foundation", () => {
     inventoryService?: InventoryService,
     orderService?: UnifiedOrderService,
     accountService?: AccountService,
+    analyticsService?: AnalyticsService,
   ) {
     return createApp({
       env: parseBackendEnv({
@@ -163,6 +165,7 @@ describe("GET /api/v1/foundation", () => {
       inventoryService,
       orderService,
       accountService,
+      analyticsService,
     });
   }
 
@@ -522,6 +525,75 @@ describe("GET /api/v1/foundation", () => {
         .send({});
       expect(response.status).toBe(403);
       expect(orders.createManualOrder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Milestone 5 analytics authorization", () => {
+    function analyticsStub() {
+      return {
+        getDashboard: vi.fn(async () => ({
+          currency: "BDT",
+          timezone: "Asia/Dhaka",
+          summary: { recognizedSales: { value: 1200 } },
+        })),
+      } as unknown as AnalyticsService;
+    }
+
+    it("allows an OWNER to read the dashboard", async () => {
+      const analytics = analyticsStub();
+      const response = await request(createProtectedApp(
+        ownerProfile,
+        60,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        analytics,
+      ))
+        .get("/api/v1/analytics/dashboard?preset=week")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.currency).toBe("BDT");
+      expect(analytics.getDashboard).toHaveBeenCalledWith({ preset: "week" });
+    });
+
+    it("denies CUSTOMER analytics access before querying data", async () => {
+      const analytics = analyticsStub();
+      const response = await request(createProtectedApp(
+        { ...ownerProfile, role: "CUSTOMER" },
+        60,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        analytics,
+      ))
+        .get("/api/v1/analytics/dashboard?preset=today")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe("INSUFFICIENT_ROLE");
+      expect(analytics.getDashboard).not.toHaveBeenCalled();
+    });
+
+    it("rejects an invalid custom range before querying data", async () => {
+      const analytics = analyticsStub();
+      const response = await request(createProtectedApp(
+        ownerProfile,
+        60,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        analytics,
+      ))
+        .get("/api/v1/analytics/dashboard?preset=custom&from=2026-08-05&to=2026-08-04")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("VALIDATION_ERROR");
+      expect(analytics.getDashboard).not.toHaveBeenCalled();
     });
   });
 });

@@ -3,7 +3,7 @@
 Nafah Agro is a React/Vite storefront and Express API backed by Supabase Auth,
 PostgreSQL, and Prisma. The current V1 code supports catalog/pricing, FIFO
 inventory, physical-shop sales, guest website COD, manual delivery orders, and a
-single order lifecycle across every sales source.
+single order lifecycle across every sales source, plus OWNER-only analytics.
 
 ## Current features
 
@@ -24,8 +24,12 @@ single order lifecycle across every sales source.
   price/cost snapshots remain immutable for later reporting.
 - Order/rate changes write actor, before/after state, and reasons to append-only
   PostgreSQL audit logs in the same transaction.
+- The OWNER dashboard reports recognized sales, product revenue, delivery
+  charges, FIFO gross profit/margin, return-date reversals, source/product
+  rankings, open COD work, and current batch-valued inventory. Filters use
+  `Asia/Dhaka`, Sunday–Saturday weeks, and equivalent previous periods.
 - MongoDB, Mongoose, legacy order routes, fake coupons, and fake online-payment
-  choices have been removed. No deployment was performed.
+  choices have been removed. Milestone 5 has not been deployed.
 
 ## Requirements and local setup
 
