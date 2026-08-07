@@ -719,6 +719,28 @@ describe("GET /api/v1/foundation", () => {
       expect(analytics.getDashboard).toHaveBeenCalledWith({ preset: "week" });
     });
 
+    it("passes an inclusive custom range to analytics", async () => {
+      const analytics = analyticsStub();
+      const response = await request(createProtectedApp(
+        ownerProfile,
+        60,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        analytics,
+      ))
+        .get("/api/v1/analytics/dashboard?preset=custom&from=2026-03-10&to=2026-04-15")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(200);
+      expect(analytics.getDashboard).toHaveBeenCalledWith({
+        preset: "custom",
+        from: "2026-03-10",
+        to: "2026-04-15",
+      });
+    });
+
     it("denies CUSTOMER analytics access before querying data", async () => {
       const analytics = analyticsStub();
       const response = await request(createProtectedApp(

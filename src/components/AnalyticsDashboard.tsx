@@ -39,6 +39,7 @@ const presets: Array<{ value: AnalyticsPreset; label: string }> = [
   { value: 'yesterday', label: 'গতকাল' },
   { value: 'week', label: 'এই সপ্তাহ' },
   { value: 'month', label: 'এই মাস' },
+  { value: 'year', label: 'এই বছর' },
   { value: 'custom', label: 'নিজস্ব সময়সীমা' },
 ];
 
@@ -52,7 +53,14 @@ const sourceLabels: Record<OrderSource, string> = {
 };
 
 const banglaNumber = new Intl.NumberFormat('bn-BD', { maximumFractionDigits: 2 });
-const compactNumber = new Intl.NumberFormat('bn-BD', { notation: 'compact', maximumFractionDigits: 1 });
+const axisNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+const fullDateFormatter = new Intl.DateTimeFormat('bn-BD-u-ca-gregory', {
+  day: 'numeric', month: 'long', year: 'numeric',
+});
+const graphDateFormatter = new Intl.DateTimeFormat('bn-BD-u-ca-gregory', {
+  day: 'numeric', month: 'long',
+});
+const CUSTOM_RANGE_MAX_DAYS = 366;
 
 function money(value: number | null) {
   return value === null ? '—' : `৳${banglaNumber.format(value)}`;
@@ -63,13 +71,21 @@ function count(value: number | null) {
 }
 
 function dateLabel(value: string) {
-  return new Intl.DateTimeFormat('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })
-    .format(new Date(`${value}T12:00:00.000Z`));
+  return fullDateFormatter.format(new Date(`${value}T12:00:00.000Z`));
 }
 
 function shortDate(value: string) {
-  return new Intl.DateTimeFormat('bn-BD', { day: 'numeric', month: 'short' })
-    .format(new Date(`${value}T12:00:00.000Z`));
+  return graphDateFormatter.format(new Date(`${value}T12:00:00.000Z`));
+}
+
+function customRangeError(range: { from: string; to: string }) {
+  if (!range.from || !range.to) return 'শুরু এবং শেষের তারিখ নির্বাচন করুন।';
+  if (range.from > range.to) return 'শেষের তারিখ শুরুর তারিখের আগে হতে পারবে না।';
+  const days = Math.floor(
+    (Date.parse(`${range.to}T00:00:00.000Z`) - Date.parse(`${range.from}T00:00:00.000Z`))
+      / 86_400_000,
+  ) + 1;
+  return days > CUSTOM_RANGE_MAX_DAYS ? 'নিজস্ব সময়সীমা সর্বোচ্চ ৩৬৬ দিন হতে পারে।' : '';
 }
 
 function Change({ metric, suffix = '%' }: { metric: ComparedAnalyticsMetric; suffix?: string }) {
@@ -189,7 +205,7 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
           <LineChart data={data.trend} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
             <XAxis dataKey="date" tickFormatter={shortDate} minTickGap={28} />
-            <YAxis width={55} tickFormatter={(value: number) => compactNumber.format(value)} />
+            <YAxis width={68} tickFormatter={(value: number) => axisNumber.format(value)} />
             <Tooltip labelFormatter={(label) => dateLabel(String(label))} formatter={(value: number, name: string) => [money(Number(value)), name === 'recognizedSales' ? 'বিক্রয়' : 'মোট লাভ']} />
             <Legend formatter={(value) => value === 'recognizedSales' ? 'বিক্রয়' : 'মোট লাভ'} />
             <Line type="monotone" dataKey="recognizedSales" stroke="hsl(var(--secondary))" strokeWidth={2.5} dot={false} />
@@ -236,6 +252,7 @@ function AnalyticsDashboardContent() {
   const [preset, setPreset] = useState<AnalyticsPreset>('month');
   const [draftRange, setDraftRange] = useState({ from: today, to: today });
   const [customRange, setCustomRange] = useState(draftRange);
+  const rangeError = customRangeError(draftRange);
   const queryInput = useMemo(() => preset === 'custom'
     ? { preset, ...customRange }
     : { preset }, [customRange, preset]);
@@ -253,7 +270,7 @@ function AnalyticsDashboardContent() {
 
     <div className="mb-5 rounded-xl border bg-card p-3 sm:p-4">
       <div className="flex flex-wrap gap-2">{presets.map((item) => <Button key={item.value} type="button" size="sm" variant={preset === item.value ? 'default' : 'outline'} onClick={() => setPreset(item.value)}>{item.label}</Button>)}</div>
-      {preset === 'custom' && <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"><label className="text-sm">তারিখ থেকে<Input type="date" value={draftRange.from} onChange={(event) => setDraftRange((current) => ({ ...current, from: event.target.value }))} /></label><label className="text-sm">তারিখ পর্যন্ত<Input type="date" value={draftRange.to} onChange={(event) => setDraftRange((current) => ({ ...current, to: event.target.value }))} /></label><Button type="button" disabled={!draftRange.from || !draftRange.to || draftRange.from > draftRange.to} onClick={() => setCustomRange(draftRange)}>প্রয়োগ করুন</Button></div>}
+      {preset === 'custom' && <div className="mt-3"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"><label className="text-sm">তারিখ থেকে<Input type="date" value={draftRange.from} onChange={(event) => setDraftRange((current) => ({ ...current, from: event.target.value }))} /></label><label className="text-sm">তারিখ পর্যন্ত<Input type="date" value={draftRange.to} onChange={(event) => setDraftRange((current) => ({ ...current, to: event.target.value }))} /></label><Button type="button" disabled={Boolean(rangeError)} onClick={() => setCustomRange(draftRange)}>প্রয়োগ করুন</Button></div>{rangeError && <p role="alert" className="mt-2 text-xs text-destructive">{rangeError}</p>}</div>}
       {query.data && <p className="mt-3 text-xs text-muted-foreground">বর্তমান: {dateLabel(query.data.range.current.from)} – {dateLabel(query.data.range.current.to)} · তুলনা: {dateLabel(query.data.range.previous.from)} – {dateLabel(query.data.range.previous.to)} · ঢাকা সময়</p>}
     </div>
 

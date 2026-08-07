@@ -44,6 +44,10 @@ is not approved for production until the external gates in this document and
 - Audited `npm run seed`: it remains idempotent and non-destructive. Destructive
   sample-data reset remains a separate command requiring the explicit
   `CONFIRM_DEMO_RESET=RESET_NAFAH_AGRO_DEMO` acknowledgement.
+- Added a separately confirmed, non-destructive dashboard demo refresh that
+  moves only three known demo-order timestamps into the current reporting period.
+- Improved OWNER analytics with full Bangla Gregorian month names, full numeric
+  chart axes, a calendar-year preset, and client-side custom-range validation.
 - Removed unnecessary read-only Prisma transactions from catalog/order lists,
   avoiding transaction-start failures under concurrent page loads. Stock and
   order writes retain their transactional guarantees.
@@ -61,7 +65,7 @@ is not approved for production until the external gates in this document and
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 156 tests passed across 21 files. This includes analytics
+- `npm test -- --run`: 164 tests passed across 22 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
   database-integrity source checks, and dialog request behavior.

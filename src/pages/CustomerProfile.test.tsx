@@ -80,6 +80,7 @@ describe('role-aware profile page', () => {
   it('keeps normal password controls hidden until the secondary action is clicked', async () => {
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
 
+    expect(screen.queryByRole('heading', { name: 'নিরাপত্তা' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('বর্তমান পাসওয়ার্ড')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'পাসওয়ার্ড পরিবর্তন' }));
     expect(await screen.findByRole('dialog', { name: 'পাসওয়ার্ড পরিবর্তন' })).toBeInTheDocument();
@@ -87,11 +88,12 @@ describe('role-aware profile page', () => {
     expect(screen.getByLabelText('নতুন পাসওয়ার্ড')).toBeInTheDocument();
   });
 
-  it('keeps initial password setup visible for an invited owner', async () => {
+  it('keeps initial password setup as a prominent personal-information action', async () => {
     mocks.auth.needsPasswordSetup = true;
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
 
-    expect(screen.getByText(/আমন্ত্রণ গ্রহণ সম্পন্ন করতে/)).toBeInTheDocument();
+    await screen.findByText('ওনার অ্যাকাউন্ট');
+    expect(screen.queryByRole('heading', { name: 'নিরাপত্তা' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করুন' }));
     expect(await screen.findByRole('dialog', { name: 'নিজের পাসওয়ার্ড সেট করুন' })).toBeInTheDocument();
     expect(screen.queryByLabelText('বর্তমান পাসওয়ার্ড')).not.toBeInTheDocument();

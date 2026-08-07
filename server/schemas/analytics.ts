@@ -12,7 +12,7 @@ function inclusiveDays(from: string, to: string) {
 }
 
 export const analyticsDashboardQuerySchema = z.object({
-  preset: z.enum(["today", "yesterday", "week", "month", "custom"]).default("today"),
+  preset: z.enum(["today", "yesterday", "week", "month", "year", "custom"]).default("today"),
   from: dateOnly.optional(),
   to: dateOnly.optional(),
 }).strict().superRefine((value, context) => {

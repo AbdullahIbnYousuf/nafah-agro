@@ -241,7 +241,7 @@ export interface OwnerManagementState {
   invitationsConfigured: boolean;
 }
 
-export type AnalyticsPreset = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+export type AnalyticsPreset = 'today' | 'yesterday' | 'week' | 'month' | 'year' | 'custom';
 
 export interface ComparedAnalyticsMetric {
   value: number | null;

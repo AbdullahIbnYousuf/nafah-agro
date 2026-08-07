@@ -34,6 +34,18 @@ describe('Milestone 6 integrity safeguards', () => {
     expect(seed).not.toMatch(/deleteMany|TRUNCATE|\$executeRawUnsafe/);
   });
 
+  it('refreshes only known demo-order dates for dashboard demonstrations', () => {
+    const seed = readFileSync('prisma/seed-dashboard-demo.ts', 'utf8');
+    expect(seed).toContain('CONFIRM_DASHBOARD_DEMO');
+    expect(seed).toContain('PHY-DEMO-1001');
+    expect(seed).toContain('PHY-DEMO-1002');
+    expect(seed).toContain('WEB-DEMO-1003');
+    expect(seed).not.toMatch(/TRUNCATE/i);
+    expect(seed).not.toMatch(
+      /(?:salesOrder|orderAllocation)\.(?:create|createMany|delete|deleteMany)/,
+    );
+  });
+
   it('keeps important management workflows free of browser-native dialogs', () => {
     const sources = [
       'src/pages/Admin.tsx',

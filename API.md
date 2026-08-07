@@ -121,6 +121,7 @@ the full dashboard in one response. Supported query forms:
 ?preset=yesterday
 ?preset=week
 ?preset=month
+?preset=year
 ?preset=custom&from=2026-08-01&to=2026-08-31
 ```
 

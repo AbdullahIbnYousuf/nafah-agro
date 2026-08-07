@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ChevronDown, ChevronRight, KeyRound, Loader2, Package, Pencil, Settings, ShieldCheck,
+  ChevronDown, ChevronRight, KeyRound, Loader2, Package, Pencil, Settings,
   ShoppingBag, User, UserPlus, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -91,19 +91,14 @@ export default function CustomerProfile() {
       {isOwner && <Button asChild><Link to="/admin"><Settings size={17} className="mr-2" />পরিচালনা প্যানেল</Link></Button>}
     </section>
 
-    <div className="grid lg:grid-cols-2 gap-8">
+    <div>
       <section className="bg-card rounded-2xl border p-6">
-        <div className="mb-5 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><User size={21} /><h2 className="text-xl font-bold">ব্যক্তিগত তথ্য</h2></div><Button type="button" size="sm" variant="outline" onClick={() => { setFullName(user?.name ?? ''); setPhoneNumber(user?.phoneNumber ?? ''); setProfileDialogOpen(true); }}><Pencil size={15} className="mr-2" />সম্পাদনা</Button></div>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><User size={21} /><h2 className="text-xl font-bold">ব্যক্তিগত তথ্য</h2></div><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant={needsPasswordSetup ? 'default' : 'ghost'} className={needsPasswordSetup ? '' : 'text-muted-foreground'} onClick={() => setPasswordDialogOpen(true)}><KeyRound size={15} className="mr-2" />{needsPasswordSetup ? 'পাসওয়ার্ড সেট করুন' : 'পাসওয়ার্ড পরিবর্তন'}</Button><Button type="button" size="sm" variant="outline" onClick={() => { setFullName(user?.name ?? ''); setPhoneNumber(user?.phoneNumber ?? ''); setProfileDialogOpen(true); }}><Pencil size={15} className="mr-2" />সম্পাদনা</Button></div></div>
         <dl className="space-y-4 text-sm">
           <div><dt className="text-muted-foreground">পুরো নাম</dt><dd className="mt-1 font-medium">{user?.name ?? '—'}</dd></div>
           <div><dt className="text-muted-foreground">ফোন নম্বর</dt><dd className="mt-1 font-medium">{user?.phoneNumber ?? '—'}</dd></div>
           <div><dt className="text-muted-foreground">ইমেইল</dt><dd className="mt-1 font-medium break-all">{user?.email ?? '—'}</dd></div>
         </dl>
-      </section>
-
-      <section className="bg-card rounded-2xl border p-6">
-        <div className="flex items-center gap-2 mb-5"><ShieldCheck size={21} /><h2 className="text-xl font-bold">নিরাপত্তা</h2></div>
-        {needsPasswordSetup ? <div className="space-y-4"><p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">আমন্ত্রণ গ্রহণ সম্পন্ন করতে নিজের পাসওয়ার্ড সেট করুন।</p><Button type="button" onClick={() => setPasswordDialogOpen(true)}><KeyRound size={16} className="mr-2" />পাসওয়ার্ড সেট করুন</Button></div> : <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">নিরাপত্তার প্রয়োজনে পাসওয়ার্ড পরিবর্তন করতে পারেন।</p><Button type="button" size="sm" variant="ghost" className="shrink-0 text-muted-foreground" onClick={() => setPasswordDialogOpen(true)}><KeyRound size={15} className="mr-2" />পাসওয়ার্ড পরিবর্তন</Button></div>}
       </section>
     </div>
 

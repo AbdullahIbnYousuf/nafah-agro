@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "seed": "tsx prisma/seed.ts",
     "seed:demo": "tsx prisma/seed-demo.ts",
+    "seed:dashboard-demo": "tsx prisma/seed-dashboard-demo.ts",
     "inventory:check": "tsx prisma/check-stock-consistency.ts",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",

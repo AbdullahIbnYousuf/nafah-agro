@@ -129,6 +129,10 @@ export function resolveAnalyticsRange(query: AnalyticsDashboardQuery, now = new 
     from = `${today.slice(0, 7)}-01`;
     const [year, month] = today.split("-").map(Number);
     to = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  } else if (query.preset === "year") {
+    const year = today.slice(0, 4);
+    from = `${year}-01-01`;
+    to = `${year}-12-31`;
   } else if (query.preset === "custom") {
     if (!query.from || !query.to) throw new Error("Custom analytics ranges require from and to dates");
     from = query.from;
@@ -136,8 +140,12 @@ export function resolveAnalyticsRange(query: AnalyticsDashboardQuery, now = new 
   }
 
   const days = inclusiveDays(from, to);
-  const previousTo = addDays(from, -1);
-  const previousFrom = addDays(previousTo, -(days - 1));
+  const previousTo = query.preset === "year"
+    ? `${Number(from.slice(0, 4)) - 1}-12-31`
+    : addDays(from, -1);
+  const previousFrom = query.preset === "year"
+    ? `${Number(from.slice(0, 4)) - 1}-01-01`
+    : addDays(previousTo, -(days - 1));
   return {
     preset: query.preset,
     current: period(from, to),

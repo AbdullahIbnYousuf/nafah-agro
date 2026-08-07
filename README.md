@@ -81,6 +81,17 @@ DATABASE_URL="postgresql://...pooler..." DIRECT_URL="postgresql://...direct..." 
 demo reset is destructive, refuses to start without its explicit confirmation
 token, and must never be run against production.
 
+For an existing showcase dataset, refresh only the three known demo sales into
+the current dashboard period without creating, deleting, or repricing anything:
+
+```bash
+CONFIRM_DASHBOARD_DEMO=REFRESH_NAFAH_DASHBOARD_DEMO npm run seed:dashboard-demo
+```
+
+The command aborts unless `PHY-DEMO-1001`, `PHY-DEMO-1002`, and
+`WEB-DEMO-1003` still have their expected demo source and status. It updates
+only their order/allocation timestamps and is safe to rerun for demonstrations.
+
 Create a Supabase Auth identity, copy its UUID, and bootstrap or recover OWNER
 access with:
 

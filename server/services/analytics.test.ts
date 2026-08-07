@@ -74,6 +74,25 @@ describe("analytics date boundaries", () => {
     expect(range.previous.to).toBe("2026-08-01");
   });
 
+  it("uses the full calendar year and compares it with the previous year", () => {
+    const range = resolveAnalyticsRange({ preset: "year" }, instant("2026-08-05"));
+    expect(range.current.from).toBe("2026-01-01");
+    expect(range.current.to).toBe("2026-12-31");
+    expect(range.previous.from).toBe("2025-01-01");
+    expect(range.previous.to).toBe("2025-12-31");
+  });
+
+  it("uses the exact inclusive custom range", () => {
+    const range = resolveAnalyticsRange(
+      { preset: "custom", from: "2026-03-10", to: "2026-04-15" },
+      instant("2026-08-05"),
+    );
+    expect(range.current.from).toBe("2026-03-10");
+    expect(range.current.to).toBe("2026-04-15");
+    expect(range.previous.from).toBe("2026-02-01");
+    expect(range.previous.to).toBe("2026-03-09");
+  });
+
   it("rejects invalid and excessively large custom ranges", () => {
     expect(analyticsDashboardQuerySchema.safeParse({ preset: "custom", from: "2026-08-05", to: "2026-08-04" }).success).toBe(false);
     expect(analyticsDashboardQuerySchema.safeParse({ preset: "custom", from: "2025-01-01", to: "2026-08-04" }).success).toBe(false);
