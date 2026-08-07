@@ -90,6 +90,15 @@ test('OWNER management panel remains usable at required widths', async ({ page }
     await page.goto('/admin');
     await expect(page.getByRole('link', { name: /নাফাহ এগ্রো পরিচালনা/ })).toBeVisible();
     await expectNoPageOverflow(page);
+    const mobileNavigation = page.getByRole('navigation', { name: 'মোবাইল পরিচালনা বিভাগ' });
+    if (viewport.name === 'mobile') {
+      await expect(mobileNavigation).toBeVisible();
+      const navigationBox = await mobileNavigation.boundingBox();
+      expect(navigationBox).not.toBeNull();
+      expect(Math.abs((navigationBox!.y + navigationBox!.height) - viewport.height)).toBeLessThanOrEqual(2);
+    } else {
+      await expect(mobileNavigation).toBeHidden();
+    }
 
     for (const tab of ['পণ্য', 'ক্যাটাগরি', 'ক্রয় ও ইনভেন্টরি', 'ফিজিক্যাল বিক্রয়', 'অর্ডার']) {
       await page.getByRole('button', { name: tab, exact: true }).click();

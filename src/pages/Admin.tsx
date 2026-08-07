@@ -32,31 +32,36 @@ function slugify(value: string) {
 export default function Admin() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const links = [
-    { tab: 'dashboard' as const, label: 'ড্যাশবোর্ড', icon: BarChart3 },
-    { tab: 'products' as const, label: 'পণ্য', icon: Package },
-    { tab: 'categories' as const, label: 'ক্যাটাগরি', icon: Tag },
-    { tab: 'inventory' as const, label: 'ক্রয় ও ইনভেন্টরি', icon: Boxes },
-    { tab: 'physical-sales' as const, label: 'ফিজিক্যাল বিক্রয়', icon: Store },
-    { tab: 'orders' as const, label: 'অর্ডার', icon: ClipboardList },
+    { tab: 'dashboard' as const, label: 'ড্যাশবোর্ড', mobileLabel: 'ড্যাশবোর্ড', icon: BarChart3 },
+    { tab: 'products' as const, label: 'পণ্য', mobileLabel: 'পণ্য', icon: Package },
+    { tab: 'categories' as const, label: 'ক্যাটাগরি', mobileLabel: 'ক্যাটাগরি', icon: Tag },
+    { tab: 'inventory' as const, label: 'ক্রয় ও ইনভেন্টরি', mobileLabel: 'ইনভেন্টরি', icon: Boxes },
+    { tab: 'physical-sales' as const, label: 'ফিজিক্যাল বিক্রয়', mobileLabel: 'বিক্রয়', icon: Store },
+    { tab: 'orders' as const, label: 'অর্ডার', mobileLabel: 'অর্ডার', icon: ClipboardList },
   ];
 
   return (
     <div className="min-h-screen md:flex bg-background">
-      <aside className="w-full md:w-64 bg-primary text-primary-foreground p-4">
-        <Link to="/" className="mb-4 flex min-h-11 items-center text-xl font-bold text-accent md:mb-6">নাফাহ এগ্রো পরিচালনা</Link>
-        <nav aria-label="পরিচালনা বিভাগ" className="flex gap-2 overflow-x-auto pb-2 md:block md:space-y-1 md:overflow-visible md:pb-0">
+      <aside className="hidden w-64 shrink-0 bg-primary p-4 text-primary-foreground md:block">
+        <Link to="/" className="mb-6 flex min-h-11 items-center text-xl font-bold text-accent">নাফাহ এগ্রো পরিচালনা</Link>
+        <nav aria-label="পরিচালনা বিভাগ" className="space-y-1">
           {links.map(({ tab: itemTab, label, icon: Icon }) => (
             <button key={itemTab} type="button" onClick={() => setTab(itemTab)}
-              className={`flex min-h-11 w-auto shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm md:w-full md:gap-3 md:px-4 md:py-3 ${tab === itemTab ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/20'}`}>
+              aria-current={tab === itemTab ? 'page' : undefined}
+              className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-3 text-sm ${tab === itemTab ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/20'}`}>
               <Icon size={18} />{label}
             </button>
           ))}
         </nav>
-        <Button asChild variant="ghost" className="mt-4 text-primary-foreground/80 md:mt-8">
+        <Button asChild variant="ghost" className="mt-8 text-primary-foreground/80">
           <Link to="/"><ArrowLeft size={16} className="mr-2" />সাইটে ফিরুন</Link>
         </Button>
       </aside>
-      <main className="flex-1 p-4 md:p-8 min-w-0">
+      <header className="sticky top-0 z-40 flex min-h-14 items-center justify-between gap-3 border-b bg-primary px-4 text-primary-foreground md:hidden">
+        <Link to="/" className="flex min-h-11 items-center font-bold text-accent">নাফাহ এগ্রো পরিচালনা</Link>
+        <Link to="/" className="flex min-h-11 items-center gap-1.5 text-sm text-primary-foreground/80"><ArrowLeft size={16} />সাইটে ফিরুন</Link>
+      </header>
+      <main className="min-w-0 flex-1 p-4 pb-24 md:p-8">
         {tab === 'dashboard' && <Suspense fallback={<Loading />}><AnalyticsDashboard /></Suspense>}
         {tab === 'products' && <Suspense fallback={<Loading />}><Products /></Suspense>}
         {tab === 'categories' && <Categories />}
@@ -64,6 +69,16 @@ export default function Admin() {
         {tab === 'physical-sales' && <Suspense fallback={<Loading />}><PhysicalSaleScreen /></Suspense>}
         {tab === 'orders' && <Suspense fallback={<Loading />}><UnifiedOrderManager /></Suspense>}
       </main>
+      <nav aria-label="মোবাইল পরিচালনা বিভাগ" className="fixed inset-x-0 bottom-0 z-50 border-t border-primary-foreground/15 bg-primary px-1 pb-[env(safe-area-inset-bottom)] text-primary-foreground shadow-[0_-6px_20px_rgba(0,0,0,0.12)] md:hidden">
+        <div className="grid grid-cols-6">
+          {links.map(({ tab: itemTab, label, mobileLabel, icon: Icon }) => (
+            <button key={itemTab} type="button" aria-label={label} aria-current={tab === itemTab ? 'page' : undefined} onClick={() => setTab(itemTab)}
+              className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] transition-colors ${tab === itemTab ? 'bg-secondary text-secondary-foreground' : 'text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground'}`}>
+              <Icon size={19} /><span className="w-full truncate text-center">{mobileLabel}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }
