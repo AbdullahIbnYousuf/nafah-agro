@@ -63,11 +63,11 @@ const graphDateFormatter = new Intl.DateTimeFormat('bn-BD-u-ca-gregory', {
 const CUSTOM_RANGE_MAX_DAYS = 366;
 
 function money(value: number | null) {
-  return value === null ? '—' : `৳${banglaNumber.format(value)}`;
+  return value === null ? 'প্রযোজ্য নয়' : `৳${banglaNumber.format(value)}`;
 }
 
 function count(value: number | null) {
-  return value === null ? '—' : banglaNumber.format(value);
+  return value === null ? 'প্রযোজ্য নয়' : banglaNumber.format(value);
 }
 
 function dateLabel(value: string) {
@@ -166,7 +166,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
               <td className="p-3 font-mono text-xs">{row.sku}</td>
               <td className="p-3 text-right">{count(row.quantity)}</td>
               <td className="p-3 text-right">{money(row.productRevenue)}</td>
-              {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? '—' : `${banglaNumber.format(row.grossMargin)}%`}</td></>}
+              {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(row.grossMargin)}%`}</td></>}
             </tr>
           ))}
         </tbody>
@@ -181,7 +181,7 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
     { label: 'পণ্য আয়', metric: data.summary.productRevenue, icon: ShoppingBag },
     { label: 'ডেলিভারি চার্জ', metric: data.summary.deliveryCharges, icon: Truck },
     { label: 'মোট লাভ', metric: data.summary.grossProfit, icon: TrendingUp },
-    { label: 'লাভের মার্জিন', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? '—' : `${banglaNumber.format(value)}%`, icon: TrendingUp },
+    { label: 'লাভের মার্জিন', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(value)}%`, icon: TrendingUp },
     { label: 'সম্পন্ন/ডেলিভারড অর্ডার', metric: data.summary.recognizedOrderCount, formatter: count, icon: ClipboardList },
     { label: 'নিট বিক্রিত ইউনিট', metric: data.summary.unitsSold, formatter: count, icon: PackageCheck },
     { label: 'গড় অর্ডার মূল্য', metric: data.summary.averageOrderValue, icon: CircleDollarSign },

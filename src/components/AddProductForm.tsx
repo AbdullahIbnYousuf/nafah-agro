@@ -266,7 +266,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   disabled={isEdit}
                   className="mt-1 bg-card"
                 />
-                <p className="text-xs text-muted-foreground mt-1">স্টক Milestone 3-এ FIFO purchase batch থেকে যোগ হবে।</p>
               </div>
 
               <div>
@@ -347,7 +346,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
             {totalImages === 0 && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-md px-3 py-2">
                 <ImageIcon size={16} />
-                কোনো ছবি নির্বাচন করা হয়নি — ছবি না দিলে প্লেসহোল্ডার দেখাবে
+                কোনো ছবি নির্বাচন করা হয়নি। ছবি না দিলে প্লেসহোল্ডার দেখাবে
               </div>
             )}
           </section>

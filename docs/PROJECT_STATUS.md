@@ -65,7 +65,7 @@ is not approved for production until the external gates in this document and
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 164 tests passed across 22 files. This includes analytics
+- `npm test -- --run`: 165 tests passed across 22 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
   database-integrity source checks, and dialog request behavior.

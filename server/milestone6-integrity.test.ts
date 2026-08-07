@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const migrationPath = 'prisma/migrations/202608040002_milestone_6_integrity/migration.sql';
@@ -54,5 +54,14 @@ describe('Milestone 6 integrity safeguards', () => {
       'src/components/ReturnOrderDialog.tsx',
     ].map((path) => readFileSync(path, 'utf8')).join('\n');
     expect(sources).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
+  });
+
+  it('keeps em dashes out of frontend source', () => {
+    const frontendFiles = readdirSync('src', { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile() && /\.(?:ts|tsx|css|html)$/.test(entry.name));
+    const sources = frontendFiles.map((entry) =>
+      readFileSync(`${entry.parentPath}/${entry.name}`, 'utf8'),
+    ).join('\n');
+    expect(sources).not.toContain('—');
   });
 });

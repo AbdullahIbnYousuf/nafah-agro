@@ -104,7 +104,28 @@ test('OWNER management panel remains usable at required widths', async ({ page }
       await page.getByRole('button', { name: tab, exact: true }).click();
       await expect(page.locator('main')).toBeVisible();
       await expectNoPageOverflow(page);
-      if (viewport.name === 'mobile') await expectComfortableTouchTargets(page);
+      if (viewport.name === 'mobile') {
+        await expectComfortableTouchTargets(page);
+        if (tab === 'পণ্য') {
+          await page.getByRole('button', { name: 'নতুন পণ্য' }).click();
+          const cancel = page.getByRole('button', { name: 'বাতিল করুন' });
+          const save = page.getByRole('button', { name: 'পণ্য সংরক্ষণ করুন' });
+          await expect(cancel).toBeVisible();
+          await expect(save).toBeVisible();
+          for (const action of [cancel, save]) {
+            expect(await action.evaluate((element) => {
+              const bounds = element.getBoundingClientRect();
+              const top = document.elementFromPoint(
+                bounds.left + bounds.width / 2,
+                bounds.top + bounds.height / 2,
+              );
+              return top === element || element.contains(top);
+            }), 'product-form footer actions should be above mobile navigation').toBe(true);
+          }
+          await cancel.click();
+          await expect(cancel).toBeHidden();
+        }
+      }
     }
   }
 

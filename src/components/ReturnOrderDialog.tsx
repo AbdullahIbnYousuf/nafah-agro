@@ -58,7 +58,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
   async function submit() {
     const normalizedReason = reason.trim();
     if (normalizedReason.length < 3) {
-      setError('ফেরতের কারণ লিখুন—অন্তত ৩ অক্ষর প্রয়োজন।');
+      setError('ফেরতের কারণ লিখুন। অন্তত ৩ অক্ষর প্রয়োজন।');
       return;
     }
 
@@ -87,7 +87,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
         <h3 className="font-semibold mb-2">ফেরত পণ্যসমূহ</h3>
         <div className="space-y-2">
           {order?.items.map(item => <div key={item.id} className="flex justify-between gap-4 text-sm">
-            <span>{item.productName} — {item.variantName}</span>
+            <span>{item.productName} · {item.variantName}</span>
             <span className="font-medium whitespace-nowrap">× {item.quantity}</span>
           </div>)}
         </div>

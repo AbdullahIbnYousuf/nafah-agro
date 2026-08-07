@@ -82,7 +82,7 @@ export default function OrderActionDialog({ order, action, onClose, onConfirm }:
   async function submit() {
     const normalizedReason = reason.trim();
     if (reasonRequired && normalizedReason.length < 3) {
-      setError('কারণ লিখুন—অন্তত ৩ অক্ষর প্রয়োজন।');
+      setError('কারণ লিখুন। অন্তত ৩ অক্ষর প্রয়োজন।');
       return;
     }
     setSubmitting(true);

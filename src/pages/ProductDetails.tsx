@@ -76,7 +76,7 @@ const ProductDetails = () => {
   const handleAddToCart = () => {
     if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় ভ্যারিয়েন্ট নেই');
     if (quantityInCart > 0) {
-      // Already in cart — increase quantity
+      // Already in cart; increase quantity
       updateQuantity(selectedVariant.id, quantityInCart + 1);
       toast.success('কার্টে পরিমাণ বাড়ানো হয়েছে!');
     } else {
