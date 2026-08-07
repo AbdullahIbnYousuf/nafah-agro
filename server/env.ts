@@ -91,6 +91,7 @@ export const backendEnvSchema = z
       const requiredProductionValues = [
         ["DATABASE_URL", env.DATABASE_URL],
         ["SUPABASE_URL", env.SUPABASE_URL],
+        ["SUPABASE_SERVICE_ROLE_KEY", env.SUPABASE_SERVICE_ROLE_KEY],
         ["CLOUDINARY_CLOUD_NAME", env.CLOUDINARY_CLOUD_NAME],
         ["CLOUDINARY_API_KEY", env.CLOUDINARY_API_KEY],
         ["CLOUDINARY_API_SECRET", env.CLOUDINARY_API_SECRET],

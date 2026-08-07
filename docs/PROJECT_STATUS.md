@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-04
+Last updated: 2026-08-07
 
 ## Summary
 
@@ -61,7 +61,7 @@ is not approved for production until the external gates in this document and
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 151 tests passed across 21 files. This includes analytics
+- `npm test -- --run`: 156 tests passed across 21 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
   database-integrity source checks, and dialog request behavior.
@@ -95,7 +95,7 @@ Vercel runtime/build variables:
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
 - `JSON_BODY_LIMIT` only when overriding the safe default
-- `SUPABASE_SERVICE_ROLE_KEY` only when OWNER invitation email is enabled
+- `SUPABASE_SERVICE_ROLE_KEY` (backend-only; required for production OWNER invitations)
 
 `DIRECT_URL` belongs in protected local migration/CI configuration, not the
 normal Vercel runtime. Obsolete MongoDB, custom-JWT, admin-unlock,

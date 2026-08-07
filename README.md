@@ -50,7 +50,7 @@ separate frontend API-origin setting.
 | `DATABASE_URL` | backend/Vercel | Supabase pooled PostgreSQL runtime URL |
 | `SUPABASE_URL` | backend/Vercel | Auth issuer and JWKS base URL |
 | `SUPABASE_JWT_AUDIENCE` | backend/Vercel | Normally `authenticated` |
-| `SUPABASE_SERVICE_ROLE_KEY` | backend/Vercel, optional | Additional-owner email invitations; never expose to Vite |
+| `SUPABASE_SERVICE_ROLE_KEY` | backend/Vercel | Additional-owner email invitations; required in production and never exposed to Vite |
 | `VITE_SUPABASE_URL` | public frontend | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | public frontend | Supabase publishable/anon key |
 | `CLOUDINARY_CLOUD_NAME` | backend/Vercel | Cloudinary account |
@@ -62,8 +62,9 @@ separate frontend API-origin setting.
 | `OWNER_INVITE_RATE_LIMIT_MAX` | backend, optional | Owner invitations per IP/window |
 | `DIRECT_URL` | protected CLI/CI only | Direct/session URL for migrations, seeds, and owner commands |
 
-Production startup fails fast when database, Supabase, or Cloudinary runtime
-configuration is missing. Vercel supplies production mode automatically.
+Production startup fails fast when database, Supabase Auth administration, or
+Cloudinary runtime configuration is missing. Vercel supplies production mode
+automatically.
 
 ## Database and owners
 

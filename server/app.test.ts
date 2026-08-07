@@ -19,6 +19,7 @@ const productionEnvironment = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
   SUPABASE_URL: "https://project.supabase.co",
+  SUPABASE_SERVICE_ROLE_KEY: "service-role-key-with-enough-length",
   CLOUDINARY_CLOUD_NAME: "cloud",
   CLOUDINARY_API_KEY: "key",
   CLOUDINARY_API_SECRET: "secret",
@@ -354,14 +355,31 @@ describe("GET /api/v1/foundation", () => {
   });
 
   describe("owner account API", () => {
-    function accountStub() {
+    function accountStub(invitationsConfigured = true) {
       return {
+        ownerInvitationsConfigured: invitationsConfigured,
         updateOwnProfile: vi.fn(),
         listOwners: vi.fn(async () => []),
         inviteOwner: vi.fn(async () => ({ id: "owner-2", role: "OWNER", fullName: "Second Owner" })),
         setOwnerActive: vi.fn(async () => ({ id: "owner-2", role: "OWNER", isActive: false })),
       } as unknown as AccountService;
     }
+
+    it("reports whether secure owner invitations are configured", async () => {
+      const configured = await request(createProtectedApp(
+        ownerProfile, 60, undefined, undefined, undefined, accountStub(true),
+      ))
+        .get("/api/v1/owners")
+        .set("Authorization", "Bearer valid-token");
+      const unavailable = await request(createProtectedApp(
+        ownerProfile, 60, undefined, undefined, undefined, accountStub(false),
+      ))
+        .get("/api/v1/owners")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(configured.body.data.invitationsConfigured).toBe(true);
+      expect(unavailable.body.data.invitationsConfigured).toBe(false);
+    });
 
     it("allows an OWNER to invite another owner", async () => {
       const accountService = accountStub();

@@ -21,6 +21,7 @@ describe("backend environment validation", () => {
       NODE_ENV: "production",
       DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
       SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role-key-with-enough-length",
       CLOUDINARY_CLOUD_NAME: "cloud",
       CLOUDINARY_API_KEY: "key",
       CLOUDINARY_API_SECRET: "secret",
@@ -33,6 +34,17 @@ describe("backend environment validation", () => {
     expect(() => parseBackendEnv({ NODE_ENV: "production" })).toThrow(
       "DATABASE_URL is required in production",
     );
+  });
+
+  it("requires owner invitation administration in production", () => {
+    expect(() => parseBackendEnv({
+      NODE_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
+      SUPABASE_URL: "https://project.supabase.co",
+      CLOUDINARY_CLOUD_NAME: "cloud",
+      CLOUDINARY_API_KEY: "key",
+      CLOUDINARY_API_SECRET: "secret",
+    })).toThrow("SUPABASE_SERVICE_ROLE_KEY is required in production");
   });
 
   it("requires PostgreSQL and Supabase configuration together", () => {

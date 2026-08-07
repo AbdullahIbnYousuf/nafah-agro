@@ -19,13 +19,30 @@ The function never calls `app.listen()`.
 Set these encrypted Production values: `DATABASE_URL`, `SUPABASE_URL`,
 `SUPABASE_JWT_AUDIENCE=authenticated`, `VITE_SUPABASE_URL`,
 `VITE_SUPABASE_ANON_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
-`CLOUDINARY_API_SECRET`, and optionally `JSON_BODY_LIMIT=100kb`. Add
-`SUPABASE_SERVICE_ROLE_KEY` only when email invitations for additional owners
-are enabled. Never place database, Cloudinary-secret, or service-role values in
-a variable whose name begins with `VITE_`.
+`CLOUDINARY_API_SECRET`, and `SUPABASE_SERVICE_ROLE_KEY`. Optionally set
+`JSON_BODY_LIMIT=100kb`. The service-role key is required for the V1
+additional-owner invitation flow. Never place database, Cloudinary-secret, or
+service-role values in a variable whose name begins with `VITE_`.
 
 Keep `DIRECT_URL` in a protected migration workstation or CI environment. The
 deployed API does not use it.
+
+### Enable additional OWNER invitations
+
+1. In Supabase, copy the backend-only service-role/secret API key. Never use the
+   public anon/publishable key for this variable.
+2. Add it to the Vercel project as `SUPABASE_SERVICE_ROLE_KEY` for Production
+   and the Preview environment used for acceptance, then redeploy.
+3. Set the Supabase Auth Site URL to the canonical Nafah Agro URL and allow the
+   exact production and accepted Preview URLs. Configure production SMTP before
+   relying on invitation email delivery.
+4. Sign in as an existing OWNER, open `/profile`, and confirm the invitation
+   form is enabled. The invited person follows the email link, is redirected to
+   the profile page, and must set an initial password before using the app.
+
+The deployed `GET /api/v1/owners` response must report
+`invitationsConfigured: true` to an authenticated OWNER. A false value means
+the backend secret is absent from that deployment.
 
 ## Supabase Auth URL settings
 

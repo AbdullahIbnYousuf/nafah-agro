@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ChevronDown, ChevronRight, Loader2, Package, Settings, ShieldCheck,
+  ChevronDown, ChevronRight, KeyRound, Loader2, Package, Pencil, Settings, ShieldCheck,
   ShoppingBag, User, UserPlus, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -30,10 +30,12 @@ export default function CustomerProfile() {
   const [fullName, setFullName] = useState(user?.name ?? '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   useEffect(() => {
     setFullName(user?.name ?? '');
@@ -49,6 +51,7 @@ export default function CustomerProfile() {
     setSavingProfile(true);
     try {
       await updateProfile(fullName.trim(), phoneNumber.trim());
+      setProfileDialogOpen(false);
       toast.success('প্রোফাইল আপডেট হয়েছে');
     } catch (error) {
       toast.error(getErrorMessage(error, 'প্রোফাইল আপডেট করা যায়নি'));
@@ -72,6 +75,7 @@ export default function CustomerProfile() {
       if (needsPasswordSetup) await setInitialPassword(newPassword);
       else await changePassword(currentPassword, newPassword);
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      setPasswordDialogOpen(false);
       toast.success('পাসওয়ার্ড পরিবর্তন হয়েছে');
     } catch (error) {
       toast.error(getErrorMessage(error, 'পাসওয়ার্ড পরিবর্তন করা যায়নি'));
@@ -89,26 +93,23 @@ export default function CustomerProfile() {
 
     <div className="grid lg:grid-cols-2 gap-8">
       <section className="bg-card rounded-2xl border p-6">
-        <div className="flex items-center gap-2 mb-5"><User size={21} /><h2 className="text-xl font-bold">ব্যক্তিগত তথ্য</h2></div>
-        <form className="space-y-4" onSubmit={saveProfile}>
-          <div><Label htmlFor="profile-name">পুরো নাম</Label><Input id="profile-name" className="mt-1" value={fullName} onChange={event => setFullName(event.target.value)} required /></div>
-          <div><Label htmlFor="profile-phone">ফোন নম্বর</Label><Input id="profile-phone" className="mt-1" type="tel" value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} required /></div>
-          <div><Label>ইমেইল</Label><Input className="mt-1" value={user?.email ?? ''} disabled /><p className="text-xs text-muted-foreground mt-1">নিরাপত্তার জন্য এই পেজ থেকে ইমেইল পরিবর্তন করা যায় না।</p></div>
-          <Button type="submit" disabled={savingProfile}>{savingProfile ? 'সংরক্ষণ হচ্ছে…' : 'তথ্য সংরক্ষণ করুন'}</Button>
-        </form>
+        <div className="mb-5 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><User size={21} /><h2 className="text-xl font-bold">ব্যক্তিগত তথ্য</h2></div><Button type="button" size="sm" variant="outline" onClick={() => { setFullName(user?.name ?? ''); setPhoneNumber(user?.phoneNumber ?? ''); setProfileDialogOpen(true); }}><Pencil size={15} className="mr-2" />সম্পাদনা</Button></div>
+        <dl className="space-y-4 text-sm">
+          <div><dt className="text-muted-foreground">পুরো নাম</dt><dd className="mt-1 font-medium">{user?.name ?? '—'}</dd></div>
+          <div><dt className="text-muted-foreground">ফোন নম্বর</dt><dd className="mt-1 font-medium">{user?.phoneNumber ?? '—'}</dd></div>
+          <div><dt className="text-muted-foreground">ইমেইল</dt><dd className="mt-1 font-medium break-all">{user?.email ?? '—'}</dd></div>
+        </dl>
       </section>
 
       <section className="bg-card rounded-2xl border p-6">
         <div className="flex items-center gap-2 mb-5"><ShieldCheck size={21} /><h2 className="text-xl font-bold">নিরাপত্তা</h2></div>
-        {needsPasswordSetup && <p className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">আমন্ত্রণ গ্রহণ সম্পন্ন করতে এখন আপনার নিজের পাসওয়ার্ড সেট করুন।</p>}
-        <form className="space-y-4" onSubmit={savePassword}>
-          {!needsPasswordSetup && <div><Label htmlFor="current-password">বর্তমান পাসওয়ার্ড</Label><Input id="current-password" className="mt-1" type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} required /></div>}
-          <div><Label htmlFor="new-password">নতুন পাসওয়ার্ড</Label><Input id="new-password" className="mt-1" type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={8} required /></div>
-          <div><Label htmlFor="confirm-password">নতুন পাসওয়ার্ড নিশ্চিত করুন</Label><Input id="confirm-password" className="mt-1" type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={8} required /></div>
-          <Button type="submit" disabled={savingPassword}>{savingPassword ? 'পরিবর্তন হচ্ছে…' : needsPasswordSetup ? 'পাসওয়ার্ড সেট করুন' : 'পাসওয়ার্ড পরিবর্তন করুন'}</Button>
-        </form>
+        {needsPasswordSetup ? <div className="space-y-4"><p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">আমন্ত্রণ গ্রহণ সম্পন্ন করতে নিজের পাসওয়ার্ড সেট করুন।</p><Button type="button" onClick={() => setPasswordDialogOpen(true)}><KeyRound size={16} className="mr-2" />পাসওয়ার্ড সেট করুন</Button></div> : <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">নিরাপত্তার প্রয়োজনে পাসওয়ার্ড পরিবর্তন করতে পারেন।</p><Button type="button" size="sm" variant="ghost" className="shrink-0 text-muted-foreground" onClick={() => setPasswordDialogOpen(true)}><KeyRound size={15} className="mr-2" />পাসওয়ার্ড পরিবর্তন</Button></div>}
       </section>
     </div>
+
+    <Dialog open={profileDialogOpen} onOpenChange={open => { if (!savingProfile) setProfileDialogOpen(open); }}><DialogContent><DialogHeader><DialogTitle>ব্যক্তিগত তথ্য সম্পাদনা</DialogTitle><DialogDescription>নাম ও ফোন নম্বর পরিবর্তন করুন। নিরাপত্তার জন্য ইমেইল এখান থেকে পরিবর্তন করা যায় না।</DialogDescription></DialogHeader><form id="profile-edit-form" className="space-y-4" onSubmit={saveProfile}><div><Label htmlFor="profile-name">পুরো নাম</Label><Input id="profile-name" className="mt-1" value={fullName} onChange={event => setFullName(event.target.value)} required /></div><div><Label htmlFor="profile-phone">ফোন নম্বর</Label><Input id="profile-phone" className="mt-1" type="tel" value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} required /></div></form><DialogFooter><Button type="button" variant="outline" onClick={() => setProfileDialogOpen(false)} disabled={savingProfile}>বাতিল</Button><Button type="submit" form="profile-edit-form" disabled={savingProfile}>{savingProfile ? 'সংরক্ষণ হচ্ছে…' : 'পরিবর্তন সংরক্ষণ করুন'}</Button></DialogFooter></DialogContent></Dialog>
+
+    <Dialog open={passwordDialogOpen} onOpenChange={open => { if (!savingPassword) { setPasswordDialogOpen(open); if (!open) { setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); } } }}><DialogContent><DialogHeader><DialogTitle>{needsPasswordSetup ? 'নিজের পাসওয়ার্ড সেট করুন' : 'পাসওয়ার্ড পরিবর্তন'}</DialogTitle><DialogDescription>{needsPasswordSetup ? 'অ্যাকাউন্ট ব্যবহার শুরু করতে কমপক্ষে ৮ অক্ষরের একটি পাসওয়ার্ড দিন।' : 'পরিবর্তন নিশ্চিত করতে বর্তমান পাসওয়ার্ড এবং নতুন পাসওয়ার্ড দিন।'}</DialogDescription></DialogHeader><form id="password-change-form" className="space-y-4" onSubmit={savePassword}>{!needsPasswordSetup && <div><Label htmlFor="current-password">বর্তমান পাসওয়ার্ড</Label><Input id="current-password" className="mt-1" type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} required /></div>}<div><Label htmlFor="new-password">নতুন পাসওয়ার্ড</Label><Input id="new-password" className="mt-1" type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={8} required /></div><div><Label htmlFor="confirm-password">নতুন পাসওয়ার্ড নিশ্চিত করুন</Label><Input id="confirm-password" className="mt-1" type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={8} required /></div></form><DialogFooter><Button type="button" variant="outline" onClick={() => setPasswordDialogOpen(false)} disabled={savingPassword}>বাতিল</Button><Button type="submit" form="password-change-form" disabled={savingPassword}>{savingPassword ? 'পরিবর্তন হচ্ছে…' : needsPasswordSetup ? 'পাসওয়ার্ড সেট করুন' : 'পরিবর্তন সংরক্ষণ করুন'}</Button></DialogFooter></DialogContent></Dialog>
 
     {isOwner ? <OwnerManagement currentOwnerId={user!.id} /> : <CustomerOrders />}
   </main><Footer /></div>;
@@ -122,6 +123,7 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState('');
   const [statusTarget, setStatusTarget] = useState<OwnerAccount | null>(null);
   const [statusReason, setStatusReason] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
@@ -134,6 +136,7 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
 
   async function submitInvite(event: FormEvent) {
     event.preventDefault();
+    setInviteError('');
     setInviting(true);
     try {
       await inviteOwner({ fullName: fullName.trim(), phoneNumber: phoneNumber.trim(), email: email.trim() });
@@ -143,6 +146,7 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
       const message = error instanceof ApiError && error.code === 'OWNER_INVITATIONS_NOT_CONFIGURED'
         ? 'ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।'
         : getErrorMessage(error, 'ওনার আমন্ত্রণ পাঠানো যায়নি');
+      setInviteError(message);
       toast.error(message);
     } finally { setInviting(false); }
   }
@@ -165,7 +169,7 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
       <div className="space-y-3">
         {loading ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : owners.map(owner => <article key={owner.id} className={`border rounded-xl p-4 ${owner.isActive ? '' : 'opacity-60'}`}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><strong>{owner.fullName}</strong>{owner.id === currentOwnerId && <Badge variant="outline">আপনি</Badge>}<Badge variant={owner.isActive ? 'default' : 'secondary'}>{owner.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</Badge></div><div className="text-sm text-muted-foreground mt-1">{owner.email ?? 'ইমেইল পাওয়া যায়নি'} · {owner.phoneNumber ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground mt-1">{owner.lastSignInAt ? `শেষ লগইন: ${new Date(owner.lastSignInAt).toLocaleString('bn-BD')}` : owner.invitedAt ? 'আমন্ত্রণ গ্রহণের অপেক্ষায়' : 'CLI দিয়ে তৈরি'}</div></div>{owner.id !== currentOwnerId && <Button size="sm" variant="outline" onClick={() => { setStatusTarget(owner); setStatusReason(''); }}>{owner.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</Button>}</div></article>)}
       </div>
-      <form className="border rounded-xl p-4 space-y-4 h-fit" onSubmit={submitInvite}><div className="flex items-center gap-2"><UserPlus size={19} /><h3 className="font-semibold">নতুন ওনার আমন্ত্রণ</h3></div><p className="text-xs text-muted-foreground">ইমেইলে নিরাপদ আমন্ত্রণ যাবে। সাধারণ রেজিস্ট্রেশন থেকে ওনার অ্যাকাউন্ট তৈরি হয় না।</p>{!loading && !invitationsConfigured && <p className="text-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3">ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।</p>}<div><Label htmlFor="owner-name">পুরো নাম</Label><Input id="owner-name" className="mt-1" value={fullName} onChange={event => setFullName(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-phone">ফোন নম্বর</Label><Input id="owner-phone" className="mt-1" type="tel" value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-email">ইমেইল</Label><Input id="owner-email" className="mt-1" type="email" value={email} onChange={event => setEmail(event.target.value)} required disabled={!invitationsConfigured} /></div><Button type="submit" className="w-full" disabled={inviting || !invitationsConfigured}>{inviting ? 'আমন্ত্রণ যাচ্ছে…' : 'আমন্ত্রণ পাঠান'}</Button></form>
+      <form className="border rounded-xl p-4 space-y-4 h-fit" onSubmit={submitInvite}><div className="flex items-center gap-2"><UserPlus size={19} /><h3 className="font-semibold">নতুন ওনার আমন্ত্রণ</h3></div><p className="text-xs text-muted-foreground">আমন্ত্রণ গ্রহণ করে নতুন ওনার নিজের পাসওয়ার্ড সেট করবেন।</p>{!loading && !invitationsConfigured && <p className="text-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3">ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।</p>}{inviteError && <p role="alert" className="text-sm rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">{inviteError}</p>}<div><Label htmlFor="owner-name">পুরো নাম</Label><Input id="owner-name" className="mt-1" value={fullName} onChange={event => setFullName(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-phone">ফোন নম্বর</Label><Input id="owner-phone" className="mt-1" type="tel" value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-email">ইমেইল</Label><Input id="owner-email" className="mt-1" type="email" value={email} onChange={event => setEmail(event.target.value)} required disabled={!invitationsConfigured} /></div><Button type="submit" className="w-full" disabled={inviting || !invitationsConfigured}>{inviting ? 'আমন্ত্রণ যাচ্ছে…' : 'আমন্ত্রণ পাঠান'}</Button></form>
     </div>
 
     <Dialog open={Boolean(statusTarget)} onOpenChange={open => { if (!open && !savingStatus) setStatusTarget(null); }}><DialogContent><DialogHeader><DialogTitle>{statusTarget?.isActive ? 'ওনার নিষ্ক্রিয় করুন' : 'ওনার সক্রিয় করুন'}</DialogTitle><DialogDescription>{statusTarget?.fullName}-এর অ্যাকাউন্টের অবস্থা পরিবর্তনের কারণ লিখুন। নিজের অ্যাকাউন্ট বা শেষ সক্রিয় ওনার নিষ্ক্রিয় করা যায় না।</DialogDescription></DialogHeader><div><Label htmlFor="owner-status-reason">কারণ</Label><Input id="owner-status-reason" className="mt-1" value={statusReason} onChange={event => setStatusReason(event.target.value)} placeholder="কমপক্ষে ৩ অক্ষর" /></div><DialogFooter><Button variant="outline" onClick={() => setStatusTarget(null)} disabled={savingStatus}>বাতিল</Button><Button onClick={() => void confirmStatus()} disabled={savingStatus || statusReason.trim().length < 3}>{savingStatus ? 'সংরক্ষণ হচ্ছে…' : 'নিশ্চিত করুন'}</Button></DialogFooter></DialogContent></Dialog>

@@ -74,6 +74,15 @@ describe("account and owner management service", () => {
     expect(auth.deleteUser).toHaveBeenCalledWith(OWNER_THREE);
   });
 
+  it("refuses invitations when Supabase administration is not configured", async () => {
+    const { database } = harness();
+    const service = createAccountService(database as unknown as PrismaClient);
+    await expect(service.inviteOwner(OWNER_ONE, {
+      fullName: "Owner Three", phoneNumber: "01900000000", email: "owner3@example.com",
+    })).rejects.toMatchObject({ status: 503, code: "OWNER_INVITATIONS_NOT_CONFIGURED" });
+    expect(database.profile.create).not.toHaveBeenCalled();
+  });
+
   it("blocks self-deactivation and final-owner deactivation", async () => {
     const multiple = harness();
     await expect(multiple.service.setOwnerActive(OWNER_ONE, OWNER_ONE, {
