@@ -4,6 +4,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const migrationPath = 'prisma/migrations/202608040002_milestone_6_integrity/migration.sql';
+const triggerFixMigrationPath =
+  'prisma/migrations/202608080001_fix_stock_integrity_trigger/migration.sql';
 
 describe('Milestone 6 integrity safeguards', () => {
   it('validates cached variant stock totals at transaction commit', () => {
@@ -11,6 +13,23 @@ describe('Milestone 6 integrity safeguards', () => {
     expect(migration).toContain('validate_variant_stock_totals');
     expect(migration).toContain('DEFERRABLE INITIALLY DEFERRED');
     expect(migration).toContain('Variant cached stock totals do not match stock batches');
+  });
+
+  it('resolves each stock-integrity trigger row using only columns from its table', () => {
+    const migration = readFileSync(triggerFixMigrationPath, 'utf8');
+
+    expect(migration).toContain("IF TG_TABLE_NAME = 'product_variants' THEN");
+    expect(migration).toContain("ELSIF TG_TABLE_NAME = 'stock_batches' THEN");
+    expect(migration).toContain("IF TG_OP = 'DELETE' THEN");
+    expect(migration).not.toMatch(/variant_id\s*:=\s*CASE/);
+  });
+
+  it('uses a deployment-safe Supabase connection for Prisma CLI migrations', () => {
+    const config = readFileSync('prisma.config.ts', 'utf8');
+
+    expect(config).toContain('url.hostname.endsWith(".supabase.com")');
+    expect(config).toContain('url.searchParams.set("sslmode", "require")');
+    expect(config).toContain('url.searchParams.set("connect_timeout", "30")');
   });
 
   it('requires consistent allocation timestamps and order reasons', () => {
