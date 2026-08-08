@@ -7,6 +7,7 @@ import {
   Truck,
   ShieldCheck,
   Loader2,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroBg from "@/assets/hero-bg.jpg";
@@ -15,8 +16,11 @@ import { getProducts } from "@/lib/api";
 import { Product } from "@/lib/types";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-
-const GOOGLE_MAP_URL = "https://maps.google.com/?q=Nafah+Agro";
+import {
+  BUSINESS_ADDRESS,
+  BUSINESS_PHONES,
+  GOOGLE_MAP_URL,
+} from "@/lib/contact";
 
 const features = [
   {
@@ -153,6 +157,60 @@ const Index = () => {
             >
               <Link to="/shop">সব পণ্য দেখুন →</Link>
             </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact */}
+      <section className="bg-card py-16" aria-labelledby="contact-heading">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 id="contact-heading" className="text-3xl font-bold">
+              যোগাযোগ করুন
+            </h2>
+            <p className="mt-2 text-muted-foreground">
+              পণ্য সম্পর্কে জানতে ফোন করুন অথবা সরাসরি আমাদের দোকানে আসুন
+            </p>
+          </div>
+          <div className="mx-auto mt-8 grid max-w-3xl gap-4 sm:grid-cols-2">
+            <a
+              href={GOOGLE_MAP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-h-32 items-start gap-4 rounded-xl border bg-background p-5 transition-colors hover:border-secondary"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
+                <MapPin size={22} aria-hidden="true" />
+              </span>
+              <span className="text-left">
+                <strong className="block">আমাদের ঠিকানা</strong>
+                <span className="mt-2 block text-sm text-muted-foreground">
+                  {BUSINESS_ADDRESS}
+                </span>
+                <span className="mt-2 block text-sm font-semibold text-secondary">
+                  Google Maps-এ দেখুন
+                </span>
+              </span>
+            </a>
+            <div className="flex min-h-32 items-start gap-4 rounded-xl border bg-background p-5">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
+                <Phone size={22} aria-hidden="true" />
+              </span>
+              <div className="text-left">
+                <strong className="block">ফোন নম্বর</strong>
+                <div className="mt-2 flex flex-col gap-1">
+                  {BUSINESS_PHONES.map((phone) => (
+                    <a
+                      key={phone}
+                      href={`tel:${phone}`}
+                      className="inline-flex min-h-9 items-center font-semibold text-secondary hover:underline"
+                    >
+                      {phone}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
