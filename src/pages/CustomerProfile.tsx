@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronDown, ChevronRight, KeyRound, Loader2, Package, Pencil, Settings,
-  ShoppingBag, User, UserPlus, Users,
+  ShoppingBag, Trash2, User, UserPlus, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
@@ -15,7 +15,10 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { ApiError, getMyOrders, getOwners, inviteOwner, setOwnerActive } from '@/lib/api';
+import {
+  ApiError, deleteUnusedOwner, getMyOrders, getOwners, inviteOwner,
+  setOwnerActive,
+} from '@/lib/api';
 import { formatBanglaNumber, getErrorMessage } from '@/lib/utils';
 import type { OrderStatus, OwnerAccount, UnifiedOrder } from '@/lib/types';
 
@@ -122,6 +125,9 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
   const [statusTarget, setStatusTarget] = useState<OwnerAccount | null>(null);
   const [statusReason, setStatusReason] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<OwnerAccount | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -158,16 +164,34 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
     } finally { setSavingStatus(false); }
   }
 
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteUnusedOwner(deleteTarget.id);
+      setDeleteTarget(null);
+      load();
+      toast.success('অব্যবহৃত ওনার অ্যাকাউন্ট মুছে ফেলা হয়েছে');
+    } catch (error) {
+      setDeleteError(getErrorMessage(error, 'ওনার আমন্ত্রণ মুছে ফেলা যায়নি'));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return <section className="bg-card rounded-2xl border p-6">
     <div className="flex items-center gap-2 mb-6"><Users size={22} /><h2 className="text-xl font-bold">ওনার অ্যাকাউন্ট</h2></div>
     <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.7fr)] gap-6">
       <div className="space-y-3">
-        {loading ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : owners.map(owner => <article key={owner.id} className={`border rounded-xl p-4 ${owner.isActive ? '' : 'opacity-60'}`}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><strong>{owner.fullName}</strong>{owner.id === currentOwnerId && <Badge variant="outline">আপনি</Badge>}<Badge variant={owner.isActive ? 'default' : 'secondary'}>{owner.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</Badge></div><div className="text-sm text-muted-foreground mt-1">{owner.email ?? 'ইমেইল পাওয়া যায়নি'} · {owner.phoneNumber ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground mt-1">{owner.lastSignInAt ? `শেষ লগইন: ${new Date(owner.lastSignInAt).toLocaleString('bn-BD')}` : owner.invitedAt ? 'আমন্ত্রণ গ্রহণের অপেক্ষায়' : 'CLI দিয়ে তৈরি'}</div></div>{owner.id !== currentOwnerId && <Button size="sm" variant="outline" onClick={() => { setStatusTarget(owner); setStatusReason(''); }}>{owner.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</Button>}</div></article>)}
+        {loading ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : owners.map(owner => <article key={owner.id} className={`border rounded-xl p-4 ${owner.isActive ? '' : 'opacity-60'}`}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><strong>{owner.fullName}</strong>{owner.id === currentOwnerId && <Badge variant="outline">আপনি</Badge>}<Badge variant={owner.isActive ? 'default' : 'secondary'}>{owner.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</Badge></div><div className="text-sm text-muted-foreground mt-1">{owner.email ?? 'ইমেইল পাওয়া যায়নি'} · {owner.phoneNumber ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground mt-1">{owner.lastSignInAt ? `শেষ লগইন: ${new Date(owner.lastSignInAt).toLocaleString('bn-BD')}` : owner.invitedAt ? 'আমন্ত্রণ গ্রহণের অপেক্ষায়' : 'CLI দিয়ে তৈরি'}</div></div>{owner.id !== currentOwnerId && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { setStatusTarget(owner); setStatusReason(''); }}>{owner.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</Button>{owner.canDelete && <Button size="sm" variant="destructive" onClick={() => { setDeleteError(''); setDeleteTarget(owner); }}><Trash2 size={15} className="mr-1" />অ্যাকাউন্ট মুছুন</Button>}</div>}</div></article>)}
       </div>
       <form className="border rounded-xl p-4 space-y-4 h-fit" onSubmit={submitInvite}><div className="flex items-center gap-2"><UserPlus size={19} /><h3 className="font-semibold">নতুন ওনার আমন্ত্রণ</h3></div><p className="text-xs text-muted-foreground">আমন্ত্রণ গ্রহণ করে নতুন ওনার নিজের পাসওয়ার্ড সেট করবেন।</p>{!loading && !invitationsConfigured && <p className="text-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3">ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।</p>}{inviteError && <p role="alert" className="text-sm rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">{inviteError}</p>}<div><Label htmlFor="owner-name">পুরো নাম</Label><Input id="owner-name" className="mt-1" value={fullName} onChange={event => setFullName(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-phone">ফোন নম্বর</Label><Input id="owner-phone" className="mt-1" type="tel" value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-email">ইমেইল</Label><Input id="owner-email" className="mt-1" type="email" value={email} onChange={event => setEmail(event.target.value)} required disabled={!invitationsConfigured} /></div><Button type="submit" className="w-full" disabled={inviting || !invitationsConfigured}>{inviting ? 'আমন্ত্রণ যাচ্ছে…' : 'আমন্ত্রণ পাঠান'}</Button></form>
     </div>
 
     <Dialog open={Boolean(statusTarget)} onOpenChange={open => { if (!open && !savingStatus) setStatusTarget(null); }}><DialogContent><DialogHeader><DialogTitle>{statusTarget?.isActive ? 'ওনার নিষ্ক্রিয় করুন' : 'ওনার সক্রিয় করুন'}</DialogTitle><DialogDescription>{statusTarget?.fullName}-এর অ্যাকাউন্টের অবস্থা পরিবর্তনের কারণ লিখুন। নিজের অ্যাকাউন্ট বা শেষ সক্রিয় ওনার নিষ্ক্রিয় করা যায় না।</DialogDescription></DialogHeader><div><Label htmlFor="owner-status-reason">কারণ</Label><Input id="owner-status-reason" className="mt-1" value={statusReason} onChange={event => setStatusReason(event.target.value)} placeholder="কমপক্ষে ৩ অক্ষর" /></div><DialogFooter><Button variant="outline" onClick={() => setStatusTarget(null)} disabled={savingStatus}>বাতিল</Button><Button onClick={() => void confirmStatus()} disabled={savingStatus || statusReason.trim().length < 3}>{savingStatus ? 'সংরক্ষণ হচ্ছে…' : 'নিশ্চিত করুন'}</Button></DialogFooter></DialogContent></Dialog>
+
+    <Dialog open={Boolean(deleteTarget)} onOpenChange={open => { if (!open && !deleting) { setDeleteTarget(null); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>অব্যবহৃত ওনার অ্যাকাউন্ট মুছুন</DialogTitle><DialogDescription>{deleteTarget?.fullName} ({deleteTarget?.email})-এর লগইন ও ওনার প্রোফাইল স্থায়ীভাবে মুছে যাবে। কোনো ব্যবসায়িক বা অডিট ইতিহাস থাকলে অ্যাকাউন্ট মুছবে না, শুধু নিষ্ক্রিয় করা যাবে।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog>
   </section>;
 }
 

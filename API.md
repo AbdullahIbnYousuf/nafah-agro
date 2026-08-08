@@ -21,6 +21,7 @@ verifies the Supabase token, loads the active PostgreSQL profile, and enforces
 | `GET` | `/api/v1/owners` | OWNER | List owner profiles and Auth invitation/sign-in state |
 | `POST` | `/api/v1/owners/invitations` | OWNER | Send a Supabase email invitation and create an OWNER profile |
 | `PATCH` | `/api/v1/owners/:id/status` | OWNER | Reason-required activate/deactivate; self/final-owner protected |
+| `DELETE` | `/api/v1/owners/:id` | OWNER | Permanently delete another owner only when no business or audit history exists |
 
 Owner invitations require the backend-only `SUPABASE_SERVICE_ROLE_KEY`. Public
 registration always creates `CUSTOMER`; metadata can never grant OWNER. The CLI
@@ -33,9 +34,11 @@ workflow remains the bootstrap/recovery path for the first owner.
 | `GET` | `/api/v1/categories` | Public | Active categories |
 | `GET` | `/api/v1/admin/categories` | OWNER | All categories |
 | `POST/PATCH` | `/api/v1/categories`, `/categories/:id` | OWNER | Create/edit/activate category |
+| `DELETE` | `/api/v1/categories/:id` | OWNER | Permanently delete an empty category only |
 | `GET` | `/api/v1/products`, `/products/:slug` | Public | Active storefront catalog |
 | `GET` | `/api/v1/admin/products` | OWNER | Full catalog |
 | `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product |
+| `DELETE` | `/api/v1/products/:id` | OWNER | Delete only a product with no stock, adjustment, order, or price-update history |
 | `POST/PATCH` | `/api/v1/products/:id/variants`, `/variants/:id` | OWNER | Create/edit variant and unique SKU |
 | `PATCH` | `/api/v1/variants/:id/selling-price` | OWNER | Single price change/history append |
 | `POST` | `/api/v1/variants/selling-prices/bulk` | OWNER | Atomic bulk price change |
@@ -44,6 +47,12 @@ workflow remains the bootstrap/recovery path for the first owner.
 | `POST` | `/api/v1/purchases` | OWNER | Atomic multi-item purchase |
 | `POST` | `/api/v1/stock-adjustments` | OWNER | Reason-required increase/decrease |
 | `POST/GET` | `/api/v1/physical-sales` | OWNER | Immediate FIFO CASH sale/list |
+
+Admin category/product responses include `canDelete`, calculated by the API.
+Deletion is transactional and rechecks eligibility server-side. A deleted
+unused product also removes its setup variants and price-history rows; normal
+price history remains immutable. Cloudinary image URLs are recorded in the
+audit event, but remote image files are not deleted automatically.
 
 ## Unified orders
 

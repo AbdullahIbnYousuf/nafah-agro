@@ -7,6 +7,8 @@ import {
 } from "../schemas/catalog.js";
 import type { CatalogService } from "../services/catalog.js";
 
+const idSchema = z.string().uuid();
+
 function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S> {
   try { return schema.parse(value); }
   catch (error) {
@@ -40,6 +42,9 @@ export function createCatalogRouter(
   router.patch("/categories/:id", ...protectedRoute, async (req, res, next) => {
     try { res.json({ success: true, data: await service.updateCategory(req.params.id, validate(categoryUpdateSchema, req.body)) }); } catch (error) { next(error); }
   });
+  router.delete("/categories/:id", ...protectedRoute, async (req, res, next) => {
+    try { res.json({ success: true, data: await service.deleteCategory(validate(idSchema, req.params.id), req.authenticatedUser!.profile.id) }); } catch (error) { next(error); }
+  });
   router.get("/products", async (req, res, next) => {
     try { res.json({ success: true, data: await service.listProducts(validate(productListSchema, req.query)) }); } catch (error) { next(error); }
   });
@@ -54,6 +59,9 @@ export function createCatalogRouter(
   });
   router.patch("/products/:id", ...protectedRoute, async (req, res, next) => {
     try { res.json({ success: true, data: await service.updateProduct(req.params.id, validate(productUpdateSchema, req.body)) }); } catch (error) { next(error); }
+  });
+  router.delete("/products/:id", ...protectedRoute, async (req, res, next) => {
+    try { res.json({ success: true, data: await service.deleteProduct(validate(idSchema, req.params.id), req.authenticatedUser!.profile.id) }); } catch (error) { next(error); }
   });
   router.post("/products/:id/variants", ...protectedRoute, async (req, res, next) => {
     try { res.status(201).json({ success: true, data: await service.createVariant(req.params.id, validate(variantCreateSchema, req.body), req.authenticatedUser!.profile.id) }); } catch (error) { next(error); }

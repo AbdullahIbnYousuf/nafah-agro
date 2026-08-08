@@ -18,6 +18,8 @@ const ownerStatusSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 }).strict();
 
+const idSchema = z.string().uuid();
+
 function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S> {
   try {
     return schema.parse(value);
@@ -63,9 +65,9 @@ export function createAccountRouter(
     } catch (error) { next(error); }
   });
 
-  router.get("/owners", ...ownerRoute, async (_req, res, next) => {
+  router.get("/owners", ...ownerRoute, async (req, res, next) => {
     try { res.json({ success: true, data: {
-      owners: await service.listOwners(),
+      owners: await service.listOwners(req.authenticatedUser!.profile.id),
       invitationsConfigured: service.ownerInvitationsConfigured,
     } }); }
     catch (error) { next(error); }
@@ -89,6 +91,18 @@ export function createAccountRouter(
         validate(ownerStatusSchema, req.body),
       );
       res.json({ success: true, data: owner });
+    } catch (error) { next(error); }
+  });
+
+  router.delete("/owners/:id", ownerInviteLimiter, ...ownerRoute, async (req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        data: await service.deleteUnusedOwner(
+          req.authenticatedUser!.profile.id,
+          validate(idSchema, req.params.id),
+        ),
+      });
     } catch (error) { next(error); }
   });
 

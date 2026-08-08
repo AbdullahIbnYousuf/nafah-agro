@@ -110,6 +110,10 @@ changes are audited. Owners cannot deactivate themselves, and every status
 change requires a reason. Invite metadata marks the account for initial-password
 setup; after the invite session is established, the frontend redirects to the
 protected profile screen and clears that marker when Supabase accepts a password.
+Another owner may delete an Auth identity only when its profile has no business
+or actor-audit references. The service blocks self-deletion, preserves the Auth
+identity details in audit snapshots, and relies on the `auth.users` foreign-key
+cascade plus the final-active-owner database trigger as the last safety layer.
 
 ## 5. Core database model
 
@@ -174,7 +178,11 @@ selling_price_history
 - created_at
 ```
 
-Price updates and history insertion occur in one transaction. History is immutable.
+Price updates and history insertion occur in one transaction. History is
+immutable during normal operation. The only deletion exception is a
+transaction-local, OWNER-only cleanup of initial setup rows while permanently
+deleting a product with zero stock and no inventory, order, or price-update
+history. Database foreign keys and server-side rechecks reject concurrent use.
 
 ### Stock batches
 

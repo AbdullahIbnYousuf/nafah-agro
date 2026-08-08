@@ -362,6 +362,7 @@ describe("GET /api/v1/foundation", () => {
         listOwners: vi.fn(async () => []),
         inviteOwner: vi.fn(async () => ({ id: "owner-2", role: "OWNER", fullName: "Second Owner" })),
         setOwnerActive: vi.fn(async () => ({ id: "owner-2", role: "OWNER", isActive: false })),
+        deleteUnusedOwner: vi.fn(async () => ({ id: "owner-2" })),
       } as unknown as AccountService;
     }
 
@@ -393,6 +394,19 @@ describe("GET /api/v1/foundation", () => {
       });
     });
 
+    it("allows an OWNER to delete another unused invitation", async () => {
+      const accountService = accountStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, undefined, undefined, accountService))
+        .delete("/api/v1/owners/10000000-0000-4000-8000-000000000002")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(200);
+      expect(accountService.deleteUnusedOwner).toHaveBeenCalledWith(
+        ownerProfile.id,
+        "10000000-0000-4000-8000-000000000002",
+      );
+    });
+
     it("denies CUSTOMER access before owner services run", async () => {
       const accountService = accountStub();
       const response = await request(createProtectedApp(
@@ -402,6 +416,14 @@ describe("GET /api/v1/foundation", () => {
         .set("Authorization", "Bearer valid-token");
       expect(response.status).toBe(403);
       expect(accountService.listOwners).not.toHaveBeenCalled();
+
+      const deleteResponse = await request(createProtectedApp(
+        { ...ownerProfile, role: "CUSTOMER" }, 60, undefined, undefined, undefined, accountService,
+      ))
+        .delete("/api/v1/owners/10000000-0000-4000-8000-000000000002")
+        .set("Authorization", "Bearer valid-token");
+      expect(deleteResponse.status).toBe(403);
+      expect(accountService.deleteUnusedOwner).not.toHaveBeenCalled();
     });
 
     it("validates owner invitations and status reasons", async () => {
@@ -419,6 +441,19 @@ describe("GET /api/v1/foundation", () => {
       expect(statusResponse.status).toBe(400);
       expect(accountService.inviteOwner).not.toHaveBeenCalled();
       expect(accountService.setOwnerActive).not.toHaveBeenCalled();
+    });
+
+    it("rejects a malformed owner deletion ID before calling the service", async () => {
+      const accountService = accountStub();
+      const response = await request(createProtectedApp(
+        ownerProfile, 60, undefined, undefined, undefined, accountService,
+      ))
+        .delete("/api/v1/owners/not-a-uuid")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("VALIDATION_ERROR");
+      expect(accountService.deleteUnusedOwner).not.toHaveBeenCalled();
     });
   });
 
@@ -527,10 +562,12 @@ describe("GET /api/v1/foundation", () => {
           isActive: true,
         })),
         updateCategory: vi.fn(),
+        deleteCategory: vi.fn(async (id: string) => ({ id })),
         listProducts: vi.fn(),
         getProductBySlug: vi.fn(),
         createProduct: vi.fn(),
         updateProduct: vi.fn(),
+        deleteProduct: vi.fn(async (id: string) => ({ id })),
         createVariant: vi.fn(),
         updateVariant: vi.fn(),
         changePrice: vi.fn(),
@@ -550,6 +587,44 @@ describe("GET /api/v1/foundation", () => {
       expect(catalog.createCategory).toHaveBeenCalledWith({ name: "Dairy", slug: "dairy" });
     });
 
+    it("allows an OWNER to delete unused catalog records", async () => {
+      const catalog = catalogStub();
+      const app = createProtectedApp(ownerProfile, 60, catalog);
+      const categoryResponse = await request(app)
+        .delete("/api/v1/categories/10000000-0000-4000-8000-000000000001")
+        .set("Authorization", "Bearer valid-token");
+      const productResponse = await request(app)
+        .delete("/api/v1/products/20000000-0000-4000-8000-000000000001")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(categoryResponse.status).toBe(200);
+      expect(productResponse.status).toBe(200);
+      expect(catalog.deleteCategory).toHaveBeenCalledWith(
+        "10000000-0000-4000-8000-000000000001",
+        ownerProfile.id,
+      );
+      expect(catalog.deleteProduct).toHaveBeenCalledWith(
+        "20000000-0000-4000-8000-000000000001",
+        ownerProfile.id,
+      );
+    });
+
+    it("rejects malformed catalog deletion IDs before calling the service", async () => {
+      const catalog = catalogStub();
+      const app = createProtectedApp(ownerProfile, 60, catalog);
+      const categoryResponse = await request(app)
+        .delete("/api/v1/categories/not-a-uuid")
+        .set("Authorization", "Bearer valid-token");
+      const productResponse = await request(app)
+        .delete("/api/v1/products/not-a-uuid")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(categoryResponse.status).toBe(400);
+      expect(productResponse.status).toBe(400);
+      expect(catalog.deleteCategory).not.toHaveBeenCalled();
+      expect(catalog.deleteProduct).not.toHaveBeenCalled();
+    });
+
     it("denies CUSTOMER catalog mutations before the service is called", async () => {
       const catalog = catalogStub();
       const response = await request(
@@ -562,6 +637,14 @@ describe("GET /api/v1/foundation", () => {
       expect(response.status).toBe(403);
       expect(response.body.error.code).toBe("INSUFFICIENT_ROLE");
       expect(catalog.createCategory).not.toHaveBeenCalled();
+
+      const deleteResponse = await request(
+        createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, catalog),
+      )
+        .delete("/api/v1/products/20000000-0000-4000-8000-000000000001")
+        .set("Authorization", "Bearer valid-token");
+      expect(deleteResponse.status).toBe(403);
+      expect(catalog.deleteProduct).not.toHaveBeenCalled();
     });
   });
 

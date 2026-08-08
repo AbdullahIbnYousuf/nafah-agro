@@ -57,5 +57,7 @@ channels.
   physical count correction; escalate integrity corruption to a developer after
   a backup.
 - Product records currently store Cloudinary secure URLs, not public IDs.
-  Deactivation does not delete remote images. Review orphaned uploads in
-  Cloudinary manually until a future controlled cleanup workflow is approved.
+  Deactivation and the unused-product cleanup do not delete remote images.
+  Review orphaned uploads in Cloudinary manually until a future controlled
+  cleanup workflow is approved. Never hard-delete a product with stock,
+  adjustment, order, or selling-price update history; deactivate it instead.

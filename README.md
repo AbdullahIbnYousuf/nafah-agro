@@ -10,10 +10,13 @@ orders, returns, analytics, and Cloudinary uploads.
 - Public catalog with categories, products, sellable variants, search/filtering,
   a local cart, and guest cash-on-delivery checkout.
 - Optional CUSTOMER registration, profile maintenance, and website-order history.
-- Controlled multiple-OWNER access, owner invitations, and protection for the
-  final active owner.
+- Controlled multiple-OWNER access, owner invitations, deletion of accounts
+  with no business or audit history, and protection for the final active owner.
 - Product, unique-SKU, price-history, purchase, FIFO inventory, stock-adjustment,
   physical-sale, delivery-order, whole-return, and delivery-rate management.
+- OWNER-only permanent deletion for empty categories and products with no stock,
+  adjustment, order, or selling-price update history; used catalog records
+  remain deactivate-only.
 - OWNER analytics for recognized sales, product revenue, delivery charges, FIFO
   gross profit, returns, sources, rankings, open COD work, and inventory value.
 - One-project Vercel routing: the frontend uses `/`; every API route uses
@@ -101,7 +104,16 @@ npm run owner:create -- --user-id UUID --full-name "Owner Name" --phone 01XXXXXX
 
 After bootstrap, an active owner can invite another owner from `/profile` when
 the backend service-role key, SMTP, Site URL, and redirect URLs are configured.
+Another owner may permanently delete an unused owner account with no business
+or audit references; used accounts remain available for deactivation only.
 Public registration can only create CUSTOMER profiles.
+
+An OWNER may also permanently delete an empty category or a product that has
+never appeared in inventory, a stock adjustment, an order, or a selling-price
+update. Product setup
+variants and price-history rows are removed in the same transaction. Cloudinary
+files are retained for manual orphan review. Apply all checked-in migrations
+before using this workflow.
 
 Check cached stock totals against authoritative batches with:
 

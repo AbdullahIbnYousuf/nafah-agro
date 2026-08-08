@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-07
+Last updated: 2026-08-08
 
 ## Summary
 
@@ -26,6 +26,13 @@ is not approved for production until the external gates in this document and
   subject before resolving an active PostgreSQL profile and role.
 - Kept every management mutation OWNER-only. Public delivery-rate responses now
   expose active customer-facing fields only; the complete rate view is OWNER-only.
+- Added protected deletion for another owner only when no operational or audit
+  references exist; used accounts remain deactivation-only and self-deletion is blocked.
+- Added OWNER-only permanent deletion for empty categories and products without
+  inventory, adjustment, order, or selling-price update history. Eligibility is calculated and
+  rechecked by the API; used records remain deactivate-only. Setup variants and
+  price history are deleted transactionally, while Cloudinary files remain for
+  manual orphan review.
 - Hardened uploads to OWNER-only JPEG/PNG/WebP/AVIF files, 5 MB per file and ten
   files per request, using a fixed `nafah-agro` Cloudinary folder and safe errors.
 - Production 500 responses now hide database codes, details, messages, and stacks.
@@ -61,17 +68,17 @@ is not approved for production until the external gates in this document and
   release documentation. Cloudinary records still store secure URLs rather than
   public IDs, so orphaned remote uploads require manual review.
 
-## Verification on 2026-08-04
+## Verification on 2026-08-08
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 165 tests passed across 22 files. This includes analytics
+- `npm test -- --run`: 184 tests passed across 23 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
-  database-integrity source checks, and dialog request behavior.
-- `npm run build`: passed. The public entry chunk changed from 781.38 kB
-  (222.94 kB gzip) to 552.22 kB (160.21 kB gzip), a 29.3% raw and 28.1% gzip
-  reduction. OWNER analytics remains lazy at 433.87 kB (120.56 kB gzip).
+  database-integrity source checks, unused owner/catalog deletion safeguards,
+  and dialog request behavior.
+- `npm run build`: passed. The public entry chunk remains 552.33 kB
+  (160.20 kB gzip). OWNER analytics remains lazy at 434.35 kB (120.78 kB gzip).
 - `npm run build:server`: passed.
 - `npm run prisma:validate`: passed.
 - `npm run prisma:generate`: passed.

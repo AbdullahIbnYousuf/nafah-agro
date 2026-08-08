@@ -16,6 +16,8 @@ the tester, date, deployment URL, commit, and evidence for every checked item.
 5. Create/edit/activate/deactivate a category, product, and variants; upload an
    image; demonstrate duplicate slug/SKU rejection, a single price update, a
    bulk price update, and immutable price history.
+   Separately delete one empty category and one never-used product. Confirm the
+   delete action disappears after stock, an order, or a real price update exists.
 6. Enter two purchases for one variant at different costs/dates. Show batch and
    variant totals, then make a reason-required increase and decrease adjustment.
 7. Complete a physical CASH sale that spans both FIFO batches. Show captured

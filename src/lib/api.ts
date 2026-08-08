@@ -142,6 +142,12 @@ export function setOwnerActive(
   });
 }
 
+export function deleteUnusedOwner(ownerId: string): Promise<{ id: string }> {
+  return requestV1<{ id: string }>(`/owners/${ownerId}`, {
+    method: 'DELETE',
+  });
+}
+
 export interface GetProductsParams {
   query?: string;
   category?: string;
@@ -225,15 +231,12 @@ export async function changeSellingPrice(variantId: string, price: number, reaso
   });
 }
 
-export async function deleteProduct(id: string): Promise<void> {
-  await requestV1(`/products/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ isActive: false }),
-  });
-}
-
 export function setProductActive(id: string, isActive: boolean): Promise<Product> {
   return updateProduct(id, { isActive });
+}
+
+export function deleteUnusedProduct(id: string): Promise<{ id: string }> {
+  return requestV1<{ id: string }>(`/products/${id}`, { method: 'DELETE' });
 }
 
 export interface VariantCreateInput {
@@ -309,12 +312,12 @@ export function updateCategory(id: string, data: Partial<Category>): Promise<Cat
   });
 }
 
-export async function deleteCategory(id: string): Promise<void> {
-  await updateCategory(id, { isActive: false });
-}
-
 export function setCategoryActive(id: string, isActive: boolean): Promise<Category> {
   return updateCategory(id, { isActive });
+}
+
+export function deleteUnusedCategory(id: string): Promise<{ id: string }> {
+  return requestV1<{ id: string }>(`/categories/${id}`, { method: 'DELETE' });
 }
 
 export interface PurchaseItemInput {

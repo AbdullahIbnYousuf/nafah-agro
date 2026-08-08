@@ -13,7 +13,19 @@ import type {
 
 const productInclude = {
   category: { select: { id: true, name: true, slug: true, isActive: true } },
-  variants: { orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] },
+  variants: {
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    include: {
+      _count: {
+        select: {
+          stockBatches: true,
+          stockAdjustments: true,
+          salesOrderItems: true,
+          priceHistory: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.ProductInclude;
 
 type ProductRecord = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
@@ -34,6 +46,12 @@ function rethrowCatalogWriteError(error: unknown): never {
   if (target.includes("sku")) throw catalogError(409, "DUPLICATE_SKU", "That SKU is already in use.");
   if (target.includes("slug")) throw catalogError(409, "DUPLICATE_SLUG", "That slug is already in use.");
   throw error;
+}
+
+function isDeleteConstraintConflict(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "P2003" || code === "P2014";
 }
 
 function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
@@ -59,6 +77,13 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
     sku: defaultVariant?.sku,
     variantName: defaultVariant?.name,
     defaultVariantId: defaultVariant?.id,
+    canDelete: includeInactiveVariants && product.variants.every((variant) =>
+      variant.availableStock === 0
+      && variant.reservedStock === 0
+      && variant._count.stockBatches === 0
+      && variant._count.stockAdjustments === 0
+      && variant._count.salesOrderItems === 0
+      && variant._count.priceHistory <= 1),
     variants: visibleVariants.map((variant) => ({
       id: variant.id,
       name: variant.name,
@@ -81,11 +106,16 @@ export function createCatalogService(prisma: PrismaClient) {
   }
 
   return {
-    listCategories(includeInactive = false) {
-      return prisma.category.findMany({
+    async listCategories(includeInactive = false) {
+      const categories = await prisma.category.findMany({
         where: includeInactive ? undefined : { isActive: true },
         orderBy: { name: "asc" },
+        include: { _count: { select: { products: true } } },
       });
+      return categories.map(({ _count, ...category }) => ({
+        ...category,
+        canDelete: includeInactive && _count.products === 0,
+      }));
     },
     async createCategory(input: CategoryCreate) {
       try {
@@ -99,6 +129,35 @@ export function createCatalogService(prisma: PrismaClient) {
         return await prisma.category.update({ where: { id }, data: input });
       } catch (error) {
         rethrowCatalogWriteError(error);
+      }
+    },
+    async deleteCategory(id: string, actorId: string) {
+      try {
+        return await prisma.$transaction(async (transaction) => {
+          const category = await transaction.category.findUnique({
+            where: { id },
+            select: { id: true, name: true, slug: true, isActive: true, _count: { select: { products: true } } },
+          });
+          if (!category) throw catalogError(404, "CATEGORY_NOT_FOUND", "Category not found");
+          if (category._count.products > 0) {
+            throw catalogError(409, "CATEGORY_HAS_PRODUCTS", "A category containing products can only be deactivated.");
+          }
+          await transaction.category.delete({ where: { id } });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "UNUSED_CATEGORY_DELETED",
+            entityType: "CATEGORY",
+            entityId: id,
+            previousData: { name: category.name, slug: category.slug, isActive: category.isActive },
+            reason: "Unused category removal",
+          } });
+          return { id };
+        });
+      } catch (error) {
+        if (isDeleteConstraintConflict(error)) {
+          throw catalogError(409, "CATEGORY_DELETE_CONFLICT", "The category became in use and can only be deactivated.");
+        }
+        throw error;
       }
     },
     async listProducts(input: ProductList, includeInactive = false) {
@@ -198,6 +257,81 @@ export function createCatalogService(prisma: PrismaClient) {
         return readProduct(id);
       } catch (error) {
         rethrowCatalogWriteError(error);
+      }
+    },
+    async deleteProduct(id: string, actorId: string) {
+      try {
+        return await prisma.$transaction(async (transaction) => {
+          const product = await transaction.product.findUnique({
+            where: { id },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              isActive: true,
+              images: true,
+              variants: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  currentSellingPrice: true,
+                  availableStock: true,
+                  reservedStock: true,
+                  priceHistory: { select: { previousPrice: true }, take: 2 },
+                  _count: { select: { stockBatches: true, stockAdjustments: true, salesOrderItems: true } },
+                },
+              },
+            },
+          });
+          if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
+          const hasOperationalHistory = product.variants.some((variant) =>
+            variant.availableStock !== 0
+            || variant.reservedStock !== 0
+            || variant._count.stockBatches > 0
+            || variant._count.stockAdjustments > 0
+            || variant._count.salesOrderItems > 0);
+          if (hasOperationalHistory) {
+            throw catalogError(409, "PRODUCT_HAS_HISTORY", "A product with stock, inventory, or order history can only be deactivated.");
+          }
+          const hasPriceUpdates = product.variants.some((variant) =>
+            variant.priceHistory.length > 1
+            || variant.priceHistory.some((history) => history.previousPrice !== null));
+          if (hasPriceUpdates) {
+            throw catalogError(409, "PRODUCT_HAS_PRICE_UPDATES", "A product with selling-price updates can only be deactivated.");
+          }
+
+          await transaction.$executeRaw`SELECT set_config('nafah.allow_unused_catalog_delete', 'on', true)`;
+          await transaction.sellingPriceHistory.deleteMany({
+            where: { variantId: { in: product.variants.map((variant) => variant.id) } },
+          });
+          await transaction.product.delete({ where: { id } });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "UNUSED_PRODUCT_DELETED",
+            entityType: "PRODUCT",
+            entityId: id,
+            previousData: {
+              name: product.name,
+              slug: product.slug,
+              isActive: product.isActive,
+              variants: product.variants.map((variant) => ({
+                id: variant.id,
+                name: variant.name,
+                sku: variant.sku,
+                sellingPrice: variant.currentSellingPrice.toString(),
+              })),
+              imageUrlsRetained: product.images,
+            },
+            reason: "Unused product removal",
+          } });
+          return { id };
+        });
+      } catch (error) {
+        if (isDeleteConstraintConflict(error)) {
+          throw catalogError(409, "PRODUCT_DELETE_CONFLICT", "The product became in use and can only be deactivated.");
+        }
+        throw error;
       }
     },
     async createVariant(productId: string, input: VariantCreate, actorId: string) {

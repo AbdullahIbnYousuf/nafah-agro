@@ -27,6 +27,8 @@ There was no production dataset to migrate during the V1 rebuild. The checked-in
 - Owner access is granted only through a controlled operational command
 - After bootstrap, an active owner can email-invite additional owners from the profile screen
 - The final active owner cannot be deleted, disabled, or demoted
+- Another owner may permanently delete an account only when it has no business
+  or actor-audit references; self-deletion is blocked
 - Can view buying costs, inventory value, gross profit, and profit margins
 - Can manage prices, stock batches, adjustments, orders, discounts, and delivery rates
 
@@ -49,11 +51,17 @@ There was no production dataset to migrate during the V1 rebuild. The checked-in
 Owners can:
 
 - Create, edit, activate, and deactivate categories and products
+- Permanently delete only empty categories and never-used products with zero
+  stock and no adjustment, order, or selling-price update history
 - Add Cloudinary images, descriptions, tags, and featured status
 - Create sellable variants
 - Set a unique SKU, selling price, stock total, and low-stock threshold per variant
 - Change individual or multiple selling prices
 - View immutable price history showing old price, new price, actor, reason, and time
+
+Normal selling-price history is append-only. Permanent deletion removes only
+the initial setup price record belonging to a never-used product, in the same
+transaction as that product's variants.
 
 Every sellable product has at least one variant. Products without visible choices use an internal default variant.
 

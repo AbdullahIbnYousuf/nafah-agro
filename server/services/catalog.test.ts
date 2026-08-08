@@ -77,6 +77,10 @@ function createInMemoryPrisma() {
     products: ProductRow[];
     variants: VariantRow[];
     histories: HistoryRow[];
+    usedVariantIds: string[];
+    audits: Array<Record<string, unknown>>;
+    categoryDeleteConflict: boolean;
+    productDeleteConflict: boolean;
   } = {
     categories: [{
       id: CATEGORY_ID,
@@ -89,6 +93,10 @@ function createInMemoryPrisma() {
     products: [],
     variants: [],
     histories: [],
+    usedVariantIds: [],
+    audits: [],
+    categoryDeleteConflict: false,
+    productDeleteConflict: false,
   };
 
   const hydrate = (product: ProductRow) => ({
@@ -97,6 +105,22 @@ function createInMemoryPrisma() {
     variants: state.variants
       .filter((variant) => variant.productId === product.id)
       .sort((left, right) => Number(right.isDefault) - Number(left.isDefault)),
+  });
+
+  const hydrateWithCounts = (product: ProductRow) => ({
+    ...hydrate(product),
+    variants: state.variants
+      .filter((variant) => variant.productId === product.id)
+      .sort((left, right) => Number(right.isDefault) - Number(left.isDefault))
+      .map((variant) => ({
+        ...variant,
+        _count: {
+          stockBatches: state.usedVariantIds.includes(variant.id) ? 1 : 0,
+          stockAdjustments: 0,
+          salesOrderItems: 0,
+          priceHistory: state.histories.filter((history) => history.variantId === variant.id).length,
+        },
+      })),
   });
 
   const matchesProductWhere = (product: ProductRow, where: Record<string, unknown> | undefined) => {
@@ -112,7 +136,18 @@ function createInMemoryPrisma() {
   const api = {
     category: {
       findMany: async ({ where }: { where?: { isActive?: boolean } } = {}) => state.categories
-        .filter((category) => where?.isActive !== true || category.isActive),
+        .filter((category) => where?.isActive !== true || category.isActive)
+        .map((category) => ({
+          ...category,
+          _count: { products: state.products.filter((product) => product.categoryId === category.id).length },
+        })),
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const row = state.categories.find((category) => category.id === where.id);
+        return row ? {
+          ...row,
+          _count: { products: state.products.filter((product) => product.categoryId === row.id).length },
+        } : null;
+      },
       create: async ({ data }: { data: { name: string; slug: string } }) => {
         if (state.categories.some((category) => category.slug === data.slug)) throw duplicate("slug");
         const row = { ...data, id: id(), isActive: true, createdAt: new Date(), updatedAt: new Date() };
@@ -126,24 +161,47 @@ function createInMemoryPrisma() {
         Object.assign(row, data, { updatedAt: new Date() });
         return row;
       },
+      delete: async ({ where }: { where: { id: string } }) => {
+        if (state.categoryDeleteConflict) throw { code: "P2003" };
+        const index = state.categories.findIndex((category) => category.id === where.id);
+        if (index < 0) throw new Error("Category not found");
+        return state.categories.splice(index, 1)[0];
+      },
     },
     product: {
       findMany: async ({ where, skip = 0, take }: { where?: Record<string, unknown>; skip?: number; take?: number }) => {
         const rows = state.products.filter((product) => matchesProductWhere(product, where));
-        return rows.slice(skip, take === undefined ? undefined : skip + take).map(hydrate);
+        return rows.slice(skip, take === undefined ? undefined : skip + take).map(hydrateWithCounts);
       },
       count: async ({ where }: { where?: Record<string, unknown> }) => state.products.filter((product) => matchesProductWhere(product, where)).length,
-      findUnique: async ({ where, select }: { where: { id: string }; select?: { id?: boolean } }) => {
+      findUnique: async ({ where, select }: { where: { id: string }; select?: { id?: boolean; variants?: unknown } }) => {
         const row = state.products.find((product) => product.id === where.id);
         if (!row) return null;
-        return select ? { id: row.id } : hydrate(row);
+        if (select?.variants) {
+          const hydrated = hydrateWithCounts(row);
+          return {
+            id: row.id,
+            name: row.name,
+            slug: row.slug,
+            isActive: row.isActive,
+            images: row.images,
+            variants: hydrated.variants.map((variant) => ({
+              ...variant,
+              priceHistory: state.histories
+                .filter((history) => history.variantId === variant.id)
+                .slice(0, 2)
+                .map((history) => ({ previousPrice: history.previousPrice })),
+            })),
+          };
+        }
+        return select ? { id: row.id } : hydrateWithCounts(row);
       },
       findFirst: async ({ where }: { where: { slug?: string; isActive?: boolean; category?: { isActive?: boolean } } }) => {
         const row = state.products.find((product) => {
           if (where.slug && product.slug !== where.slug) return false;
           return matchesProductWhere(product, where as Record<string, unknown>);
         });
-        return row ? hydrate(row) : null;
+        return row ? hydrateWithCounts(row) : null;
       },
       create: async ({ data }: { data: Record<string, unknown> & { variants: { create: Record<string, unknown> } } }) => {
         if (state.products.some((product) => product.slug === data.slug)) throw duplicate("slug");
@@ -188,6 +246,14 @@ function createInMemoryPrisma() {
         const row = state.products.find((product) => product.id === where.id);
         if (!row) throw new Error("Product not found");
         Object.assign(row, data, { updatedAt: new Date() });
+        return row;
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        if (state.productDeleteConflict) throw { code: "P2003" };
+        const index = state.products.findIndex((product) => product.id === where.id);
+        if (index < 0) throw new Error("Product not found");
+        const [row] = state.products.splice(index, 1);
+        state.variants = state.variants.filter((variant) => variant.productId !== where.id);
         return row;
       },
     },
@@ -243,7 +309,19 @@ function createInMemoryPrisma() {
         .filter((history) => history.variantId === where.variantId)
         .sort((left, right) => right.effectiveAt.getTime() - left.effectiveAt.getTime())
         .map((history) => ({ ...history, changedBy: { fullName: "Owner", role: "OWNER" } })),
+      deleteMany: async ({ where }: { where: { variantId: { in: string[] } } }) => {
+        const before = state.histories.length;
+        state.histories = state.histories.filter((history) => !where.variantId.in.includes(history.variantId));
+        return { count: before - state.histories.length };
+      },
     },
+    auditLog: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        state.audits.push(data);
+        return data;
+      },
+    },
+    $executeRaw: async () => 1,
     $transaction: async (operation: unknown) => {
       if (Array.isArray(operation)) return Promise.all(operation);
       const snapshot = structuredClone(state);
@@ -254,6 +332,10 @@ function createInMemoryPrisma() {
         state.products = snapshot.products;
         state.variants = snapshot.variants;
         state.histories = snapshot.histories;
+        state.usedVariantIds = snapshot.usedVariantIds;
+        state.audits = snapshot.audits;
+        state.categoryDeleteConflict = snapshot.categoryDeleteConflict;
+        state.productDeleteConflict = snapshot.productDeleteConflict;
         throw error;
       }
     },
@@ -360,6 +442,92 @@ describe("PostgreSQL catalog service", () => {
     await expect(service.getProductBySlug(product.slug)).rejects.toMatchObject({ code: "PRODUCT_NOT_FOUND" });
   });
 
+  it("deletes an empty category but rejects a category containing products", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const empty = await service.createCategory({ name: "Empty", slug: "empty" });
+
+    await expect(service.deleteCategory(empty.id, ACTOR_ID)).resolves.toEqual({ id: empty.id });
+    expect(state.categories.some((category) => category.id === empty.id)).toBe(false);
+    expect(state.audits.at(-1)).toMatchObject({ action: "UNUSED_CATEGORY_DELETED", entityId: empty.id });
+
+    await service.createProduct(productInput(), ACTOR_ID);
+    await expect(service.deleteCategory(CATEGORY_ID, ACTOR_ID))
+      .rejects.toMatchObject({ code: "CATEGORY_HAS_PRODUCTS", status: 409 });
+  });
+
+  it("deletes an operationally unused product with its setup price history", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput(), ACTOR_ID);
+    const query = productListSchema.parse({ limit: 20, page: 1 });
+
+    expect((await service.listProducts(query, true)).data[0].canDelete).toBe(true);
+    await expect(service.deleteProduct(product.id, ACTOR_ID)).resolves.toEqual({ id: product.id });
+    expect(state.products).toHaveLength(0);
+    expect(state.variants).toHaveLength(0);
+    expect(state.histories).toHaveLength(0);
+    expect(state.audits.at(-1)).toMatchObject({ action: "UNUSED_PRODUCT_DELETED", entityId: product.id });
+  });
+
+  it("keeps products with inventory or order history as deactivation-only", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput(), ACTOR_ID);
+    state.usedVariantIds.push(product.variants[0].id);
+    const query = productListSchema.parse({ limit: 20, page: 1 });
+
+    expect((await service.listProducts(query, true)).data[0].canDelete).toBe(false);
+    await expect(service.deleteProduct(product.id, ACTOR_ID))
+      .rejects.toMatchObject({ code: "PRODUCT_HAS_HISTORY", status: 409 });
+    expect(state.products).toHaveLength(1);
+    expect(state.histories).toHaveLength(1);
+  });
+
+  it("keeps products with cached stock or actual price updates as deactivation-only", async () => {
+    const cachedStock = createInMemoryPrisma();
+    const cachedStockService = createCatalogService(cachedStock.prisma);
+    const stockedProduct = await cachedStockService.createProduct(productInput(), ACTOR_ID);
+    cachedStock.state.variants[0].availableStock = 1;
+    const query = productListSchema.parse({ limit: 20, page: 1 });
+
+    expect((await cachedStockService.listProducts(query, true)).data[0].canDelete).toBe(false);
+    await expect(cachedStockService.deleteProduct(stockedProduct.id, ACTOR_ID))
+      .rejects.toMatchObject({ code: "PRODUCT_HAS_HISTORY", status: 409 });
+
+    const repriced = createInMemoryPrisma();
+    const repricedService = createCatalogService(repriced.prisma);
+    const repricedProduct = await repricedService.createProduct(productInput(), ACTOR_ID);
+    await repricedService.changePrice(
+      repricedProduct.variants[0].id,
+      { sellingPrice: "550.00", reason: "Market adjustment" },
+      ACTOR_ID,
+    );
+
+    expect((await repricedService.listProducts(query, true)).data[0].canDelete).toBe(false);
+    await expect(repricedService.deleteProduct(repricedProduct.id, ACTOR_ID))
+      .rejects.toMatchObject({ code: "PRODUCT_HAS_PRICE_UPDATES", status: 409 });
+    expect(repriced.state.histories).toHaveLength(2);
+  });
+
+  it("turns concurrent delete constraints into safe conflicts and rolls back", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const empty = await service.createCategory({ name: "Empty", slug: "empty" });
+    state.categoryDeleteConflict = true;
+    await expect(service.deleteCategory(empty.id, ACTOR_ID))
+      .rejects.toMatchObject({ code: "CATEGORY_DELETE_CONFLICT", status: 409 });
+    expect(state.categories.some((category) => category.id === empty.id)).toBe(true);
+
+    state.categoryDeleteConflict = false;
+    const product = await service.createProduct(productInput(), ACTOR_ID);
+    state.productDeleteConflict = true;
+    await expect(service.deleteProduct(product.id, ACTOR_ID))
+      .rejects.toMatchObject({ code: "PRODUCT_DELETE_CONFLICT", status: 409 });
+    expect(state.products.some((item) => item.id === product.id)).toBe(true);
+    expect(state.histories).toHaveLength(1);
+  });
+
   it("defines database-level immutable selling-price history", () => {
     const migration = readFileSync(
       "prisma/migrations/202607310001_auth_and_product_vertical/migration.sql",
@@ -367,5 +535,12 @@ describe("PostgreSQL catalog service", () => {
     );
     expect(migration).toContain("selling_price_history_immutable");
     expect(migration).toContain("BEFORE UPDATE OR DELETE");
+
+    const deletionMigration = readFileSync(
+      "prisma/migrations/202608080002_unused_catalog_deletion/migration.sql",
+      "utf8",
+    );
+    expect(deletionMigration).toContain("nafah.allow_unused_catalog_delete");
+    expect(deletionMigration).toContain("current_setting");
   });
 });

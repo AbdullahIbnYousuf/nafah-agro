@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   getMyOrders: vi.fn(),
   inviteOwner: vi.fn(),
   setOwnerActive: vi.fn(),
+  deleteUnusedOwner: vi.fn(),
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => mocks.auth }));
@@ -29,6 +30,7 @@ vi.mock('@/lib/api', () => ({
   getMyOrders: mocks.getMyOrders,
   inviteOwner: mocks.inviteOwner,
   setOwnerActive: mocks.setOwnerActive,
+  deleteUnusedOwner: mocks.deleteUnusedOwner,
 }));
 vi.mock('@/components/Navbar', () => ({ default: () => <nav>Navbar</nav> }));
 vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }));
@@ -47,6 +49,7 @@ describe('role-aware profile page', () => {
     mocks.auth.setInitialPassword.mockResolvedValue(undefined);
     mocks.getOwners.mockResolvedValue({ owners: [], invitationsConfigured: true });
     mocks.getMyOrders.mockResolvedValue([]);
+    mocks.deleteUnusedOwner.mockResolvedValue({ id: 'owner-2' });
   });
 
   it('shows owner management and does not load customer orders for an OWNER', async () => {
@@ -130,6 +133,27 @@ describe('role-aware profile page', () => {
     expect(screen.getByRole('button', { name: 'আমন্ত্রণ পাঠান' })).toBeDisabled();
     expect(screen.getByLabelText('ইমেইল', { selector: '#owner-email' })).toBeDisabled();
     expect(mocks.inviteOwner).not.toHaveBeenCalled();
+  });
+
+  it('deletes a signed-in but unused owner only after explicit confirmation', async () => {
+    mocks.getOwners.mockResolvedValue({
+      invitationsConfigured: true,
+      owners: [
+        { id: 'owner-1', role: 'OWNER', fullName: 'Current Owner', phoneNumber: '01700000000', email: 'owner@example.com', isActive: true, invitedAt: null, lastSignInAt: '2026-08-01T00:00:00Z', createdAt: '2026-08-01T00:00:00Z', canDelete: false },
+        { id: 'owner-2', role: 'OWNER', fullName: 'Signed-in Owner', phoneNumber: '01800000000', email: 'unused@example.com', isActive: true, invitedAt: '2026-08-02T00:00:00Z', lastSignInAt: '2026-08-03T00:00:00Z', createdAt: '2026-08-02T00:00:00Z', canDelete: true },
+      ],
+    });
+    render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'অ্যাকাউন্ট মুছুন' }));
+    expect(screen.getByRole('dialog', { name: 'অব্যবহৃত ওনার অ্যাকাউন্ট মুছুন' })).toBeInTheDocument();
+    expect(mocks.deleteUnusedOwner).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'বাতিল' }));
+    expect(mocks.deleteUnusedOwner).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'অ্যাকাউন্ট মুছুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'স্থায়ীভাবে মুছুন' }));
+    await waitFor(() => expect(mocks.deleteUnusedOwner).toHaveBeenCalledWith('owner-2'));
   });
 
   it('shows order history and hides owner controls for a CUSTOMER', async () => {

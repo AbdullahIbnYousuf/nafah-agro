@@ -17,7 +17,7 @@ Status: complete in code; live Supabase/Vercel proof remains.
   controlled repeatable owner command. Active roles are OWNER and CUSTOMER;
   multiple owners are allowed and the final active owner is database-protected.
 - Role-aware self-service profile, reauthenticated password change, and audited
-  OWNER-only invitations/status management are complete in code.
+  OWNER-only invitation, status, and unused-account deletion are complete in code.
 
 ## Milestone 2 — Catalog and price history
 
@@ -25,6 +25,10 @@ Status: complete in code; real Supabase/Cloudinary acceptance remains.
 
 - Category → product → required default variant → unique SKU → selling price →
   immutable history → PostgreSQL storefront/admin UI.
+- Empty categories and products with no inventory, adjustment, order, or
+  selling-price update history have an OWNER-only, audited permanent-delete
+  path. Used records remain
+  deactivate-only; remote Cloudinary cleanup remains manual.
 
 ## Milestone 3 — Purchases, FIFO, physical-shop sales
 

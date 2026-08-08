@@ -3,6 +3,7 @@ export interface Category {
   name: string;
   slug: string;
   isActive?: boolean;
+  canDelete?: boolean;
 }
 
 export type Role = 'OWNER' | 'CUSTOMER';
@@ -114,6 +115,7 @@ export interface Product {
   featured: boolean;
   tags: string[];
   isActive?: boolean;
+  canDelete?: boolean;
   variants?: ProductVariant[];
   defaultVariantId?: string;
   sku?: string;
@@ -234,6 +236,7 @@ export interface OwnerAccount {
   invitedAt: string | null;
   lastSignInAt: string | null;
   createdAt: string;
+  canDelete: boolean;
 }
 
 export interface OwnerManagementState {
