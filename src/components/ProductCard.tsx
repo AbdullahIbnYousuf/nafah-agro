@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Product } from '@/lib/types';
 import { Leaf } from 'lucide-react';
 
@@ -7,9 +7,11 @@ interface Props {
 }
 
 const ProductCard = ({ product }: Props) => {
+  const location = useLocation();
   return (
     <Link
       to={`/products/${product.slug}`}
+      state={{ from: `${location.pathname}${location.search}` }}
       className="group block bg-card rounded-lg overflow-hidden card-shadow hover:card-hover-shadow transition-all duration-300 hover:-translate-y-1"
     >
       <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">

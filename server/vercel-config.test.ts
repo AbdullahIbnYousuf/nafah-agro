@@ -53,13 +53,22 @@ describe("single-project Vercel configuration", () => {
     }
   });
 
-  it("returns the SPA for /admin without catching API paths", () => {
+  it("returns the SPA for public and nested admin routes without catching API paths", () => {
     const spaRewrite = config.rewrites?.find(
       (rewrite) => rewrite.destination === "/index.html",
     );
     const sourcePattern = new RegExp(`^${spaRewrite!.source}$`);
 
-    expect(sourcePattern.test("/admin")).toBe(true);
+    for (const frontendPath of [
+      "/",
+      "/shop",
+      "/admin",
+      "/admin/dashboard",
+      "/admin/products/new",
+      "/admin/products/20000000-0000-4000-8000-000000000001/edit",
+    ]) {
+      expect(sourcePattern.test(frontendPath), frontendPath).toBe(true);
+    }
     expect(sourcePattern.test("/api/v1/health")).toBe(false);
   });
 });

@@ -51,6 +51,9 @@ export function createCatalogRouter(
   router.get("/admin/products", ...protectedRoute, async (req, res, next) => {
     try { res.json({ success: true, data: await service.listProducts(validate(productListSchema, req.query), true) }); } catch (error) { next(error); }
   });
+  router.get("/admin/products/:id", ...protectedRoute, async (req, res, next) => {
+    try { res.json({ success: true, data: await service.getProductById(validate(idSchema, req.params.id)) }); } catch (error) { next(error); }
+  });
   router.get("/products/:slug", async (req, res, next) => {
     try { res.json({ success: true, data: await service.getProductBySlug(req.params.slug) }); } catch (error) { next(error); }
   });

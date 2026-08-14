@@ -176,6 +176,10 @@ export async function getAdminProducts(params?: GetProductsParams): Promise<Prod
   return requestV1<ProductsPage>(`/admin/products${query.size ? `?${query}` : ''}`);
 }
 
+export function getAdminProduct(id: string): Promise<Product> {
+  return requestV1<Product>(`/admin/products/${encodeURIComponent(id)}`);
+}
+
 export async function getProductBySlug(slug: string): Promise<Product | undefined> {
   try {
     return await requestV1<Product>(`/products/${encodeURIComponent(slug)}`);

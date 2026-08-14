@@ -1,4 +1,5 @@
 import { MapPin, Phone } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   BUSINESS_ADDRESS,
   BUSINESS_PHONES,
@@ -18,8 +19,8 @@ const Footer = () => (
         <div>
           <h3 className="text-lg font-bold mb-3 text-accent">লিংক</h3>
           <ul className="space-y-1 text-sm opacity-80">
-            <li><a href="/" className="inline-flex min-h-11 min-w-11 items-center hover:text-accent transition-colors">হোম</a></li>
-            <li><a href="/shop" className="inline-flex min-h-11 min-w-11 items-center hover:text-accent transition-colors">দোকান</a></li>
+            <li><Link to="/" className="inline-flex min-h-11 min-w-11 items-center hover:text-accent transition-colors">হোম</Link></li>
+            <li><Link to="/shop" className="inline-flex min-h-11 min-w-11 items-center hover:text-accent transition-colors">দোকান</Link></li>
           </ul>
         </div>
         <div>

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, Loader2, Package, Plus, Settings2, Store, Tag, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import {
   deleteUnusedCategory,
   deleteUnusedProduct,
   getAdminCategories,
+  getAdminProduct,
   getAdminProducts,
   setCategoryActive,
   setProductActive,
@@ -25,21 +26,18 @@ const InventoryManager = lazy(() => import('@/components/InventoryManager'));
 const PhysicalSaleScreen = lazy(() => import('@/components/PhysicalSaleScreen'));
 const UnifiedOrderManager = lazy(() => import('@/components/UnifiedOrderManager'));
 
-type Tab = 'dashboard' | 'products' | 'categories' | 'inventory' | 'physical-sales' | 'orders';
-
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w\u0980-\u09FF-]/g, '');
 }
 
 export default function Admin() {
-  const [tab, setTab] = useState<Tab>('dashboard');
   const links = [
-    { tab: 'dashboard' as const, label: 'ড্যাশবোর্ড', mobileLabel: 'ড্যাশবোর্ড', icon: BarChart3 },
-    { tab: 'products' as const, label: 'পণ্য', mobileLabel: 'পণ্য', icon: Package },
-    { tab: 'categories' as const, label: 'ক্যাটাগরি', mobileLabel: 'ক্যাটাগরি', icon: Tag },
-    { tab: 'inventory' as const, label: 'ক্রয় ও ইনভেন্টরি', mobileLabel: 'ইনভেন্টরি', icon: Boxes },
-    { tab: 'physical-sales' as const, label: 'ফিজিক্যাল বিক্রয়', mobileLabel: 'বিক্রয়', icon: Store },
-    { tab: 'orders' as const, label: 'অর্ডার', mobileLabel: 'অর্ডার', icon: ClipboardList },
+    { path: '/admin/dashboard', label: 'ড্যাশবোর্ড', mobileLabel: 'ড্যাশবোর্ড', icon: BarChart3 },
+    { path: '/admin/products', label: 'পণ্য', mobileLabel: 'পণ্য', icon: Package },
+    { path: '/admin/categories', label: 'ক্যাটাগরি', mobileLabel: 'ক্যাটাগরি', icon: Tag },
+    { path: '/admin/inventory', label: 'ক্রয় ও ইনভেন্টরি', mobileLabel: 'ইনভেন্টরি', icon: Boxes },
+    { path: '/admin/physical-sales', label: 'ফিজিক্যাল বিক্রয়', mobileLabel: 'বিক্রয়', icon: Store },
+    { path: '/admin/orders', label: 'অর্ডার', mobileLabel: 'অর্ডার', icon: ClipboardList },
   ];
 
   return (
@@ -47,12 +45,11 @@ export default function Admin() {
       <aside className="hidden w-64 shrink-0 bg-primary p-4 text-primary-foreground md:block">
         <Link to="/" className="mb-6 flex min-h-11 items-center text-xl font-bold text-accent">নাফাহ এগ্রো পরিচালনা</Link>
         <nav aria-label="পরিচালনা বিভাগ" className="space-y-1">
-          {links.map(({ tab: itemTab, label, icon: Icon }) => (
-            <button key={itemTab} type="button" onClick={() => setTab(itemTab)}
-              aria-current={tab === itemTab ? 'page' : undefined}
-              className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-3 text-sm ${tab === itemTab ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/20'}`}>
+          {links.map(({ path, label, icon: Icon }) => (
+            <NavLink key={path} to={path}
+              className={({ isActive }) => `flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-3 text-sm ${isActive ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/20'}`}>
               <Icon size={18} />{label}
-            </button>
+            </NavLink>
           ))}
         </nav>
         <Button asChild variant="ghost" className="mt-8 text-primary-foreground/80">
@@ -64,20 +61,15 @@ export default function Admin() {
         <Link to="/" className="flex min-h-11 items-center gap-1.5 text-sm text-primary-foreground/80"><ArrowLeft size={16} />সাইটে ফিরুন</Link>
       </header>
       <main className="min-w-0 flex-1 p-4 pb-24 md:p-8">
-        {tab === 'dashboard' && <Suspense fallback={<Loading />}><AnalyticsDashboard /></Suspense>}
-        {tab === 'products' && <Suspense fallback={<Loading />}><Products /></Suspense>}
-        {tab === 'categories' && <Categories />}
-        {tab === 'inventory' && <Suspense fallback={<Loading />}><InventoryManager /></Suspense>}
-        {tab === 'physical-sales' && <Suspense fallback={<Loading />}><PhysicalSaleScreen /></Suspense>}
-        {tab === 'orders' && <Suspense fallback={<Loading />}><UnifiedOrderManager /></Suspense>}
+        <Outlet />
       </main>
       <nav aria-label="মোবাইল পরিচালনা বিভাগ" className="fixed inset-x-0 bottom-0 z-30 border-t border-primary-foreground/15 bg-primary px-1 pb-[env(safe-area-inset-bottom)] text-primary-foreground shadow-[0_-6px_20px_rgba(0,0,0,0.12)] md:hidden">
         <div className="grid grid-cols-6">
-          {links.map(({ tab: itemTab, label, mobileLabel, icon: Icon }) => (
-            <button key={itemTab} type="button" aria-label={label} aria-current={tab === itemTab ? 'page' : undefined} onClick={() => setTab(itemTab)}
-              className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] transition-colors ${tab === itemTab ? 'bg-secondary text-secondary-foreground' : 'text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground'}`}>
+          {links.map(({ path, label, mobileLabel, icon: Icon }) => (
+            <NavLink key={path} to={path} aria-label={label}
+              className={({ isActive }) => `flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] transition-colors ${isActive ? 'bg-secondary text-secondary-foreground' : 'text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground'}`}>
               <Icon size={19} /><span className="w-full truncate text-center">{mobileLabel}</span>
-            </button>
+            </NavLink>
           ))}
         </div>
       </nav>
@@ -85,16 +77,23 @@ export default function Admin() {
   );
 }
 
-function Products() {
+interface ProductsOutletContext {
+  categories: Category[];
+  reloadProducts: () => void;
+}
+
+export function AdminDashboard() {
+  return <Suspense fallback={<Loading />}><AnalyticsDashboard /></Suspense>;
+}
+
+export function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Product | undefined>();
-  const [managing, setManaging] = useState<Product | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Product>();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const navigate = useNavigate();
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([getAdminProducts({ limit: 100 }), getAdminCategories()])
@@ -103,7 +102,6 @@ function Products() {
       .finally(() => setLoading(false));
   }, []);
   useEffect(load, [load]);
-  const close = () => { setShowForm(false); setEditing(undefined); };
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -121,17 +119,70 @@ function Products() {
   }
   if (loading) return <Loading />;
   return <div>
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">পণ্য</h1><Button onClick={() => setShowForm(true)}><Plus size={16} className="mr-2" />নতুন পণ্য</Button></div>
-    {(showForm || editing) && <AddProductForm categories={categories.filter((category) => category.isActive !== false)} editProduct={editing} onClose={close} onCreated={() => { close(); load(); }} />}
-    {managing && <VariantManager product={managing} onClose={() => setManaging(undefined)} onUpdated={(updated) => { setManaging(updated); setProducts((current) => current.map((item) => item.id === updated.id ? updated : item)); }} />}
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">পণ্য</h1><Button onClick={() => navigate('/admin/products/new')}><Plus size={16} className="mr-2" />নতুন পণ্য</Button></div>
+    <Outlet context={{ categories, reloadProducts: load } satisfies ProductsOutletContext} />
     <div className="bg-card border rounded-lg overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">নাম</th><th className="text-left p-3">ডিফল্ট SKU</th><th className="text-right p-3">দাম</th><th className="text-center p-3">ভ্যারিয়েন্ট</th><th className="text-center p-3">অবস্থা</th><th className="p-3" /></tr></thead><tbody>
-      {products.map((product) => <tr key={product.id} className={`border-t ${product.isActive === false ? 'opacity-60' : ''}`}><td className="p-3 font-medium">{product.name}</td><td className="p-3">{product.sku ?? 'SKU নেই'}</td><td className="p-3 text-right">৳{product.price}</td><td className="p-3 text-center">{product.variants?.length ?? 0}</td><td className="p-3 text-center">{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</td><td className="whitespace-nowrap p-3 text-right"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => setManaging(product)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="সম্পাদনা" onClick={() => setEditing(product)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button><Button type="button" size="sm" variant={product.isActive === false ? 'default' : 'outline'} onClick={() => void setProductActive(product.id, product.isActive === false).then(load).catch(() => toast.error('পণ্যের অবস্থা পরিবর্তন হয়নি'))}>{product.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button>{product.canDelete && <Button type="button" size="sm" variant="destructive" className="ml-2" onClick={() => { setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</td></tr>)}
+      {products.map((product) => <tr key={product.id} className={`border-t ${product.isActive === false ? 'opacity-60' : ''}`}><td className="p-3 font-medium">{product.name}</td><td className="p-3">{product.sku ?? 'SKU নেই'}</td><td className="p-3 text-right">৳{product.price}</td><td className="p-3 text-center">{product.variants?.length ?? 0}</td><td className="p-3 text-center">{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</td><td className="whitespace-nowrap p-3 text-right"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button><Button type="button" size="sm" variant={product.isActive === false ? 'default' : 'outline'} onClick={() => void setProductActive(product.id, product.isActive === false).then(load).catch(() => toast.error('পণ্যের অবস্থা পরিবর্তন হয়নি'))}>{product.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button>{product.canDelete && <Button type="button" size="sm" variant="destructive" className="ml-2" onClick={() => { setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</td></tr>)}
     </tbody></table></div>
     <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleting) { setDeleteTarget(undefined); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>অব্যবহৃত পণ্য মুছুন</DialogTitle><DialogDescription>{deleteTarget?.name} এবং এর ভ্যারিয়েন্ট ও প্রাথমিক মূল্য রেকর্ড স্থায়ীভাবে মুছে যাবে। স্টক, ইনভেন্টরি, অর্ডার বা মূল্য পরিবর্তনের ইতিহাস থাকলে মুছবে না। Cloudinary-তে থাকা ছবি স্বয়ংক্রিয়ভাবে মুছবে না।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(undefined); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
 
-function Categories() {
+function ProductRouteError() {
+  const navigate = useNavigate();
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-xl"><h2 className="text-xl font-bold">পণ্য পাওয়া যায়নি</h2><p className="mt-2 text-sm text-muted-foreground">পণ্যটি মুছে ফেলা হয়েছে অথবা URL সঠিক নয়।</p><Button className="mt-5" onClick={() => navigate('/admin/products', { replace: true })}>পণ্য তালিকায় ফিরুন</Button></div></div>;
+}
+
+export function AdminProductCreate() {
+  const navigate = useNavigate();
+  const { categories, reloadProducts } = useOutletContext<ProductsOutletContext>();
+  const close = () => navigate('/admin/products');
+  return <Suspense fallback={<Loading />}><AddProductForm categories={categories.filter((category) => category.isActive !== false)} onClose={close} onCreated={() => { reloadProducts(); close(); }} /></Suspense>;
+}
+
+function useAdminProductRoute() {
+  const { productId } = useParams<{ productId: string }>();
+  const [product, setProduct] = useState<Product>();
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!productId) {
+      setFailed(true);
+      setLoading(false);
+      return () => { active = false; };
+    }
+    setLoading(true);
+    setFailed(false);
+    getAdminProduct(productId)
+      .then((result) => { if (active) setProduct(result); })
+      .catch(() => { if (active) setFailed(true); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [productId]);
+  return { product, setProduct, loading, failed };
+}
+
+export function AdminProductEdit() {
+  const navigate = useNavigate();
+  const { categories, reloadProducts } = useOutletContext<ProductsOutletContext>();
+  const { product, loading, failed } = useAdminProductRoute();
+  if (loading) return <Loading />;
+  if (failed || !product) return <ProductRouteError />;
+  const close = () => navigate('/admin/products');
+  return <Suspense fallback={<Loading />}><AddProductForm categories={categories.filter((category) => category.isActive !== false)} editProduct={product} onClose={close} onCreated={() => { reloadProducts(); close(); }} /></Suspense>;
+}
+
+export function AdminProductVariants() {
+  const navigate = useNavigate();
+  const { reloadProducts } = useOutletContext<ProductsOutletContext>();
+  const { product, setProduct, loading, failed } = useAdminProductRoute();
+  if (loading) return <Loading />;
+  if (failed || !product) return <ProductRouteError />;
+  return <Suspense fallback={<Loading />}><VariantManager product={product} onClose={() => navigate('/admin/products')} onUpdated={(updated) => { setProduct(updated); reloadProducts(); }} /></Suspense>;
+}
+
+export function AdminCategories() {
   const [items, setItems] = useState<Category[]>([]);
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<Category | null>(null);
@@ -190,6 +241,22 @@ function Categories() {
   return <div><h1 className="text-2xl font-bold mb-6">ক্যাটাগরি</h1><div className="mb-6 grid max-w-lg gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="নতুন ক্যাটাগরি" /><Button onClick={() => void add()}>যোগ করুন</Button></div><div className="space-y-2 max-w-2xl">
     {items.map((item) => <div key={item.id} className={`flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between ${item.isActive === false ? 'opacity-60' : ''}`}><div className="min-w-0"><strong className="break-words">{item.name}</strong><div className="break-all text-xs text-muted-foreground">/{item.slug} · {item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</div></div><div className="flex flex-wrap items-center justify-end gap-2"><button type="button" className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted" aria-label="নাম বদলান" onClick={() => openEdit(item)}><Edit size={16} /></button><Button type="button" size="sm" variant={item.isActive === false ? 'default' : 'outline'} onClick={() => void setCategoryActive(item.id, item.isActive === false).then(load).catch(() => toast.error('ক্যাটাগরির অবস্থা পরিবর্তন হয়নি'))}>{item.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button>{item.canDelete && <Button type="button" size="sm" variant="destructive" onClick={() => { setDeleteError(''); setDeleteTarget(item); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</div></div>)}
   </div><Dialog open={editing !== null} onOpenChange={(open) => { if (!open && !saving) setEditing(null); }}><DialogContent><DialogHeader><DialogTitle>ক্যাটাগরির নাম পরিবর্তন</DialogTitle><DialogDescription>নাম পরিবর্তন করলে URL স্লাগও নতুন নাম অনুযায়ী বদলাবে।</DialogDescription></DialogHeader><div><Label htmlFor="category-edit-name">ক্যাটাগরির নাম</Label><Input id="category-edit-name" className="mt-2" value={editName} onChange={(event) => { setEditName(event.target.value); setEditError(''); }} aria-invalid={Boolean(editError)} aria-describedby={editError ? 'category-edit-error' : undefined} />{editError && <p id="category-edit-error" role="alert" className="mt-2 text-sm text-destructive">{editError}</p>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={saving}>বন্ধ করুন</Button><Button type="button" onClick={() => void saveEdit()} disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</Button></DialogFooter></DialogContent></Dialog><Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) { setDeleteTarget(null); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>খালি ক্যাটাগরি মুছুন</DialogTitle><DialogDescription>{deleteTarget?.name} স্থায়ীভাবে মুছে যাবে। কোনো পণ্য থাকলে ক্যাটাগরি মুছবে না, শুধু নিষ্ক্রিয় করা যাবে।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog></div>;
+}
+
+export function AdminInventory() {
+  return <Suspense fallback={<Loading />}><InventoryManager /></Suspense>;
+}
+
+export function AdminPhysicalSales() {
+  return <Suspense fallback={<Loading />}><PhysicalSaleScreen /></Suspense>;
+}
+
+export function AdminOrders() {
+  return <Suspense fallback={<Loading />}><UnifiedOrderManager /></Suspense>;
+}
+
+export function AdminNotFound() {
+  return <div className="flex min-h-[60vh] items-center justify-center"><div className="text-center"><h1 className="text-3xl font-bold">পৃষ্ঠা পাওয়া যায়নি</h1><p className="mt-2 text-muted-foreground">এই পরিচালনা পাতাটি নেই।</p><Button asChild className="mt-5"><Link to="/admin/dashboard">ড্যাশবোর্ডে ফিরুন</Link></Button></div></div>;
 }
 
 function Loading() {

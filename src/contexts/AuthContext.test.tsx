@@ -1,9 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import GuestRoute from '@/components/GuestRoute';
 import type { Role, User } from '@/lib/types';
 import { ApiError } from '@/lib/api';
 import { AuthProvider, useAuth, type ProfileCompleter, type ProfileLoader, type ProfileUpdater } from './AuthContext';
@@ -164,15 +165,20 @@ describe('Supabase frontend authentication', () => {
 });
 
 describe('protected frontend routes', () => {
+  function LoginProbe() {
+    const location = useLocation();
+    return <div>login page {(location.state as { from?: string } | null)?.from}</div>;
+  }
+
   function renderRoute(role: Role | null) {
     const loadProfile = vi.fn<ProfileLoader>().mockResolvedValue(profile(role ?? 'CUSTOMER'));
     render(
       <AuthProvider client={authClient(role ? session : null)} loadProfile={loadProfile}>
-        <MemoryRouter initialEntries={['/admin']}>
+        <MemoryRouter initialEntries={['/admin/orders']}>
           <Routes>
-            <Route path="/login" element={<div>login page</div>} />
-            <Route path="/" element={<div>storefront</div>} />
-            <Route path="/admin" element={<ProtectedRoute roles={['OWNER']}><div>management panel</div></ProtectedRoute>} />
+            <Route path="/login" element={<LoginProbe />} />
+            <Route path="/profile" element={<div>profile page</div>} />
+            <Route path="/admin/*" element={<ProtectedRoute roles={['OWNER']}><div>management panel</div></ProtectedRoute>} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>,
@@ -181,7 +187,7 @@ describe('protected frontend routes', () => {
 
   it('redirects a guest to login', async () => {
     renderRoute(null);
-    expect(await screen.findByText('login page')).toBeInTheDocument();
+    expect(await screen.findByText('login page /admin/orders')).toBeInTheDocument();
   });
 
   it('allows an OWNER into management routes', async () => {
@@ -191,6 +197,25 @@ describe('protected frontend routes', () => {
 
   it('denies a CUSTOMER access to management routes', async () => {
     renderRoute('CUSTOMER');
-    await waitFor(() => expect(screen.getByText('storefront')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('profile page')).toBeInTheDocument());
+  });
+
+  it.each([
+    ['OWNER' as const, 'owner landing'],
+    ['CUSTOMER' as const, 'customer landing'],
+  ])('redirects a signed-in %s away from guest auth pages', async (role, expected) => {
+    render(
+      <AuthProvider client={authClient(session)} loadProfile={vi.fn<ProfileLoader>().mockResolvedValue(profile(role))}>
+        <MemoryRouter initialEntries={['/login']}>
+          <Routes>
+            <Route path="/login" element={<GuestRoute><div>login form</div></GuestRoute>} />
+            <Route path="/admin/dashboard" element={<div>owner landing</div>} />
+            <Route path="/profile" element={<div>customer landing</div>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+    expect(screen.queryByText('login form')).not.toBeInTheDocument();
   });
 });

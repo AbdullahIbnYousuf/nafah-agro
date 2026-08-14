@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -12,14 +12,21 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const profile = await login(email, password);
       toast.success('সফলভাবে লগইন হয়েছে!');
-      navigate('/');
+      const requestedPath = (location.state as { from?: unknown } | null)?.from;
+      const safeRequestedPath = typeof requestedPath === 'string'
+        && requestedPath.startsWith('/')
+        && !requestedPath.startsWith('//')
+        ? requestedPath
+        : null;
+      navigate(safeRequestedPath ?? (profile.role === 'OWNER' ? '/admin/dashboard' : '/profile'), { replace: true });
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'লগইন ব্যর্থ হয়েছে'));
     } finally {

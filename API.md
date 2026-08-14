@@ -36,7 +36,7 @@ workflow remains the bootstrap/recovery path for the first owner.
 | `POST/PATCH` | `/api/v1/categories`, `/categories/:id` | OWNER | Create/edit/activate category |
 | `DELETE` | `/api/v1/categories/:id` | OWNER | Permanently delete an empty category only |
 | `GET` | `/api/v1/products`, `/products/:slug` | Public | Active storefront catalog |
-| `GET` | `/api/v1/admin/products` | OWNER | Full catalog |
+| `GET` | `/api/v1/admin/products`, `/admin/products/:id` | OWNER | Full catalog list and direct product lookup, including inactive records |
 | `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product |
 | `DELETE` | `/api/v1/products/:id` | OWNER | Delete only a product with no stock, adjustment, order, or price-update history |
 | `POST/PATCH` | `/api/v1/products/:id/variants`, `/variants/:id` | OWNER | Create/edit variant and unique SKU |

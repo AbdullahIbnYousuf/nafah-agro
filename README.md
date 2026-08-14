@@ -46,6 +46,19 @@ Vite listens on `http://localhost:8080` and proxies `/api` to
 `http://localhost:4000`. The browser always calls same-origin `/api`; there is no
 separate frontend API-origin setting.
 
+## Application routes
+
+Public pages use `/`, `/shop`, `/products/:slug`, `/cart`, `/login`,
+`/register`, and `/profile`. Shop filters are shareable query parameters:
+`q`, `category`, `tag`, `featured`, `sort`, and `page`.
+
+Owner pages are directly addressable under `/admin`: `/admin/dashboard`,
+`/admin/products`, `/admin/categories`, `/admin/inventory`,
+`/admin/physical-sales`, and `/admin/orders`. Product creation, editing, and
+variant management use `/admin/products/new`,
+`/admin/products/:productId/edit`, and
+`/admin/products/:productId/variants`. `/admin` redirects to the dashboard.
+
 ## Environment variables
 
 | Variable | Where | Purpose |

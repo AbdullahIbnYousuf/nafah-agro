@@ -32,7 +32,7 @@ const Register = () => {
       toast.success(needsConfirmation
         ? 'ইমেইল নিশ্চিত করে লগইন করুন।'
         : 'রেজিস্ট্রেশন সফল হয়েছে!');
-      navigate(needsConfirmation ? '/login' : '/');
+      navigate(needsConfirmation ? '/login' : '/profile', { replace: true });
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'রেজিস্ট্রেশন ব্যর্থ হয়েছে'));
     } finally {

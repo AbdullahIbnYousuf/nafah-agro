@@ -210,6 +210,9 @@ export function createCatalogService(prisma: PrismaClient) {
       if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
       return productDto(product, false);
     },
+    async getProductById(id: string) {
+      return readProduct(id, true);
+    },
     async createProduct(input: ProductCreate, actorId: string) {
       try {
         const productId = await prisma.$transaction(async (transaction) => {

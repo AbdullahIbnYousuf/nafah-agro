@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getProductBySlug, getCategories } from '@/lib/api';
 import { Product, Category } from '@/lib/types';
@@ -12,15 +12,24 @@ import { toast } from 'sonner';
 const ProductDetails = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addItem, items, updateQuantity, removeItem } = useCart();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVariantId, setSelectedVariantId] = useState('');
+  const routeState = location.state as { from?: unknown } | null;
+  const from = routeState?.from;
+  const returnPath = typeof from === 'string'
+    && (from === '/' || from === '/shop' || from.startsWith('/shop?') || from.startsWith('/shop#'))
+    ? from
+    : '/shop';
 
   useEffect(() => {
     if (!slug) return;
+    setLoading(true);
+    setProduct(null);
     Promise.all([getProductBySlug(slug), getCategories()])
       .then(([prod, cats]) => {
         if (prod) {
@@ -37,6 +46,10 @@ const ProductDetails = () => {
       })
       .finally(() => setLoading(false));
   }, [slug]);
+
+  useEffect(() => {
+    if (product) document.title = `${product.name} | নাফাহ এগ্রো`;
+  }, [product]);
 
   if (loading) {
     return (
@@ -57,7 +70,7 @@ const ProductDetails = () => {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">পণ্য পাওয়া যায়নি</h1>
-            <Button onClick={() => navigate('/shop')} variant="outline">দোকানে ফিরে যান</Button>
+            <Button asChild variant="outline"><Link to={returnPath}>ফিরে যান</Link></Button>
           </div>
         </div>
         <Footer />
@@ -130,9 +143,9 @@ const ProductDetails = () => {
       <Navbar />
 
       <div className="container mx-auto flex-1 px-4 py-6 sm:py-8">
-        <button onClick={() => navigate(-1)} className="-ml-2 mb-6 flex min-h-11 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+        <Link to={returnPath} className="-ml-2 mb-6 flex min-h-11 w-fit items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
           <ArrowLeft size={18} /> পিছনে যান
-        </button>
+        </Link>
 
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
           {/* Gallery */}

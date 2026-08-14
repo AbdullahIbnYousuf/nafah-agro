@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getProducts, getCategories, getProductTags, GetProductsParams } from '@/lib/api';
 import { Product, Category } from '@/lib/types';
 import ProductCard from '@/components/ProductCard';
@@ -12,18 +13,32 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { formatBanglaNumber } from '@/lib/utils';
 
 const LIMIT = 12;
+const SORT_VALUES = ['newest', 'oldest', 'price_asc', 'price_desc', 'name_asc', 'name_desc'] as const;
+
+function positivePage(value: string | null) {
+  if (!value || !/^\d+$/.test(value)) return 1;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
 
 const Shop = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [categories, setCategories] = useState<Category[]>([]);
   const [allTags, setAllTags] = useState<string[]>([]);
+  const [filtersReady, setFiltersReady] = useState(false);
 
-  // Filters
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [tagFilter, setTagFilter] = useState('');
-  const [featuredOnly, setFeaturedOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<GetProductsParams['sort']>('newest');
-  const [page, setPage] = useState(1);
+  const querySearch = searchParams.get('q') ?? '';
+  const [search, setSearch] = useState(querySearch);
+  const syncingSearchFromUrl = useRef(false);
+  const previousQuerySearch = useRef(querySearch);
+  const categoryFilter = searchParams.get('category') || 'all';
+  const tagFilter = searchParams.get('tag') ?? '';
+  const featuredOnly = searchParams.get('featured') === '1';
+  const requestedSort = searchParams.get('sort');
+  const sortBy: GetProductsParams['sort'] = SORT_VALUES.includes(requestedSort as typeof SORT_VALUES[number])
+    ? requestedSort as GetProductsParams['sort']
+    : 'newest';
+  const page = positivePage(searchParams.get('page'));
 
   // Results
   const [products, setProducts] = useState<Product[]>([]);
@@ -33,13 +48,74 @@ const Shop = () => {
 
   const debouncedSearch = useDebounce(search, 350);
 
+  const updateRouteParam = useCallback((
+    key: string,
+    value: string | null,
+    options: { replace?: boolean; resetPage?: boolean } = {},
+  ) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      if (options.resetPage !== false && key !== 'page') next.delete('page');
+      return next;
+    }, { replace: options.replace });
+  }, [setSearchParams]);
+
   // Load categories + tags once
   useEffect(() => {
-    Promise.all([getCategories(), getProductTags()]).then(([cats, tags]) => {
-      setCategories(cats);
-      setAllTags(tags);
-    });
+    Promise.all([getCategories(), getProductTags()])
+      .then(([cats, tags]) => {
+        setCategories(cats);
+        setAllTags(tags);
+        setFiltersReady(true);
+      })
+      .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (querySearch !== previousQuerySearch.current) {
+      previousQuerySearch.current = querySearch;
+      if (querySearch !== search) {
+        syncingSearchFromUrl.current = true;
+        setSearch(querySearch);
+      }
+    }
+  }, [querySearch, search]);
+
+  useEffect(() => {
+    if (syncingSearchFromUrl.current) {
+      if (debouncedSearch === querySearch) syncingSearchFromUrl.current = false;
+      return;
+    }
+    if (debouncedSearch !== querySearch) {
+      updateRouteParam('q', debouncedSearch.trim() || null, { replace: true });
+    }
+  }, [debouncedSearch, querySearch, updateRouteParam]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    const rawQuery = next.get('q');
+    if (rawQuery !== null && rawQuery !== rawQuery.trim()) {
+      if (rawQuery.trim()) next.set('q', rawQuery.trim());
+      else next.delete('q');
+      changed = true;
+    }
+    const rawPage = next.get('page');
+    if (rawPage && (String(positivePage(rawPage)) !== rawPage || positivePage(rawPage) === 1)) { next.delete('page'); changed = true; }
+    const rawSort = next.get('sort');
+    if (rawSort && (!SORT_VALUES.includes(rawSort as typeof SORT_VALUES[number]) || rawSort === 'newest')) { next.delete('sort'); changed = true; }
+    const rawFeatured = next.get('featured');
+    if (rawFeatured && rawFeatured !== '1') { next.delete('featured'); changed = true; }
+    if (filtersReady) {
+      const rawCategory = next.get('category');
+      if (rawCategory && (rawCategory === 'all' || !categories.some((category) => category.slug === rawCategory))) { next.delete('category'); changed = true; }
+      const rawTag = next.get('tag');
+      if (rawTag && !allTags.includes(rawTag)) { next.delete('tag'); changed = true; }
+    }
+    if (changed) setSearchParams(next, { replace: true });
+  }, [allTags, categories, filtersReady, searchParams, setSearchParams]);
 
   const fetchProducts = useCallback(() => {
     setLoading(true);
@@ -60,16 +136,10 @@ const Shop = () => {
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
-  // Reset to page 1 whenever a filter changes
-  useEffect(() => { setPage(1); }, [debouncedSearch, categoryFilter, tagFilter, featuredOnly, sortBy]);
-
   function clearFilters() {
     setSearch('');
-    setCategoryFilter('all');
-    setTagFilter('');
-    setFeaturedOnly(false);
-    setSortBy('newest');
-    setPage(1);
+    syncingSearchFromUrl.current = true;
+    setSearchParams(new URLSearchParams());
   }
 
   const hasActiveFilters = !!(debouncedSearch || categoryFilter !== 'all' || tagFilter || featuredOnly);
@@ -102,17 +172,17 @@ const Shop = () => {
             <Input
               placeholder="পণ্য খুঁজুন..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { syncingSearchFromUrl.current = false; setSearch(e.target.value); }}
               className="pl-10 bg-card"
             />
             {search && (
-              <button aria-label="খোঁজার লেখা মুছুন" onClick={() => setSearch('')} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground md:h-10 md:w-10">
+              <button aria-label="খোঁজার লেখা মুছুন" onClick={() => { syncingSearchFromUrl.current = true; setSearch(''); updateRouteParam('q', null, { replace: true }); }} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground md:h-10 md:w-10">
                 <X size={14} />
               </button>
             )}
           </div>
 
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <Select value={categoryFilter} onValueChange={(value) => updateRouteParam('category', value === 'all' ? null : value)}>
             <SelectTrigger className="w-full sm:w-44 bg-card">
               <SelectValue placeholder="ক্যাটাগরি" />
             </SelectTrigger>
@@ -124,7 +194,7 @@ const Shop = () => {
             </SelectContent>
           </Select>
 
-          <Select value={tagFilter || '__all__'} onValueChange={v => setTagFilter(v === '__all__' ? '' : v)}>
+          <Select value={tagFilter || '__all__'} onValueChange={(value) => updateRouteParam('tag', value === '__all__' ? null : value)}>
             <SelectTrigger className="w-full sm:w-40 bg-card">
               <SelectValue placeholder="ট্যাগ" />
             </SelectTrigger>
@@ -136,7 +206,7 @@ const Shop = () => {
             </SelectContent>
           </Select>
 
-          <Select value={sortBy ?? 'newest'} onValueChange={v => setSortBy(v as GetProductsParams['sort'])}>
+          <Select value={sortBy ?? 'newest'} onValueChange={(value) => updateRouteParam('sort', value === 'newest' ? null : value)}>
             <SelectTrigger className="w-full sm:w-48 bg-card">
               <SelectValue placeholder="সর্ট করুন" />
             </SelectTrigger>
@@ -154,7 +224,7 @@ const Shop = () => {
         {/* Secondary row: featured toggle + active chips + clear */}
         <div className="flex flex-wrap items-center gap-2 mb-6">
           <button
-            onClick={() => setFeaturedOnly(f => !f)}
+            onClick={() => updateRouteParam('featured', featuredOnly ? null : '1')}
             className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm transition-all md:min-h-9 ${
               featuredOnly
                 ? 'border-secondary bg-secondary/15 text-secondary font-medium'
@@ -168,7 +238,7 @@ const Shop = () => {
           {tagFilter && (
             <span className="flex min-h-11 items-center gap-1 rounded-full bg-secondary/15 px-3 text-sm font-medium text-secondary md:min-h-9">
               #{tagFilter}
-              <button aria-label={`${tagFilter} ট্যাগ মুছুন`} onClick={() => setTagFilter('')} className="ml-0.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
+              <button aria-label={`${tagFilter} ট্যাগ মুছুন`} onClick={() => updateRouteParam('tag', null)} className="ml-0.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
                 <X size={13} />
               </button>
             </span>
@@ -195,7 +265,7 @@ const Shop = () => {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-10">
-                <Button aria-label="আগের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                <Button aria-label="আগের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => updateRouteParam('page', page > 2 ? String(page - 1) : null, { resetPage: false })} disabled={page === 1}>
                   <ChevronLeft size={16} />
                 </Button>
 
@@ -207,7 +277,7 @@ const Shop = () => {
                       key={item}
                       size="sm"
                       variant={page === item ? 'default' : 'outline'}
-                      onClick={() => setPage(item as number)}
+                      onClick={() => updateRouteParam('page', item === 1 ? null : String(item), { resetPage: false })}
                       className={`min-w-11 ${page === item ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : ''}`}
                     >
                       {formatBanglaNumber(item)}
@@ -215,7 +285,7 @@ const Shop = () => {
                   )
                 )}
 
-                <Button aria-label="পরের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+                <Button aria-label="পরের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => updateRouteParam('page', String(page + 1), { resetPage: false })} disabled={page === totalPages}>
                   <ChevronRight size={16} />
                 </Button>
               </div>

@@ -22,7 +22,7 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (name: string, phoneNumber: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (fullName: string, phoneNumber: string) => Promise<void>;
@@ -59,10 +59,12 @@ export function AuthProvider({
     setSession(nextSession);
     if (!nextSession) {
       setUser(null);
-      return;
+      return null;
     }
     try {
-      setUser(await loadProfile(nextSession.access_token));
+      const profile = await loadProfile(nextSession.access_token);
+      setUser(profile);
+      return profile;
     } catch (error) {
       const metadata = nextSession.user.user_metadata ?? {};
       const fullName = typeof metadata.full_name === 'string' ? metadata.full_name.trim() : '';
@@ -75,8 +77,9 @@ export function AuthProvider({
       ) {
         try {
           await completeProfile(nextSession.access_token);
-          setUser(await loadProfile(nextSession.access_token));
-          return;
+          const profile = await loadProfile(nextSession.access_token);
+          setUser(profile);
+          return profile;
         } catch {
           await client.auth.signOut();
           setSession(null);
@@ -121,7 +124,9 @@ export function AuthProvider({
   const login = useCallback(async (email: string, password: string) => {
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    await resolveSession(data.session);
+    const profile = await resolveSession(data.session);
+    if (!profile) throw new Error('Login did not create an authenticated session.');
+    return profile;
   }, [client, resolveSession]);
 
   const register = useCallback(async (

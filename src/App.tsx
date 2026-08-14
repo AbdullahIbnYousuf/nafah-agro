@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/contexts/CartContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import GuestRoute from "@/components/GuestRoute";
+import RouteEffects from "@/components/RouteEffects";
 import { useAuth } from "@/contexts/AuthContext";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -12,6 +14,16 @@ const Shop = lazy(() => import("./pages/Shop"));
 const ProductDetails = lazy(() => import("./pages/ProductDetails"));
 const Cart = lazy(() => import("./pages/Cart"));
 const Admin = lazy(() => import("./pages/Admin"));
+const AdminDashboard = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminDashboard })));
+const AdminProducts = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminProducts })));
+const AdminProductCreate = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminProductCreate })));
+const AdminProductEdit = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminProductEdit })));
+const AdminProductVariants = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminProductVariants })));
+const AdminCategories = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminCategories })));
+const AdminInventory = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminInventory })));
+const AdminPhysicalSales = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminPhysicalSales })));
+const AdminOrders = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminOrders })));
+const AdminNotFound = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminNotFound })));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const CustomerProfile = lazy(() => import("./pages/CustomerProfile"));
@@ -35,14 +47,15 @@ const App = () => (
         <CartProvider>
           <Sonner />
           <BrowserRouter>
+            <RouteEffects />
             <InvitePasswordRedirect />
             <Suspense fallback={<PageLoading />}><Routes>
               <Route path="/" element={<Index />} />
               <Route path="/shop" element={<Shop />} />
               <Route path="/products/:slug" element={<ProductDetails />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+              <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+              <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
               <Route
                 path="/profile"
                 element={
@@ -58,7 +71,20 @@ const App = () => (
                     <Admin />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="products" element={<AdminProducts />}>
+                  <Route path="new" element={<AdminProductCreate />} />
+                  <Route path=":productId/edit" element={<AdminProductEdit />} />
+                  <Route path=":productId/variants" element={<AdminProductVariants />} />
+                </Route>
+                <Route path="categories" element={<AdminCategories />} />
+                <Route path="inventory" element={<AdminInventory />} />
+                <Route path="physical-sales" element={<AdminPhysicalSales />} />
+                <Route path="orders" element={<AdminOrders />} />
+                <Route path="*" element={<AdminNotFound />} />
+              </Route>
               <Route path="*" element={<NotFound />} />
             </Routes></Suspense>
           </BrowserRouter>

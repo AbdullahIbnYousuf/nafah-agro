@@ -565,6 +565,7 @@ describe("GET /api/v1/foundation", () => {
         deleteCategory: vi.fn(async (id: string) => ({ id })),
         listProducts: vi.fn(),
         getProductBySlug: vi.fn(),
+        getProductById: vi.fn(async (id: string) => ({ id, name: "Admin product" })),
         createProduct: vi.fn(),
         updateProduct: vi.fn(),
         deleteProduct: vi.fn(async (id: string) => ({ id })),
@@ -585,6 +586,18 @@ describe("GET /api/v1/foundation", () => {
 
       expect(response.status).toBe(201);
       expect(catalog.createCategory).toHaveBeenCalledWith({ name: "Dairy", slug: "dairy" });
+    });
+
+    it("allows an OWNER to load an inactive-capable product by ID", async () => {
+      const catalog = catalogStub();
+      const productId = "20000000-0000-4000-8000-000000000001";
+      const response = await request(createProtectedApp(ownerProfile, 60, catalog))
+        .get(`/api/v1/admin/products/${productId}`)
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual({ id: productId, name: "Admin product" });
+      expect(catalog.getProductById).toHaveBeenCalledWith(productId);
     });
 
     it("allows an OWNER to delete unused catalog records", async () => {
@@ -645,6 +658,14 @@ describe("GET /api/v1/foundation", () => {
         .set("Authorization", "Bearer valid-token");
       expect(deleteResponse.status).toBe(403);
       expect(catalog.deleteProduct).not.toHaveBeenCalled();
+
+      const readResponse = await request(
+        createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, catalog),
+      )
+        .get("/api/v1/admin/products/20000000-0000-4000-8000-000000000001")
+        .set("Authorization", "Bearer valid-token");
+      expect(readResponse.status).toBe(403);
+      expect(catalog.getProductById).not.toHaveBeenCalled();
     });
   });
 

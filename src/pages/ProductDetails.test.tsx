@@ -55,7 +55,7 @@ vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }
 describe('product variant selection', () => {
   it('uses one variant selector for package, price, SKU, and cart identity', async () => {
     render(
-      <MemoryRouter initialEntries={['/products/premium-miniket-rice']}>
+      <MemoryRouter initialEntries={[{ pathname: '/products/premium-miniket-rice', state: { from: '/shop?category=rice&page=2' } }]}>
         <Routes>
           <Route path="/products/:slug" element={<ProductDetails />} />
         </Routes>
@@ -63,6 +63,8 @@ describe('product variant selection', () => {
     );
 
     expect(await screen.findByText('Premium Miniket Rice')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'পিছনে যান' })).toHaveAttribute('href', '/shop?category=rice&page=2');
+    await waitFor(() => expect(document.title).toBe('Premium Miniket Rice | নাফাহ এগ্রো'));
     expect(screen.getByText('বিকল্প নির্বাচন করুন')).toBeInTheDocument();
     expect(screen.queryByText(/^Weight:/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '5 kg · ৳620' })).toHaveClass('min-h-11');
@@ -81,5 +83,14 @@ describe('product variant selection', () => {
       quantity: 1,
       unitPrice: 1180,
     }));
+  }, 10_000);
+
+  it('uses the shop as a safe fallback when opened directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/products/premium-miniket-rice']}>
+        <Routes><Route path="/products/:slug" element={<ProductDetails />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('link', { name: 'পিছনে যান' })).toHaveAttribute('href', '/shop');
   });
 });
