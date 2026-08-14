@@ -1,10 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, Loader2, Package, Plus, Settings2, Store, Tag, Trash2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, ImageIcon, Loader2, Package, Plus, Settings2, Store, Tag, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   createCategory,
@@ -93,6 +94,9 @@ export function AdminProducts() {
   const [deleteTarget, setDeleteTarget] = useState<Product>();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [statusTarget, setStatusTarget] = useState<{ product: Product; nextIsActive: boolean }>();
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState('');
   const navigate = useNavigate();
   const load = useCallback(() => {
     setLoading(true);
@@ -117,14 +121,50 @@ export function AdminProducts() {
       setDeleting(false);
     }
   }
+  async function confirmStatusChange() {
+    if (!statusTarget) return;
+    setStatusSaving(true);
+    setStatusError('');
+    try {
+      const updated = await setProductActive(statusTarget.product.id, statusTarget.nextIsActive);
+      setProducts((current) => current.map((item) => item.id === updated.id ? updated : item));
+      toast.success(statusTarget.nextIsActive ? 'পণ্য সক্রিয় করা হয়েছে' : 'পণ্য নিষ্ক্রিয় করা হয়েছে');
+      setStatusTarget(undefined);
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : 'পণ্যের অবস্থা পরিবর্তন হয়নি');
+    } finally {
+      setStatusSaving(false);
+    }
+  }
   if (loading) return <Loading />;
   return <div>
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">পণ্য</h1><Button onClick={() => navigate('/admin/products/new')}><Plus size={16} className="mr-2" />নতুন পণ্য</Button></div>
     <Outlet context={{ categories, reloadProducts: load } satisfies ProductsOutletContext} />
     <div className="bg-card border rounded-lg overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">নাম</th><th className="text-left p-3">ডিফল্ট SKU</th><th className="text-right p-3">দাম</th><th className="text-center p-3">ভ্যারিয়েন্ট</th><th className="text-center p-3">অবস্থা</th><th className="p-3" /></tr></thead><tbody>
-      {products.map((product) => <tr key={product.id} className={`border-t ${product.isActive === false ? 'opacity-60' : ''}`}><td className="p-3 font-medium">{product.name}</td><td className="p-3">{product.sku ?? 'SKU নেই'}</td><td className="p-3 text-right">৳{product.price}</td><td className="p-3 text-center">{product.variants?.length ?? 0}</td><td className="p-3 text-center">{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</td><td className="whitespace-nowrap p-3 text-right"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button><Button type="button" size="sm" variant={product.isActive === false ? 'default' : 'outline'} onClick={() => void setProductActive(product.id, product.isActive === false).then(load).catch(() => toast.error('পণ্যের অবস্থা পরিবর্তন হয়নি'))}>{product.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button>{product.canDelete && <Button type="button" size="sm" variant="destructive" className="ml-2" onClick={() => { setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</td></tr>)}
+      {products.map((product) => {
+        const changingStatus = statusSaving && statusTarget?.product.id === product.id;
+        return <tr key={product.id} className={`border-t ${product.isActive === false ? 'opacity-60' : ''}`}>
+          <td className="p-3"><div className="flex min-w-52 items-center gap-3"><ProductThumbnail key={product.images[0] ?? 'no-image'} product={product} /><div className="min-w-0"><div className="break-words font-medium">{product.name}</div><Link to={`/products/${encodeURIComponent(product.slug)}`} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-8 items-center gap-1 text-xs text-secondary hover:underline">গ্রাহক পেজ <ExternalLink size={13} aria-hidden="true" /></Link></div></div></td>
+          <td className="p-3">{product.sku ?? 'SKU নেই'}</td>
+          <td className="p-3 text-right">৳{product.price}</td>
+          <td className="p-3 text-center">{product.variants?.length ?? 0}</td>
+          <td className="p-3"><div className="flex min-w-28 items-center justify-center gap-2"><Switch checked={product.isActive !== false} disabled={changingStatus} onCheckedChange={(checked) => { setStatusError(''); setStatusTarget({ product, nextIsActive: checked }); }} aria-label={`${product.name} সক্রিয় অবস্থা`} /><span>{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</span>{changingStatus && <Loader2 size={15} className="animate-spin" aria-label="অবস্থা সংরক্ষণ হচ্ছে" />}</div></td>
+          <td className="whitespace-nowrap p-3 text-right"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button>{product.canDelete && <Button type="button" size="sm" variant="destructive" className="ml-2" onClick={() => { setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</td>
+        </tr>;
+      })}
     </tbody></table></div>
+    <Dialog open={Boolean(statusTarget)} onOpenChange={(open) => { if (!open && !statusSaving) { setStatusTarget(undefined); setStatusError(''); } }}><DialogContent><DialogHeader><DialogTitle>{statusTarget?.nextIsActive ? 'পণ্য সক্রিয় করুন' : 'পণ্য নিষ্ক্রিয় করুন'}</DialogTitle><DialogDescription>{statusTarget?.nextIsActive ? `${statusTarget.product.name} সক্রিয় করলে এর ক্যাটাগরি সক্রিয় থাকা সাপেক্ষে পণ্যটি গ্রাহকের দোকান ও সরাসরি পেজে দেখা যাবে। ক্যাটাগরি নিষ্ক্রিয় থাকলে পণ্যটি এখনো লুকানো থাকবে।` : `${statusTarget?.product.name} নিষ্ক্রিয় করলে পণ্যটি গ্রাহকের দোকান, ক্যাটাগরি ফিল্টার ও সরাসরি পেজ থেকে লুকানো হবে। স্টক, দাম, অর্ডার ও ইতিহাস মুছে যাবে না।`}</DialogDescription></DialogHeader>{statusError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{statusError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setStatusTarget(undefined); setStatusError(''); }} disabled={statusSaving}>বাতিল</Button><Button onClick={() => void confirmStatusChange()} disabled={statusSaving}>{statusSaving && <Loader2 size={15} className="mr-2 animate-spin" />}{statusSaving ? 'সংরক্ষণ হচ্ছে…' : statusTarget?.nextIsActive ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleting) { setDeleteTarget(undefined); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>অব্যবহৃত পণ্য মুছুন</DialogTitle><DialogDescription>{deleteTarget?.name} এবং এর ভ্যারিয়েন্ট ও প্রাথমিক মূল্য রেকর্ড স্থায়ীভাবে মুছে যাবে। স্টক, ইনভেন্টরি, অর্ডার বা মূল্য পরিবর্তনের ইতিহাস থাকলে মুছবে না। Cloudinary-তে থাকা ছবি স্বয়ংক্রিয়ভাবে মুছবে না।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(undefined); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog>
+  </div>;
+}
+
+function ProductThumbnail({ product }: { product: Product }) {
+  const [failed, setFailed] = useState(false);
+  const image = product.images[0];
+  return <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+    {image && !failed
+      ? <img src={image} alt={`${product.name} পণ্যের ছবি`} className="h-full w-full object-cover" loading="lazy" onError={() => setFailed(true)} />
+      : <ImageIcon size={20} className="text-muted-foreground" aria-label="পণ্যের ছবি নেই" />}
   </div>;
 }
 
@@ -192,6 +232,14 @@ export function AdminCategories() {
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [statusTarget, setStatusTarget] = useState<{ category: Category; nextIsActive: boolean } | null>(null);
+  const [statusProducts, setStatusProducts] = useState<Product[]>([]);
+  const [statusProductTotal, setStatusProductTotal] = useState(0);
+  const [statusImpactLoading, setStatusImpactLoading] = useState(false);
+  const [statusImpactFailed, setStatusImpactFailed] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState('');
+  const statusRequestId = useRef(0);
   const load = useCallback(() => { void getAdminCategories().then(setItems).catch(() => toast.error('ক্যাটাগরি লোড হয়নি')); }, []);
   useEffect(load, [load]);
   async function add() {
@@ -238,9 +286,50 @@ export function AdminCategories() {
       setDeleting(false);
     }
   }
-  return <div><h1 className="text-2xl font-bold mb-6">ক্যাটাগরি</h1><div className="mb-6 grid max-w-lg gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="নতুন ক্যাটাগরি" /><Button onClick={() => void add()}>যোগ করুন</Button></div><div className="space-y-2 max-w-2xl">
-    {items.map((item) => <div key={item.id} className={`flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between ${item.isActive === false ? 'opacity-60' : ''}`}><div className="min-w-0"><strong className="break-words">{item.name}</strong><div className="break-all text-xs text-muted-foreground">/{item.slug} · {item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</div></div><div className="flex flex-wrap items-center justify-end gap-2"><button type="button" className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted" aria-label="নাম বদলান" onClick={() => openEdit(item)}><Edit size={16} /></button><Button type="button" size="sm" variant={item.isActive === false ? 'default' : 'outline'} onClick={() => void setCategoryActive(item.id, item.isActive === false).then(load).catch(() => toast.error('ক্যাটাগরির অবস্থা পরিবর্তন হয়নি'))}>{item.isActive === false ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button>{item.canDelete && <Button type="button" size="sm" variant="destructive" onClick={() => { setDeleteError(''); setDeleteTarget(item); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</div></div>)}
-  </div><Dialog open={editing !== null} onOpenChange={(open) => { if (!open && !saving) setEditing(null); }}><DialogContent><DialogHeader><DialogTitle>ক্যাটাগরির নাম পরিবর্তন</DialogTitle><DialogDescription>নাম পরিবর্তন করলে URL স্লাগও নতুন নাম অনুযায়ী বদলাবে।</DialogDescription></DialogHeader><div><Label htmlFor="category-edit-name">ক্যাটাগরির নাম</Label><Input id="category-edit-name" className="mt-2" value={editName} onChange={(event) => { setEditName(event.target.value); setEditError(''); }} aria-invalid={Boolean(editError)} aria-describedby={editError ? 'category-edit-error' : undefined} />{editError && <p id="category-edit-error" role="alert" className="mt-2 text-sm text-destructive">{editError}</p>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={saving}>বন্ধ করুন</Button><Button type="button" onClick={() => void saveEdit()} disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</Button></DialogFooter></DialogContent></Dialog><Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) { setDeleteTarget(null); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>খালি ক্যাটাগরি মুছুন</DialogTitle><DialogDescription>{deleteTarget?.name} স্থায়ীভাবে মুছে যাবে। কোনো পণ্য থাকলে ক্যাটাগরি মুছবে না, শুধু নিষ্ক্রিয় করা যাবে।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog></div>;
+  function openStatusChange(category: Category, nextIsActive: boolean) {
+    const requestId = ++statusRequestId.current;
+    setStatusTarget({ category, nextIsActive });
+    setStatusProducts([]);
+    setStatusProductTotal(0);
+    setStatusError('');
+    setStatusImpactLoading(true);
+    setStatusImpactFailed(false);
+    void getAdminProducts({ category: category.slug, limit: 100 })
+      .then((page) => {
+        if (requestId !== statusRequestId.current) return;
+        setStatusProducts(page.data);
+        setStatusProductTotal(page.total);
+      })
+      .catch((error) => {
+        if (requestId !== statusRequestId.current) return;
+        setStatusImpactFailed(true);
+        setStatusError(error instanceof Error ? error.message : 'প্রভাবিত পণ্যের তালিকা লোড হয়নি');
+      })
+      .finally(() => { if (requestId === statusRequestId.current) setStatusImpactLoading(false); });
+  }
+  async function confirmStatusChange() {
+    if (!statusTarget) return;
+    setStatusSaving(true);
+    setStatusError('');
+    try {
+      const updated = await setCategoryActive(statusTarget.category.id, statusTarget.nextIsActive);
+      setItems((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+      toast.success(statusTarget.nextIsActive ? 'ক্যাটাগরি সক্রিয় করা হয়েছে' : 'ক্যাটাগরি নিষ্ক্রিয় করা হয়েছে');
+      statusRequestId.current += 1;
+      setStatusTarget(null);
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : 'ক্যাটাগরির অবস্থা পরিবর্তন হয়নি');
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+  const activeImpactCount = statusProducts.filter((product) => product.isActive !== false).length;
+  return <div><h1 className="text-2xl font-bold mb-6">ক্যাটাগরি</h1><div className="mb-6 grid max-w-lg gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="নতুন ক্যাটাগরি" /><Button onClick={() => void add()}>যোগ করুন</Button></div><div className="space-y-2 max-w-3xl">
+    {items.map((item) => {
+      const changingStatus = statusTarget?.category.id === item.id && (statusImpactLoading || statusSaving);
+      return <div key={item.id} className={`flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between ${item.isActive === false ? 'opacity-60' : ''}`}><div className="min-w-0"><strong className="break-words">{item.name}</strong><div className="break-all text-xs text-muted-foreground">/{item.slug} · {item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</div>{item.isActive === false ? <span className="mt-1 inline-flex min-h-8 items-center text-xs text-muted-foreground">গ্রাহকের দোকানে লুকানো</span> : <Link to={`/shop?category=${encodeURIComponent(item.slug)}`} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex min-h-8 items-center gap-1 text-xs text-secondary hover:underline">এই ক্যাটাগরির পণ্য দেখুন <ExternalLink size={13} aria-hidden="true" /></Link>}</div><div className="flex flex-wrap items-center justify-end gap-3"><div className="flex items-center gap-2"><Switch checked={item.isActive !== false} disabled={changingStatus} onCheckedChange={(checked) => openStatusChange(item, checked)} aria-label={`${item.name} সক্রিয় অবস্থা`} /><span className="text-sm">{item.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</span>{changingStatus && <Loader2 size={15} className="animate-spin" aria-label="প্রভাব যাচাই বা অবস্থা সংরক্ষণ হচ্ছে" />}</div><button type="button" className="flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted" aria-label="নাম বদলান" onClick={() => openEdit(item)}><Edit size={16} /></button>{item.canDelete && <Button type="button" size="sm" variant="destructive" onClick={() => { setDeleteError(''); setDeleteTarget(item); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</div></div>;
+    })}
+  </div><Dialog open={statusTarget !== null} onOpenChange={(open) => { if (!open && !statusSaving) { statusRequestId.current += 1; setStatusTarget(null); setStatusError(''); } }}><DialogContent><DialogHeader><DialogTitle>{statusTarget?.nextIsActive ? 'ক্যাটাগরি সক্রিয় করুন' : 'ক্যাটাগরি নিষ্ক্রিয় করুন'}</DialogTitle><DialogDescription>{statusTarget?.nextIsActive ? `${statusTarget.category.name} সক্রিয় করলে এর সক্রিয় পণ্যগুলো আবার গ্রাহকের দোকান ও ক্যাটাগরি পেজে দেখা যাবে। আলাদাভাবে নিষ্ক্রিয় পণ্য নিষ্ক্রিয়ই থাকবে।` : `${statusTarget?.category.name} নিষ্ক্রিয় করলে এর সব পণ্য গ্রাহকের দোকান থেকে লুকানো হবে। পণ্য, স্টক, দাম, অর্ডার ও ইতিহাস মুছে যাবে না।`}</DialogDescription></DialogHeader>{statusImpactLoading ? <div className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground"><Loader2 size={16} className="animate-spin" />প্রভাবিত পণ্য যাচাই হচ্ছে…</div> : !statusImpactFailed && <div className="rounded-md border bg-muted/30 p-3"><p className="text-sm font-medium">মোট পণ্য: {statusProductTotal} · দেখানো তালিকায় সক্রিয়: {activeImpactCount}</p>{statusProducts.length > 0 ? <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-muted-foreground">{statusProducts.slice(0, 10).map((product) => <li key={product.id} className="flex justify-between gap-3"><span className="break-words">{product.name}</span><span className="shrink-0">{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</span></li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">এই ক্যাটাগরিতে কোনো পণ্য নেই।</p>}{statusProductTotal > 10 && <p className="mt-2 text-xs text-muted-foreground">আরও {statusProductTotal - 10}টি পণ্য আছে।</p>}</div>}{statusError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{statusError}</p>}<DialogFooter><Button variant="outline" onClick={() => { statusRequestId.current += 1; setStatusTarget(null); setStatusError(''); }} disabled={statusSaving}>বাতিল</Button><Button onClick={() => void confirmStatusChange()} disabled={statusImpactLoading || statusImpactFailed || statusSaving}>{statusSaving && <Loader2 size={15} className="mr-2 animate-spin" />}{statusSaving ? 'সংরক্ষণ হচ্ছে…' : statusTarget?.nextIsActive ? 'সক্রিয় করুন' : 'নিষ্ক্রিয় করুন'}</Button></DialogFooter></DialogContent></Dialog><Dialog open={editing !== null} onOpenChange={(open) => { if (!open && !saving) setEditing(null); }}><DialogContent><DialogHeader><DialogTitle>ক্যাটাগরির নাম পরিবর্তন</DialogTitle><DialogDescription>নাম পরিবর্তন করলে URL স্লাগও নতুন নাম অনুযায়ী বদলাবে।</DialogDescription></DialogHeader><div><Label htmlFor="category-edit-name">ক্যাটাগরির নাম</Label><Input id="category-edit-name" className="mt-2" value={editName} onChange={(event) => { setEditName(event.target.value); setEditError(''); }} aria-invalid={Boolean(editError)} aria-describedby={editError ? 'category-edit-error' : undefined} />{editError && <p id="category-edit-error" role="alert" className="mt-2 text-sm text-destructive">{editError}</p>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={saving}>বন্ধ করুন</Button><Button type="button" onClick={() => void saveEdit()} disabled={saving}>{saving ? 'সংরক্ষণ হচ্ছে…' : 'সংরক্ষণ করুন'}</Button></DialogFooter></DialogContent></Dialog><Dialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) { setDeleteTarget(null); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>খালি ক্যাটাগরি মুছুন</DialogTitle><DialogDescription>{deleteTarget?.name} স্থায়ীভাবে মুছে যাবে। কোনো পণ্য থাকলে ক্যাটাগরি মুছবে না, শুধু নিষ্ক্রিয় করা যাবে।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog></div>;
 }
 
 export function AdminInventory() {

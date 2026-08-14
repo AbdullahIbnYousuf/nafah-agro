@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Admin, {
@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   getAdminCategories: vi.fn(),
   deleteUnusedProduct: vi.fn(),
   deleteUnusedCategory: vi.fn(),
+  setProductActive: vi.fn(),
+  setCategoryActive: vi.fn(),
 }));
 
 vi.mock('@/lib/api', async (importOriginal) => ({
@@ -25,6 +27,8 @@ vi.mock('@/lib/api', async (importOriginal) => ({
   getAdminCategories: mocks.getAdminCategories,
   deleteUnusedProduct: mocks.deleteUnusedProduct,
   deleteUnusedCategory: mocks.deleteUnusedCategory,
+  setProductActive: mocks.setProductActive,
+  setCategoryActive: mocks.setCategoryActive,
 }));
 vi.mock('@/components/AnalyticsDashboard', () => ({ default: () => <div>Analytics</div> }));
 vi.mock('@/components/AddProductForm', () => ({
@@ -42,7 +46,7 @@ const product = {
   description: '',
   price: 100,
   categoryId: '20000000-0000-4000-8000-000000000001',
-  images: [],
+  images: ['https://example.com/unused-product.jpg'],
   youtubeLinks: [],
   stock: 0,
   featured: false,
@@ -62,6 +66,8 @@ describe('safe catalog deletion controls', () => {
     ]);
     mocks.deleteUnusedProduct.mockResolvedValue({ id: product.id });
     mocks.deleteUnusedCategory.mockResolvedValue({ id: product.categoryId });
+    mocks.setProductActive.mockResolvedValue({ ...product, isActive: false });
+    mocks.setCategoryActive.mockResolvedValue({ id: product.categoryId, name: 'Empty Category', slug: 'empty-category', isActive: false, canDelete: true });
   });
 
   function renderAdmin(path: string) {
@@ -103,6 +109,39 @@ describe('safe catalog deletion controls', () => {
     expect(screen.getByRole('dialog', { name: 'খালি ক্যাটাগরি মুছুন' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'স্থায়ীভাবে মুছুন' }));
     await waitFor(() => expect(mocks.deleteUnusedCategory).toHaveBeenCalledWith(product.categoryId));
+  });
+
+  it('shows product thumbnails, customer URLs, and confirms state changes', async () => {
+    let resolveChange!: (value: typeof product) => void;
+    mocks.setProductActive.mockImplementationOnce(() => new Promise((resolve) => { resolveChange = resolve; }));
+    renderAdmin('/admin/products');
+
+    expect(await screen.findByRole('img', { name: 'Unused Product পণ্যের ছবি' })).toHaveAttribute('src', product.images[0]);
+    expect(screen.getByRole('link', { name: /গ্রাহক পেজ/ })).toHaveAttribute('href', '/products/unused-product');
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' }));
+    expect(screen.getByRole('dialog', { name: 'পণ্য নিষ্ক্রিয় করুন' })).toHaveTextContent('স্টক, দাম, অর্ডার ও ইতিহাস মুছে যাবে না');
+    expect(mocks.setProductActive).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'নিষ্ক্রিয় করুন' }));
+    await waitFor(() => expect(mocks.setProductActive).toHaveBeenCalledWith(product.id, false));
+    expect(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা', hidden: true })).toBeDisabled();
+    expect(screen.getByLabelText('অবস্থা সংরক্ষণ হচ্ছে')).toBeInTheDocument();
+    await act(async () => resolveChange({ ...product, isActive: false }));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' })).not.toBeChecked());
+  });
+
+  it('shows the category customer URL and affected products before changing state', async () => {
+    renderAdmin('/admin/categories');
+
+    expect(await screen.findByRole('link', { name: /এই ক্যাটাগরির পণ্য দেখুন/ })).toHaveAttribute('href', '/shop?category=empty-category');
+    fireEvent.click(screen.getByRole('switch', { name: 'Empty Category সক্রিয় অবস্থা' }));
+    const dialog = await screen.findByRole('dialog', { name: 'ক্যাটাগরি নিষ্ক্রিয় করুন' });
+    expect(dialog).toHaveTextContent('Unused Product');
+    expect(dialog).toHaveTextContent('সব পণ্য গ্রাহকের দোকান থেকে লুকানো হবে');
+    expect(mocks.getAdminProducts).toHaveBeenCalledWith({ category: 'empty-category', limit: 100 });
+    expect(mocks.setCategoryActive).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'নিষ্ক্রিয় করুন' }));
+    await waitFor(() => expect(mocks.setCategoryActive).toHaveBeenCalledWith(product.categoryId, false));
   });
 
   it('opens product workflows from direct URLs and closes back to the list', async () => {
