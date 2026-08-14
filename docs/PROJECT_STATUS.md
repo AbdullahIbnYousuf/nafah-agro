@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-08
+Last updated: 2026-08-14
 
 ## Summary
 
@@ -54,7 +54,9 @@ is not approved for production until the external gates in this document and
 - Added a separately confirmed, non-destructive dashboard demo refresh that
   moves only three known demo-order timestamps into the current reporting period.
 - Improved OWNER analytics with full Bangla Gregorian month names, full numeric
-  chart axes, a calendar-year preset, and client-side custom-range validation.
+  chart axes, a calendar-year preset, and client-side range validation. Preset
+  buttons now populate always-visible editable start/end dates; manual edits use
+  the same controls, and one-day ranges omit the unhelpful trend graph.
 - Removed unnecessary read-only Prisma transactions from catalog/order lists,
   avoiding transaction-start failures under concurrent page loads. Stock and
   order writes retain their transactional guarantees.
@@ -72,7 +74,7 @@ is not approved for production until the external gates in this document and
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 184 tests passed across 23 files. This includes analytics
+- `npm test -- --run`: 185 tests passed across 23 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
   database-integrity source checks, unused owner/catalog deletion safeguards,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -34,13 +34,14 @@ import type {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const presets: Array<{ value: AnalyticsPreset; label: string }> = [
+type QuickPreset = Exclude<AnalyticsPreset, 'custom'>;
+
+const presets: Array<{ value: QuickPreset; label: string }> = [
   { value: 'today', label: 'আজ' },
   { value: 'yesterday', label: 'গতকাল' },
   { value: 'week', label: 'এই সপ্তাহ' },
   { value: 'month', label: 'এই মাস' },
   { value: 'year', label: 'এই বছর' },
-  { value: 'custom', label: 'নিজস্ব সময়সীমা' },
 ];
 
 const sourceLabels: Record<OrderSource, string> = {
@@ -61,6 +62,35 @@ const graphDateFormatter = new Intl.DateTimeFormat('bn-BD-u-ca-gregory', {
   day: 'numeric', month: 'long',
 });
 const CUSTOM_RANGE_MAX_DAYS = 366;
+const DAY_MS = 86_400_000;
+
+function addDays(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function presetRange(preset: QuickPreset, today: string) {
+  if (preset === 'today') return { from: today, to: today };
+  if (preset === 'yesterday') {
+    const yesterday = addDays(today, -1);
+    return { from: yesterday, to: yesterday };
+  }
+  if (preset === 'week') {
+    const weekday = new Date(`${today}T00:00:00.000Z`).getUTCDay();
+    const from = addDays(today, -weekday);
+    return { from, to: addDays(from, 6) };
+  }
+  if (preset === 'month') {
+    const [year, month] = today.split('-').map(Number);
+    return {
+      from: `${today.slice(0, 7)}-01`,
+      to: new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10),
+    };
+  }
+  const year = today.slice(0, 4);
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
+}
 
 function money(value: number | null) {
   return value === null ? 'প্রযোজ্য নয়' : `৳${banglaNumber.format(value)}`;
@@ -83,7 +113,7 @@ function customRangeError(range: { from: string; to: string }) {
   if (range.from > range.to) return 'শেষের তারিখ শুরুর তারিখের আগে হতে পারবে না।';
   const days = Math.floor(
     (Date.parse(`${range.to}T00:00:00.000Z`) - Date.parse(`${range.from}T00:00:00.000Z`))
-      / 86_400_000,
+      / DAY_MS,
   ) + 1;
   return days > CUSTOM_RANGE_MAX_DAYS ? 'নিজস্ব সময়সীমা সর্বোচ্চ ৩৬৬ দিন হতে পারে।' : '';
 }
@@ -176,6 +206,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
 }
 
 function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
+  const showTrend = data.range.current.from !== data.range.current.to;
   const primaryMetrics = [
     { label: 'মোট স্বীকৃত বিক্রয়', metric: data.summary.recognizedSales, icon: CircleDollarSign },
     { label: 'পণ্য আয়', metric: data.summary.productRevenue, icon: ShoppingBag },
@@ -198,7 +229,7 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
       <OperationalCard label="স্টক শেষ ভ্যারিয়েন্ট" value={data.summary.outOfStockVariantCount} detail="উপলভ্য স্টক শূন্য" icon={Boxes} />
     </div>
 
-    <section className="rounded-xl border bg-card p-4 sm:p-5">
+    {showTrend ? <section className="rounded-xl border bg-card p-4 sm:p-5">
       <div className="mb-4"><h2 className="text-lg font-bold">দৈনিক বিক্রয় ও মোট লাভ</h2><p className="text-sm text-muted-foreground">ফেরত অর্ডার ফেরতের তারিখে ঋণাত্মক হিসেবে দেখানো হয়েছে।</p></div>
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
@@ -213,7 +244,7 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </section>
+    </section> : <p className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">এক দিনের জন্য ট্রেন্ড গ্রাফ দেখানো হয় না।</p>}
 
     <section className="rounded-xl border bg-card p-4 sm:p-5">
       <h2 className="mb-4 text-lg font-bold">উৎস অনুযায়ী বিক্রয়</h2>
@@ -249,18 +280,40 @@ function StockAlertList({ title, rows, empty }: { title: string; rows: Analytics
 
 function AnalyticsDashboardContent() {
   const today = new Date(Date.now() + 6 * 60 * 60 * 1_000).toISOString().slice(0, 10);
-  const [preset, setPreset] = useState<AnalyticsPreset>('month');
-  const [draftRange, setDraftRange] = useState({ from: today, to: today });
-  const [customRange, setCustomRange] = useState(draftRange);
+  const [activePreset, setActivePreset] = useState<QuickPreset | null>('month');
+  const [draftRange, setDraftRange] = useState(() => presetRange('month', today));
+  const [queryInput, setQueryInput] = useState<{
+    preset: AnalyticsPreset;
+    from?: string;
+    to?: string;
+  }>({ preset: 'month' });
   const rangeError = customRangeError(draftRange);
-  const queryInput = useMemo(() => preset === 'custom'
-    ? { preset, ...customRange }
-    : { preset }, [customRange, preset]);
   const query = useQuery({
     queryKey: ['analytics-dashboard', queryInput],
     queryFn: () => getAnalyticsDashboard(queryInput),
     staleTime: 60_000,
   });
+
+  useEffect(() => {
+    if (query.data && activePreset !== null) setDraftRange(query.data.range.current);
+  }, [activePreset, query.data]);
+
+  function selectPreset(preset: QuickPreset) {
+    setActivePreset(preset);
+    setDraftRange(presetRange(preset, today));
+    setQueryInput({ preset });
+  }
+
+  function editRange(field: 'from' | 'to', value: string) {
+    setActivePreset(null);
+    setDraftRange((current) => ({ ...current, [field]: value }));
+  }
+
+  function applyRange() {
+    if (rangeError) return;
+    setActivePreset(null);
+    setQueryInput({ preset: 'custom', ...draftRange });
+  }
 
   return <div>
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -269,9 +322,9 @@ function AnalyticsDashboardContent() {
     </div>
 
     <div className="mb-5 rounded-xl border bg-card p-3 sm:p-4">
-      <div className="flex flex-wrap gap-2">{presets.map((item) => <Button key={item.value} type="button" size="sm" variant={preset === item.value ? 'default' : 'outline'} onClick={() => setPreset(item.value)}>{item.label}</Button>)}</div>
-      {preset === 'custom' && <div className="mt-3"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"><label className="text-sm">তারিখ থেকে<Input type="date" value={draftRange.from} onChange={(event) => setDraftRange((current) => ({ ...current, from: event.target.value }))} /></label><label className="text-sm">তারিখ পর্যন্ত<Input type="date" value={draftRange.to} onChange={(event) => setDraftRange((current) => ({ ...current, to: event.target.value }))} /></label><Button type="button" disabled={Boolean(rangeError)} onClick={() => setCustomRange(draftRange)}>প্রয়োগ করুন</Button></div>{rangeError && <p role="alert" className="mt-2 text-xs text-destructive">{rangeError}</p>}</div>}
-      {query.data && <p className="mt-3 text-xs text-muted-foreground">বর্তমান: {dateLabel(query.data.range.current.from)} – {dateLabel(query.data.range.current.to)} · তুলনা: {dateLabel(query.data.range.previous.from)} – {dateLabel(query.data.range.previous.to)} · ঢাকা সময়</p>}
+      <div className="flex flex-wrap gap-2">{presets.map((item) => <Button key={item.value} type="button" size="sm" variant={activePreset === item.value ? 'default' : 'outline'} onClick={() => selectPreset(item.value)}>{item.label}</Button>)}</div>
+      <div className="mt-3"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"><label className="text-sm">তারিখ থেকে<Input type="date" value={draftRange.from} onChange={(event) => editRange('from', event.target.value)} /></label><label className="text-sm">তারিখ পর্যন্ত<Input type="date" value={draftRange.to} onChange={(event) => editRange('to', event.target.value)} /></label><Button type="button" disabled={Boolean(rangeError)} onClick={applyRange}>প্রয়োগ করুন</Button></div>{rangeError && <p role="alert" className="mt-2 text-xs text-destructive">{rangeError}</p>}</div>
+      {query.data && <p className="mt-3 text-xs text-muted-foreground">তুলনা: {dateLabel(query.data.range.previous.from)} থেকে {dateLabel(query.data.range.previous.to)} · ঢাকা সময়</p>}
     </div>
 
     {query.isLoading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-xl border bg-muted/50" />)}</div>}

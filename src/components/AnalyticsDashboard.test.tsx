@@ -69,20 +69,59 @@ const dashboard: AnalyticsDashboardData = {
 describe('analytics dashboard date controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getAnalyticsDashboard.mockResolvedValue(dashboard);
+    mocks.getAnalyticsDashboard.mockImplementation(async (input: {
+      preset: string;
+      from?: string;
+      to?: string;
+    }) => {
+      if (input.preset === 'today') {
+        return {
+          ...dashboard,
+          range: {
+            preset: 'today' as const,
+            current: { from: '2026-08-07', to: '2026-08-07' },
+            previous: { from: '2026-08-06', to: '2026-08-06' },
+          },
+        };
+      }
+      if (input.preset === 'year') {
+        return {
+          ...dashboard,
+          range: {
+            preset: 'year' as const,
+            current: { from: '2026-01-01', to: '2026-12-31' },
+            previous: { from: '2025-01-01', to: '2025-12-31' },
+          },
+        };
+      }
+      if (input.preset === 'custom' && input.from && input.to) {
+        return {
+          ...dashboard,
+          range: {
+            preset: 'custom' as const,
+            current: { from: input.from, to: input.to },
+            previous: { from: '2026-02-02', to: '2026-03-09' },
+          },
+        };
+      }
+      return dashboard;
+    });
   });
 
-  it('uses full Bangla Gregorian months, numeric axes, year, and validated custom ranges', async () => {
+  it('keeps editable dates visible, syncs presets, and validates manual ranges', async () => {
     render(<AnalyticsDashboard />);
 
-    expect(await screen.findByText(/১ আগস্ট, ২০২৬/)).toBeInTheDocument();
+    expect(await screen.findByLabelText('তারিখ থেকে')).toHaveValue('2026-08-01');
+    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-31');
+    expect(screen.queryByRole('button', { name: 'নিজস্ব সময়সীমা' })).not.toBeInTheDocument();
     expect(screen.getByTestId('graph-date')).toHaveTextContent('৭ আগস্ট');
     expect(screen.getByTestId('graph-amount')).toHaveTextContent('1,000');
 
     fireEvent.click(screen.getByRole('button', { name: 'এই বছর' }));
     await waitFor(() => expect(mocks.getAnalyticsDashboard).toHaveBeenCalledWith({ preset: 'year' }));
+    await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-01-01'));
+    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-12-31');
 
-    fireEvent.click(screen.getByRole('button', { name: 'নিজস্ব সময়সীমা' }));
     fireEvent.change(screen.getByLabelText('তারিখ থেকে'), { target: { value: '2026-03-10' } });
     fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-04-15' } });
     fireEvent.click(screen.getByRole('button', { name: 'প্রয়োগ করুন' }));
@@ -94,5 +133,18 @@ describe('analytics dashboard date controls', () => {
     fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-04-15' } });
     expect(screen.getByRole('button', { name: 'প্রয়োগ করুন' })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('সর্বোচ্চ ৩৬৬ দিন');
+  });
+
+  it('hides the trend graph when the selected range is one day', async () => {
+    render(<AnalyticsDashboard />);
+    expect(await screen.findByTestId('graph-date')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'আজ' }));
+
+    await waitFor(() => expect(mocks.getAnalyticsDashboard).toHaveBeenCalledWith({ preset: 'today' }));
+    expect(await screen.findByText('এক দিনের জন্য ট্রেন্ড গ্রাফ দেখানো হয় না।')).toBeInTheDocument();
+    expect(screen.queryByTestId('graph-date')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-07');
+    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-07');
   });
 });
