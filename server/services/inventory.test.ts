@@ -8,6 +8,7 @@ import {
   stockAdjustmentSchema,
 } from "../schemas/inventory.js";
 import { createInventoryService } from "./inventory.js";
+import { SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
 
 const OWNER_ID = "4cd56ef4-56d8-4a22-92fe-887e6f601de6";
 const VARIANT_A = "10000000-0000-4000-8000-000000000001";
@@ -165,6 +166,7 @@ function createInMemoryPrisma() {
   });
 
   let transactionTail: Promise<void> = Promise.resolve();
+  const transactionOptions: unknown[] = [];
   const api = {
     productVariant: {
       findMany: async ({ where }: { where: { id: { in: string[] }; isActive?: boolean } }) => state.variants
@@ -315,7 +317,8 @@ function createInMemoryPrisma() {
           purchaseDate: batch.purchaseDate, createdAt: batch.createdAt,
         }));
     },
-    $transaction: async (operation: unknown) => {
+    $transaction: async (operation: unknown, options?: unknown) => {
+      transactionOptions.push(options);
       if (Array.isArray(operation)) return Promise.all(operation);
       let release!: () => void;
       const previous = transactionTail;
@@ -332,7 +335,7 @@ function createInMemoryPrisma() {
       }
     },
   };
-  return { prisma: api as unknown as PrismaClient, state };
+  return { prisma: api as unknown as PrismaClient, state, transactionOptions };
 }
 
 function purchase(items: Array<{ productVariantId: string; quantity: number; unitBuyingCost: string }>, date = "2026-07-01") {
@@ -344,6 +347,31 @@ function sale(items: Array<{ productVariantId: string; quantity: number }>, disc
 }
 
 describe("Milestone 3 inventory and physical sales", () => {
+  it("allows FIFO transactions enough time for a cold serverless database connection", async () => {
+    const { prisma, transactionOptions } = createInMemoryPrisma();
+    await createInventoryService(prisma).createPurchase(purchase([
+      { productVariantId: VARIANT_A, quantity: 1, unitBuyingCost: "300" },
+    ]), OWNER_ID);
+
+    expect(transactionOptions).toContainEqual(SERIALIZABLE_TRANSACTION_OPTIONS);
+    expect(SERIALIZABLE_TRANSACTION_OPTIONS).toEqual({
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 20_000,
+    });
+  });
+
+  it("returns a retryable error when Prisma expires a stock transaction", async () => {
+    const prisma = {
+      $transaction: vi.fn().mockRejectedValue(Object.assign(new Error("Transaction expired"), { code: "P2028" })),
+    } as unknown as PrismaClient;
+
+    await expect(createInventoryService(prisma).createPhysicalSale(
+      sale([{ productVariantId: VARIANT_A, quantity: 1 }]),
+      OWNER_ID,
+    )).rejects.toMatchObject({ status: 503, code: "TRANSACTION_TIMEOUT" });
+  });
+
   it("creates a multi-item purchase as batches and updates stock totals", async () => {
     const { prisma, state } = createInMemoryPrisma();
     const service = createInventoryService(prisma);

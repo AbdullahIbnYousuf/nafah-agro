@@ -9,6 +9,7 @@ import type {
 } from "../schemas/inventory.js";
 import { consumeAvailableFifo, type FifoAllocation } from "./stockAllocation.js";
 import { quantityCost, quantityUnitForKind, toBaseQuantity } from "../lib/quantity.js";
+import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
 
 interface InventoryHttpError extends Error {
   status: number;
@@ -28,6 +29,9 @@ function inventoryError(
 function rethrowInventoryTransactionError(error: unknown): never {
   if (error && typeof error === "object" && (error as { code?: unknown }).code === "P2034") {
     throw inventoryError(409, "STOCK_CONFLICT", "Stock changed concurrently. Please retry the operation.");
+  }
+  if (isTransactionTimeout(error)) {
+    throw inventoryError(503, "TRANSACTION_TIMEOUT", "The database took too long. No changes were saved. Please try again.");
   }
   throw error;
 }
@@ -206,7 +210,7 @@ export function createInventoryService(prisma: PrismaClient) {
           ids.push(batch.id);
         }
         return ids;
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {
         rethrowInventoryTransactionError(error);
       }
@@ -256,7 +260,7 @@ export function createInventoryService(prisma: PrismaClient) {
           reason: input.reason,
           createdByProfileId: actorId,
         } });
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {
         rethrowInventoryTransactionError(error);
       }
@@ -386,7 +390,7 @@ export function createInventoryService(prisma: PrismaClient) {
           newData: { source: "PHYSICAL_SHOP", status: "COMPLETED", paymentStatus: "PAID" },
         } });
         return sale.id;
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {
         rethrowInventoryTransactionError(error);
       }

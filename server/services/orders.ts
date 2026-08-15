@@ -8,6 +8,7 @@ import type {
   WebsiteCheckout,
 } from "../schemas/orders.js";
 import { reserveAvailableFifo, stockError, type FifoAllocation } from "./stockAllocation.js";
+import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
 
 const orderInclude = {
   createdBy: { select: { fullName: true, role: true } },
@@ -36,6 +37,9 @@ function orderError(status: number, code: string, message: string, details: Reco
 function transactionError(error: unknown): never {
   if (error && typeof error === "object" && (error as { code?: unknown }).code === "P2034") {
     throw orderError(409, "STOCK_CONFLICT", "Order stock changed concurrently. Please retry.");
+  }
+  if (isTransactionTimeout(error)) {
+    throw orderError(503, "TRANSACTION_TIMEOUT", "The database took too long. No changes were saved. Please try again.");
   }
   throw error;
 }
@@ -360,7 +364,7 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
             newData: { source: "WEBSITE", status: "PENDING" },
           });
           return orderId;
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
         return { order: await readOrder(id), replayed: false };
       } catch (error) {
         if (error && typeof error === "object" && (error as { code?: unknown }).code === "P2002") {
@@ -389,7 +393,7 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
             newData: { source: input.source, status: input.initialStatus },
           });
           return orderId;
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) { transactionError(error); }
       return readOrder(id);
     },
@@ -548,7 +552,7 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
               reason: input.reason,
             });
           }
-        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) { transactionError(error); }
       return readOrder(id);
     },
