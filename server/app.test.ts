@@ -677,6 +677,7 @@ describe("GET /api/v1/foundation", () => {
         adjustStock: vi.fn(async () => []),
         createPhysicalSale: vi.fn(),
         listPhysicalSales: vi.fn(async () => []),
+        returnPhysicalSale: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
       } as unknown as InventoryService;
     }
 
@@ -713,11 +714,40 @@ describe("GET /api/v1/foundation", () => {
         .post("/api/v1/physical-sales")
         .set("Authorization", "Bearer valid-token")
         .send({});
+      const returnResponse = await request(app)
+        .post("/api/v1/physical-sales/50000000-0000-4000-8000-000000000001/returns")
+        .set("Authorization", "Bearer valid-token")
+        .send({});
 
       expect(purchaseResponse.status).toBe(403);
       expect(saleResponse.status).toBe(403);
+      expect(returnResponse.status).toBe(403);
       expect(inventory.createPurchase).not.toHaveBeenCalled();
       expect(inventory.createPhysicalSale).not.toHaveBeenCalled();
+      expect(inventory.returnPhysicalSale).not.toHaveBeenCalled();
+    });
+
+    it("allows an OWNER to return selected physical-sale items", async () => {
+      const inventory = inventoryStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, inventory))
+        .post("/api/v1/physical-sales/50000000-0000-4000-8000-000000000001/returns")
+        .set("Authorization", "Bearer valid-token")
+        .send({
+          condition: "SELLABLE",
+          reason: "Customer returned the item",
+          items: [{
+            salesOrderItemId: "60000000-0000-4000-8000-000000000001",
+            amount: "1.25",
+            amountUnit: "KG",
+          }],
+        });
+
+      expect(response.status).toBe(201);
+      expect(inventory.returnPhysicalSale).toHaveBeenCalledWith(
+        "50000000-0000-4000-8000-000000000001",
+        expect.objectContaining({ condition: "SELLABLE" }),
+        ownerProfile.id,
+      );
     });
   });
 

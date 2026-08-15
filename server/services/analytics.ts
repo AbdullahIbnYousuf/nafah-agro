@@ -55,6 +55,27 @@ export interface AnalyticsStockBatchRecord {
   productVariant?: { product: { kind: ProductKindValue } };
 }
 
+export interface AnalyticsPhysicalSaleReturnRecord {
+  createdAt: Date;
+  refundAmount: MoneyValue;
+  reversedBuyingCost: MoneyValue;
+  reversedGrossProfit: MoneyValue;
+  items: Array<{
+    quantity: number;
+    refundAmount: MoneyValue;
+    reversedBuyingCost: MoneyValue;
+    reversedGrossProfit: MoneyValue;
+    salesOrderItem: {
+      productId: string;
+      productVariantId: string;
+      productNameSnapshot: string;
+      variantNameSnapshot: string;
+      skuSnapshot: string;
+      quantityUnit?: QuantityUnitValue;
+    };
+  }>;
+}
+
 export interface AnalyticsVariantRecord {
   id: string;
   name: string;
@@ -268,7 +289,41 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
   };
 }
 
-function eventsForPeriod(orders: AnalyticsOrderRecord[], value: AnalyticsPeriod) {
+function physicalSaleReturnEvent(value: AnalyticsPhysicalSaleReturnRecord): FinancialEvent {
+  const quantities = emptyQuantities();
+  for (const item of value.items) addQuantity(quantities, item.salesOrderItem.quantityUnit, -item.quantity);
+  return {
+    kind: "RETURN",
+    date: value.createdAt,
+    day: dhakaDate(value.createdAt),
+    source: "PHYSICAL_SHOP",
+    recognizedSales: decimal(value.refundAmount).negated(),
+    productRevenue: decimal(value.refundAmount).negated(),
+    deliveryCharges: new Prisma.Decimal(0),
+    fifoCost: decimal(value.reversedBuyingCost).negated(),
+    grossProfit: decimal(value.reversedGrossProfit).negated(),
+    quantities,
+    orderCount: 0,
+    items: value.items.map((item) => ({
+      productId: item.salesOrderItem.productId,
+      productVariantId: item.salesOrderItem.productVariantId,
+      productName: item.salesOrderItem.productNameSnapshot,
+      variantName: item.salesOrderItem.variantNameSnapshot,
+      sku: item.salesOrderItem.skuSnapshot,
+      quantityUnit: item.salesOrderItem.quantityUnit ?? "PIECE",
+      quantity: -item.quantity,
+      productRevenue: decimal(item.refundAmount).negated(),
+      fifoCost: decimal(item.reversedBuyingCost).negated(),
+      grossProfit: decimal(item.reversedGrossProfit).negated(),
+    })),
+  };
+}
+
+function eventsForPeriod(
+  orders: AnalyticsOrderRecord[],
+  physicalSaleReturns: AnalyticsPhysicalSaleReturnRecord[],
+  value: AnalyticsPeriod,
+) {
   const events: FinancialEvent[] = [];
   for (const order of orders) {
     const recognizedAt = recognitionDate(order);
@@ -278,6 +333,9 @@ function eventsForPeriod(orders: AnalyticsOrderRecord[], value: AnalyticsPeriod)
     if (isReturn(order.status) && order.returnedAt && inPeriod(order.returnedAt, value)) {
       events.push(financialEvent(order, order.returnedAt, "RETURN"));
     }
+  }
+  for (const physicalReturn of physicalSaleReturns) {
+    if (inPeriod(physicalReturn.createdAt, value)) events.push(physicalSaleReturnEvent(physicalReturn));
   }
   return events;
 }
@@ -397,14 +455,16 @@ export function buildAnalyticsDashboard(input: {
   query: AnalyticsDashboardQuery;
   now?: Date;
   orders: AnalyticsOrderRecord[];
+  physicalSaleReturns?: AnalyticsPhysicalSaleReturnRecord[];
   openCodOrders: Array<{ status: "PENDING" | "CONFIRMED" | "PROCESSING" }>;
   stockBatches: AnalyticsStockBatchRecord[];
   variants: AnalyticsVariantRecord[];
 }) {
   const now = input.now ?? new Date();
   const range = resolveAnalyticsRange(input.query, now);
-  const currentEvents = eventsForPeriod(input.orders, range.current);
-  const previousEvents = eventsForPeriod(input.orders, range.previous);
+  const physicalSaleReturns = input.physicalSaleReturns ?? [];
+  const currentEvents = eventsForPeriod(input.orders, physicalSaleReturns, range.current);
+  const previousEvents = eventsForPeriod(input.orders, physicalSaleReturns, range.previous);
   const current = sumEvents(currentEvents);
   const previous = sumEvents(previousEvents);
   const currentMargin = margin(current.grossProfit, current.productRevenue);
@@ -556,7 +616,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
       const range = resolveAnalyticsRange(query, now);
       const earliest = range.previous.startUtc;
       const latest = range.current.endUtc;
-      const [orders, openCodOrders, stockBatches, variants] = await Promise.all([
+      const [orders, physicalSaleReturns, openCodOrders, stockBatches, variants] = await Promise.all([
         prisma.salesOrder.findMany({
           where: {
             OR: [
@@ -588,6 +648,33 @@ export function createAnalyticsService(prisma: PrismaClient) {
                 netLineRevenue: true,
                 totalBuyingCost: true,
                 allocations: { select: { totalBuyingCost: true } },
+              },
+            },
+          },
+        }),
+        prisma.physicalSaleReturn.findMany({
+          where: { createdAt: { gte: earliest, lt: latest } },
+          select: {
+            createdAt: true,
+            refundAmount: true,
+            reversedBuyingCost: true,
+            reversedGrossProfit: true,
+            items: {
+              select: {
+                quantity: true,
+                refundAmount: true,
+                reversedBuyingCost: true,
+                reversedGrossProfit: true,
+                salesOrderItem: {
+                  select: {
+                    productId: true,
+                    productVariantId: true,
+                    productNameSnapshot: true,
+                    variantNameSnapshot: true,
+                    skuSnapshot: true,
+                    quantityUnit: true,
+                  },
+                },
               },
             },
           },
@@ -626,6 +713,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
         query,
         now,
         orders: orders as AnalyticsOrderRecord[],
+        physicalSaleReturns: physicalSaleReturns as AnalyticsPhysicalSaleReturnRecord[],
         openCodOrders: openCodOrders as Array<{ status: "PENDING" | "CONFIRMED" | "PROCESSING" }>,
         stockBatches,
         variants,

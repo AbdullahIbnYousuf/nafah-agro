@@ -389,8 +389,28 @@ export function createPhysicalSale(input: {
   });
 }
 
-export function getPhysicalSales(limit = 30): Promise<PhysicalSale[]> {
-  return requestV1<PhysicalSale[]>(`/physical-sales?limit=${limit}`);
+export function getPhysicalSales(input: {
+  query?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+} = {}): Promise<PhysicalSale[]> {
+  const query = new URLSearchParams();
+  Object.entries({ limit: 30, ...input }).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<PhysicalSale[]>(`/physical-sales?${query}`);
+}
+
+export function returnPhysicalSale(id: string, input: {
+  condition: 'SELLABLE' | 'DAMAGED';
+  reason: string;
+  items: Array<{ salesOrderItemId: string; amount: string; amountUnit: AmountUnit }>;
+}): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/physical-sales/${id}/returns`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function getDeliveryRates(): Promise<DeliveryRate[]> {

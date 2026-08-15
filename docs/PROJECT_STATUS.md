@@ -6,7 +6,8 @@ Last updated: 2026-08-15
 
 Milestones 1–6 are complete in local code. The V1 includes Supabase Auth with
 OWNER/CUSTOMER profiles, PostgreSQL/Prisma catalog and FIFO inventory, physical
-and delivery sales, whole-order returns, OWNER analytics, Cloudinary uploads,
+and delivery sales, whole delivery-order returns, identified physical-sale item
+returns, OWNER analytics, Cloudinary uploads,
 and a single-project Vercel layout. No deployment, external migration, or
 production-data change was performed during the final review.
 
@@ -96,6 +97,7 @@ is not approved for production until the external gates in this document and
 - `npm run inventory:check`: passed against the configured database with no
   cached stock-total mismatches.
 - `git diff --check`: passed.
+
 - Playwright with system Chrome: two responsive scenarios passed at 390x844,
   768x1024, and 1440x900, covering storefront/product/cart and all OWNER tabs;
   no page overflow, undersized visible mobile controls, or console errors were
@@ -103,6 +105,24 @@ is not approved for production until the external gates in this document and
 - The production build reports a local-only Vite warning because this workspace's
   untracked `.env` sets `NODE_ENV=production`; remove it or set `development` for
   local work. Vercel sets production mode during deployment.
+
+## Identified physical-sale returns
+
+- Added OWNER-only search of completed physical sales by product, phone, sale
+  number, exact total, and inclusive Dhaka date range.
+- Added item/quantity returns tied to the original sale and FIFO allocations.
+  SELLABLE restores the returned amount at the original buying cost; DAMAGED
+  restores no stock. A required reason and append-only audit record are stored.
+- Refund, reversed buying cost, and reversed profit use the original captured
+  line discount and allocation snapshots. Row locking and cumulative checks
+  prevent excess or repeated returns.
+- Delivery orders retain the existing whole-order return workflow. Returns that
+  cannot be linked to an original physical sale remain explicitly deferred.
+- Migration `202608150004_physical_sale_item_returns` is checked in but must be
+  deployed before this feature is used against Supabase.
+- Local TypeScript, lint, Prisma validation/generation, frontend/backend builds,
+  and `git diff --check` passed. The full suite passed 238 tests across 34 files.
+  The migration was not applied to Supabase during this task.
 
 ## Loose-product verification on 2026-08-15
 

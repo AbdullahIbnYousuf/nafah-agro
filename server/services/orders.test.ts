@@ -325,6 +325,22 @@ describe("unified PostgreSQL orders", () => {
     expect(returned.status).toBe("RETURNED_DAMAGED"); expect(state.variants[0].availableStock).toBe(2);
   });
 
+  it("requires physical-shop returns to use the item and quantity workflow", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    const service = createUnifiedOrderService(prisma);
+    const order = await service.createManualOrder(manualInput({ initialStatus: "PENDING" }), OWNER);
+    const stored = state.orders.find((value: any) => value.id === order.id);
+    stored.source = "PHYSICAL_SHOP";
+    stored.status = "COMPLETED";
+    stored.completedAt = new Date();
+
+    await expect(service.transitionOrder(
+      order.id,
+      { action: "RETURN", condition: "SELLABLE", reason: "Customer return" },
+      OWNER,
+    )).rejects.toMatchObject({ code: "PHYSICAL_RETURN_REQUIRES_ITEM_FLOW" });
+  });
+
   it("lists unified sources with source and status filters", async () => {
     const { prisma } = createMemoryPrisma(); const service = createUnifiedOrderService(prisma);
     await service.createWebsiteOrder(websiteInput()); await service.createManualOrder(manualInput({ initialStatus: "PENDING" }), OWNER);

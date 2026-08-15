@@ -71,11 +71,34 @@ export const physicalSaleCreateSchema = z.object({
 }).strict().superRefine(uniqueVariantIds);
 
 export const physicalSaleListSchema = z.object({
+  query: z.string().trim().max(120).optional(),
+  dateFrom: dateOnly.optional(),
+  dateTo: dateOnly.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.dateFrom && value.dateTo && value.dateFrom > value.dateTo) {
+    context.addIssue({ code: "custom", path: ["dateTo"], message: "End date cannot be before start date" });
+  }
+});
+
+export const physicalSaleReturnSchema = z.object({
+  condition: z.enum(["SELLABLE", "DAMAGED"]),
+  reason,
+  items: z.array(z.object({
+    salesOrderItemId: uuid,
+    amount,
+    amountUnit,
+  }).strict()).min(1).max(100),
+}).strict().superRefine((value, context) => {
+  const ids = value.items.map((item) => item.salesOrderItemId);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: "custom", path: ["items"], message: "Each sold item may appear only once" });
+  }
+});
 
 export type PurchaseCreate = z.infer<typeof purchaseCreateSchema>;
 export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 export type StockBatchList = z.infer<typeof stockBatchListSchema>;
 export type PhysicalSaleCreate = z.infer<typeof physicalSaleCreateSchema>;
 export type PhysicalSaleList = z.infer<typeof physicalSaleListSchema>;
+export type PhysicalSaleReturnInput = z.infer<typeof physicalSaleReturnSchema>;

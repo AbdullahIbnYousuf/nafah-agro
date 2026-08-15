@@ -3,6 +3,7 @@ import { z, ZodError } from "zod";
 import {
   physicalSaleCreateSchema,
   physicalSaleListSchema,
+  physicalSaleReturnSchema,
   purchaseCreateSchema,
   stockAdjustmentSchema,
   stockBatchListSchema,
@@ -80,6 +81,19 @@ export function createInventoryRouter(
       res.json({
         success: true,
         data: await service.listPhysicalSales(validate(physicalSaleListSchema, req.query)),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/physical-sales/:id/returns", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await service.returnPhysicalSale(
+          validate(z.string().uuid(), req.params.id),
+          validate(physicalSaleReturnSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
       });
     } catch (error) { next(error); }
   });

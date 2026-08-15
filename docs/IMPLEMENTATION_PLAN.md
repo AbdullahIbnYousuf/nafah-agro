@@ -54,7 +54,9 @@ Implemented order:
 4. FACEBOOK/PHONE/WHATSAPP/OTHER orders can begin pending or confirmed.
 5. Processing and delivery consume reservations and recognize payment/financials.
 6. Cancellation or failed delivery releases reservations and records a reason.
-7. Whole SELLABLE returns restore cost-preserving stock; DAMAGED returns do not.
+7. Delivery-order returns remain whole-order only. Identified physical sales
+   support item/quantity returns; SELLABLE restores cost-preserving stock and
+   DAMAGED does not.
 8. Replace cart, profile history, and management consumers; remove obsolete
    data paths and fake coupon/payment UI.
 
@@ -75,9 +77,9 @@ Status: complete in local code; migration and live-data acceptance remain.
   Dhaka ranges, equivalent-period comparisons, summary metrics, daily trend,
   sales by source, product/variant rankings, FIFO inventory value/alerts, and
   open COD counts.
-- Delivered delivery orders and completed physical sales create positive events;
-  whole returns create equal negative events on the return date using immutable
-  order/item/allocation snapshots.
+- Delivered delivery orders and completed physical sales create positive events.
+  Whole delivery returns and item-level physical-sale returns create negative
+  events on the return date using immutable order/item/allocation snapshots.
 - TanStack Query caches the responsive Bangla dashboard; Recharts is lazy-loaded
   only with the analytics component. No expense, net-profit, export, or
   category-performance subsystem was added.

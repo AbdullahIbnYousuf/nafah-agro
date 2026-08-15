@@ -101,6 +101,7 @@ model Profile {
   unprofitableOverrides SalesOrder[]          @relation("UnprofitableOverrides")
   updatedDeliveryRates  DeliveryRate[]
   auditLogs             AuditLog[]
+  physicalSaleReturns   PhysicalSaleReturn[]
 
   @@map("profiles")
 }
@@ -179,25 +180,26 @@ model SellingPriceHistory {
 }
 
 model StockBatch {
-  id                 String            @id @default(uuid()) @db.Uuid
-  purchaseGroupId    String?           @map("purchase_group_id") @db.Uuid
-  productVariantId   String            @map("product_variant_id") @db.Uuid
-  source             StockBatchSource
-  purchasedQuantity  Int               @map("purchased_quantity")
-  availableQuantity  Int               @map("available_quantity")
-  reservedQuantity   Int               @default(0) @map("reserved_quantity")
-  unitBuyingCost     Decimal           @map("unit_buying_cost") @db.Decimal(14, 2)
-  purchaseDate       DateTime          @map("purchase_date") @db.Date
-  note               String?
-  adjustmentReason   String?           @map("adjustment_reason")
-  createdByProfileId String            @map("created_by_profile_id") @db.Uuid
-  createdAt          DateTime          @default(now()) @map("created_at")
-  updatedAt          DateTime          @updatedAt @map("updated_at")
-  productVariant     ProductVariant    @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
-  createdBy          Profile           @relation(fields: [createdByProfileId], references: [id], onDelete: Restrict)
-  orderAllocations   OrderAllocation[]
-  sourceSalesOrderId String?           @map("source_sales_order_id") @db.Uuid
-  sourceSalesOrder   SalesOrder?       @relation("ReturnStockBatches", fields: [sourceSalesOrderId], references: [id], onDelete: Restrict)
+  id                           String                        @id @default(uuid()) @db.Uuid
+  purchaseGroupId              String?                       @map("purchase_group_id") @db.Uuid
+  productVariantId             String                        @map("product_variant_id") @db.Uuid
+  source                       StockBatchSource
+  purchasedQuantity            Int                           @map("purchased_quantity")
+  availableQuantity            Int                           @map("available_quantity")
+  reservedQuantity             Int                           @default(0) @map("reserved_quantity")
+  unitBuyingCost               Decimal                       @map("unit_buying_cost") @db.Decimal(14, 2)
+  purchaseDate                 DateTime                      @map("purchase_date") @db.Date
+  note                         String?
+  adjustmentReason             String?                       @map("adjustment_reason")
+  createdByProfileId           String                        @map("created_by_profile_id") @db.Uuid
+  createdAt                    DateTime                      @default(now()) @map("created_at")
+  updatedAt                    DateTime                      @updatedAt @map("updated_at")
+  productVariant               ProductVariant                @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  createdBy                    Profile                       @relation(fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  orderAllocations             OrderAllocation[]
+  physicalSaleReturnAllocation PhysicalSaleReturnAllocation?
+  sourceSalesOrderId           String?                       @map("source_sales_order_id") @db.Uuid
+  sourceSalesOrder             SalesOrder?                   @relation("ReturnStockBatches", fields: [sourceSalesOrderId], references: [id], onDelete: Restrict)
 
   @@index([productVariantId, purchaseDate, createdAt])
   @@index([purchaseGroupId])
@@ -221,46 +223,47 @@ model StockAdjustment {
 }
 
 model SalesOrder {
-  id                              String             @id @default(uuid()) @db.Uuid
-  orderNumber                     String             @unique @map("order_number")
-  idempotencyKey                  String?            @unique @map("idempotency_key")
-  requestFingerprint              String?            @map("request_fingerprint")
-  source                          SalesOrderSource   @default(PHYSICAL_SHOP)
-  status                          SalesOrderStatus   @default(COMPLETED)
-  paymentMethod                   SalesPaymentMethod @default(CASH) @map("payment_method")
-  paymentStatus                   SalesPaymentStatus @default(PAID) @map("payment_status")
-  customerProfileId               String?            @map("customer_profile_id") @db.Uuid
-  customerName                    String?            @map("customer_name")
-  customerPhone                   String?            @map("customer_phone")
-  customerEmail                   String?            @map("customer_email")
-  customerAddress                 String?            @map("customer_address")
-  deliveryRateId                  String?            @map("delivery_rate_id") @db.Uuid
-  deliveryCharge                  Decimal            @default(0) @map("delivery_charge") @db.Decimal(14, 2)
-  subtotal                        Decimal            @db.Decimal(14, 2)
-  discountTotal                   Decimal            @default(0) @map("discount_total") @db.Decimal(14, 2)
-  grandTotal                      Decimal            @map("grand_total") @db.Decimal(14, 2)
-  totalBuyingCost                 Decimal?           @map("total_buying_cost") @db.Decimal(14, 2)
-  grossProfit                     Decimal?           @map("gross_profit") @db.Decimal(14, 2)
-  grossProfitMargin               Decimal?           @map("gross_profit_margin") @db.Decimal(7, 4)
-  unprofitableOverrideConfirmed   Boolean            @default(false) @map("unprofitable_override_confirmed")
-  unprofitableOverrideByProfileId String?            @map("unprofitable_override_by_profile_id") @db.Uuid
-  createdByProfileId              String?            @map("created_by_profile_id") @db.Uuid
-  placedAt                        DateTime           @default(now()) @map("placed_at")
-  confirmedAt                     DateTime?          @map("confirmed_at")
-  completedAt                     DateTime?          @map("completed_at")
-  deliveredAt                     DateTime?          @map("delivered_at")
-  cancelledAt                     DateTime?          @map("cancelled_at")
-  returnedAt                      DateTime?          @map("returned_at")
-  statusReason                    String?            @map("status_reason")
-  returnCondition                 ReturnCondition?   @map("return_condition")
-  createdAt                       DateTime           @default(now()) @map("created_at")
-  updatedAt                       DateTime           @updatedAt @map("updated_at")
-  createdBy                       Profile?           @relation("CreatedSales", fields: [createdByProfileId], references: [id], onDelete: Restrict)
-  customerProfile                 Profile?           @relation("CustomerSales", fields: [customerProfileId], references: [id], onDelete: SetNull)
-  deliveryRate                    DeliveryRate?      @relation(fields: [deliveryRateId], references: [id], onDelete: Restrict)
-  unprofitableOverrideBy          Profile?           @relation("UnprofitableOverrides", fields: [unprofitableOverrideByProfileId], references: [id], onDelete: Restrict)
+  id                              String               @id @default(uuid()) @db.Uuid
+  orderNumber                     String               @unique @map("order_number")
+  idempotencyKey                  String?              @unique @map("idempotency_key")
+  requestFingerprint              String?              @map("request_fingerprint")
+  source                          SalesOrderSource     @default(PHYSICAL_SHOP)
+  status                          SalesOrderStatus     @default(COMPLETED)
+  paymentMethod                   SalesPaymentMethod   @default(CASH) @map("payment_method")
+  paymentStatus                   SalesPaymentStatus   @default(PAID) @map("payment_status")
+  customerProfileId               String?              @map("customer_profile_id") @db.Uuid
+  customerName                    String?              @map("customer_name")
+  customerPhone                   String?              @map("customer_phone")
+  customerEmail                   String?              @map("customer_email")
+  customerAddress                 String?              @map("customer_address")
+  deliveryRateId                  String?              @map("delivery_rate_id") @db.Uuid
+  deliveryCharge                  Decimal              @default(0) @map("delivery_charge") @db.Decimal(14, 2)
+  subtotal                        Decimal              @db.Decimal(14, 2)
+  discountTotal                   Decimal              @default(0) @map("discount_total") @db.Decimal(14, 2)
+  grandTotal                      Decimal              @map("grand_total") @db.Decimal(14, 2)
+  totalBuyingCost                 Decimal?             @map("total_buying_cost") @db.Decimal(14, 2)
+  grossProfit                     Decimal?             @map("gross_profit") @db.Decimal(14, 2)
+  grossProfitMargin               Decimal?             @map("gross_profit_margin") @db.Decimal(7, 4)
+  unprofitableOverrideConfirmed   Boolean              @default(false) @map("unprofitable_override_confirmed")
+  unprofitableOverrideByProfileId String?              @map("unprofitable_override_by_profile_id") @db.Uuid
+  createdByProfileId              String?              @map("created_by_profile_id") @db.Uuid
+  placedAt                        DateTime             @default(now()) @map("placed_at")
+  confirmedAt                     DateTime?            @map("confirmed_at")
+  completedAt                     DateTime?            @map("completed_at")
+  deliveredAt                     DateTime?            @map("delivered_at")
+  cancelledAt                     DateTime?            @map("cancelled_at")
+  returnedAt                      DateTime?            @map("returned_at")
+  statusReason                    String?              @map("status_reason")
+  returnCondition                 ReturnCondition?     @map("return_condition")
+  createdAt                       DateTime             @default(now()) @map("created_at")
+  updatedAt                       DateTime             @updatedAt @map("updated_at")
+  createdBy                       Profile?             @relation("CreatedSales", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  customerProfile                 Profile?             @relation("CustomerSales", fields: [customerProfileId], references: [id], onDelete: SetNull)
+  deliveryRate                    DeliveryRate?        @relation(fields: [deliveryRateId], references: [id], onDelete: Restrict)
+  unprofitableOverrideBy          Profile?             @relation("UnprofitableOverrides", fields: [unprofitableOverrideByProfileId], references: [id], onDelete: Restrict)
   items                           SalesOrderItem[]
-  returnStockBatches              StockBatch[]       @relation("ReturnStockBatches")
+  returnStockBatches              StockBatch[]         @relation("ReturnStockBatches")
+  physicalSaleReturns             PhysicalSaleReturn[]
 
   @@index([source, status, placedAt])
   @@index([customerProfileId, placedAt])
@@ -272,25 +275,26 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id                  String            @id @default(uuid()) @db.Uuid
-  salesOrderId        String            @map("sales_order_id") @db.Uuid
-  productId           String            @map("product_id") @db.Uuid
-  productVariantId    String            @map("product_variant_id") @db.Uuid
-  productNameSnapshot String            @map("product_name_snapshot")
-  variantNameSnapshot String            @map("variant_name_snapshot")
-  skuSnapshot         String            @map("sku_snapshot")
-  quantity            Int
-  quantityUnit        QuantityUnit      @default(PIECE) @map("quantity_unit")
-  unitSellingPrice    Decimal           @map("unit_selling_price") @db.Decimal(14, 2)
-  grossLineRevenue    Decimal           @map("gross_line_revenue") @db.Decimal(14, 2)
-  allocatedDiscount   Decimal           @default(0) @map("allocated_discount") @db.Decimal(14, 2)
-  netLineRevenue      Decimal           @map("net_line_revenue") @db.Decimal(14, 2)
-  totalBuyingCost     Decimal?          @map("total_buying_cost") @db.Decimal(14, 2)
-  grossProfit         Decimal?          @map("gross_profit") @db.Decimal(14, 2)
-  createdAt           DateTime          @default(now()) @map("created_at")
-  salesOrder          SalesOrder        @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
-  productVariant      ProductVariant    @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
-  allocations         OrderAllocation[]
+  id                      String                   @id @default(uuid()) @db.Uuid
+  salesOrderId            String                   @map("sales_order_id") @db.Uuid
+  productId               String                   @map("product_id") @db.Uuid
+  productVariantId        String                   @map("product_variant_id") @db.Uuid
+  productNameSnapshot     String                   @map("product_name_snapshot")
+  variantNameSnapshot     String                   @map("variant_name_snapshot")
+  skuSnapshot             String                   @map("sku_snapshot")
+  quantity                Int
+  quantityUnit            QuantityUnit             @default(PIECE) @map("quantity_unit")
+  unitSellingPrice        Decimal                  @map("unit_selling_price") @db.Decimal(14, 2)
+  grossLineRevenue        Decimal                  @map("gross_line_revenue") @db.Decimal(14, 2)
+  allocatedDiscount       Decimal                  @default(0) @map("allocated_discount") @db.Decimal(14, 2)
+  netLineRevenue          Decimal                  @map("net_line_revenue") @db.Decimal(14, 2)
+  totalBuyingCost         Decimal?                 @map("total_buying_cost") @db.Decimal(14, 2)
+  grossProfit             Decimal?                 @map("gross_profit") @db.Decimal(14, 2)
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  salesOrder              SalesOrder               @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  productVariant          ProductVariant           @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  allocations             OrderAllocation[]
+  physicalSaleReturnItems PhysicalSaleReturnItem[]
 
   @@index([salesOrderId])
   @@index([productVariantId])
@@ -298,24 +302,79 @@ model SalesOrderItem {
 }
 
 model OrderAllocation {
-  id               String          @id @default(uuid()) @db.Uuid
-  salesOrderItemId String          @map("sales_order_item_id") @db.Uuid
-  stockBatchId     String          @map("stock_batch_id") @db.Uuid
-  quantity         Int
-  unitBuyingCost   Decimal         @map("unit_buying_cost") @db.Decimal(14, 2)
-  totalBuyingCost  Decimal         @map("total_buying_cost") @db.Decimal(14, 2)
-  state            AllocationState @default(CONSUMED)
-  reservedAt       DateTime?       @map("reserved_at")
-  consumedAt       DateTime?       @map("consumed_at")
-  releasedAt       DateTime?       @map("released_at")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
-  salesOrderItem   SalesOrderItem  @relation(fields: [salesOrderItemId], references: [id], onDelete: Restrict)
-  stockBatch       StockBatch      @relation(fields: [stockBatchId], references: [id], onDelete: Restrict)
+  id                            String                         @id @default(uuid()) @db.Uuid
+  salesOrderItemId              String                         @map("sales_order_item_id") @db.Uuid
+  stockBatchId                  String                         @map("stock_batch_id") @db.Uuid
+  quantity                      Int
+  unitBuyingCost                Decimal                        @map("unit_buying_cost") @db.Decimal(14, 2)
+  totalBuyingCost               Decimal                        @map("total_buying_cost") @db.Decimal(14, 2)
+  state                         AllocationState                @default(CONSUMED)
+  reservedAt                    DateTime?                      @map("reserved_at")
+  consumedAt                    DateTime?                      @map("consumed_at")
+  releasedAt                    DateTime?                      @map("released_at")
+  createdAt                     DateTime                       @default(now()) @map("created_at")
+  updatedAt                     DateTime                       @updatedAt @map("updated_at")
+  salesOrderItem                SalesOrderItem                 @relation(fields: [salesOrderItemId], references: [id], onDelete: Restrict)
+  stockBatch                    StockBatch                     @relation(fields: [stockBatchId], references: [id], onDelete: Restrict)
+  physicalSaleReturnAllocations PhysicalSaleReturnAllocation[]
 
   @@index([salesOrderItemId])
   @@index([stockBatchId, state])
   @@map("order_allocations")
+}
+
+model PhysicalSaleReturn {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  salesOrderId        String                   @map("sales_order_id") @db.Uuid
+  condition           ReturnCondition
+  reason              String
+  refundAmount        Decimal                  @map("refund_amount") @db.Decimal(14, 2)
+  reversedBuyingCost  Decimal                  @map("reversed_buying_cost") @db.Decimal(14, 2)
+  reversedGrossProfit Decimal                  @map("reversed_gross_profit") @db.Decimal(14, 2)
+  createdByProfileId  String                   @map("created_by_profile_id") @db.Uuid
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  salesOrder          SalesOrder               @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  createdBy           Profile                  @relation(fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  items               PhysicalSaleReturnItem[]
+
+  @@index([salesOrderId, createdAt])
+  @@map("physical_sale_returns")
+}
+
+model PhysicalSaleReturnItem {
+  id                   String                         @id @default(uuid()) @db.Uuid
+  physicalSaleReturnId String                         @map("physical_sale_return_id") @db.Uuid
+  salesOrderItemId     String                         @map("sales_order_item_id") @db.Uuid
+  quantity             Int
+  refundAmount         Decimal                        @map("refund_amount") @db.Decimal(14, 2)
+  reversedBuyingCost   Decimal                        @map("reversed_buying_cost") @db.Decimal(14, 2)
+  reversedGrossProfit  Decimal                        @map("reversed_gross_profit") @db.Decimal(14, 2)
+  createdAt            DateTime                       @default(now()) @map("created_at")
+  physicalSaleReturn   PhysicalSaleReturn             @relation(fields: [physicalSaleReturnId], references: [id], onDelete: Restrict)
+  salesOrderItem       SalesOrderItem                 @relation(fields: [salesOrderItemId], references: [id], onDelete: Restrict)
+  allocations          PhysicalSaleReturnAllocation[]
+
+  @@unique([physicalSaleReturnId, salesOrderItemId])
+  @@index([salesOrderItemId])
+  @@map("physical_sale_return_items")
+}
+
+model PhysicalSaleReturnAllocation {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  physicalSaleReturnItemId String                 @map("physical_sale_return_item_id") @db.Uuid
+  orderAllocationId        String                 @map("order_allocation_id") @db.Uuid
+  restoredStockBatchId     String?                @unique @map("restored_stock_batch_id") @db.Uuid
+  quantity                 Int
+  unitBuyingCost           Decimal                @map("unit_buying_cost") @db.Decimal(14, 2)
+  totalBuyingCost          Decimal                @map("total_buying_cost") @db.Decimal(14, 2)
+  createdAt                DateTime               @default(now()) @map("created_at")
+  physicalSaleReturnItem   PhysicalSaleReturnItem @relation(fields: [physicalSaleReturnItemId], references: [id], onDelete: Restrict)
+  orderAllocation          OrderAllocation        @relation(fields: [orderAllocationId], references: [id], onDelete: Restrict)
+  restoredStockBatch       StockBatch?            @relation(fields: [restoredStockBatchId], references: [id], onDelete: Restrict)
+
+  @@index([physicalSaleReturnItemId])
+  @@index([orderAllocationId])
+  @@map("physical_sale_return_allocations")
 }
 
 model DeliveryRate {

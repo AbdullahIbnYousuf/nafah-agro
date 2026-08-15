@@ -13,7 +13,8 @@ orders, returns, analytics, and Cloudinary uploads.
 - Controlled multiple-OWNER access, owner invitations, deletion of accounts
   with no business or audit history, and protection for the final active owner.
 - Product, pack/size, price-history, purchase, FIFO inventory, stock-adjustment,
-  physical-sale, delivery-order, whole-return, and delivery-rate management.
+  physical-sale, delivery-order, whole delivery-return, identified physical-sale
+  item return, and delivery-rate management.
 - Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
   are physical-shop-only, use exact gram/millilitre stock internally, and show
   owner inputs and balances in kg/g or litre/ml.

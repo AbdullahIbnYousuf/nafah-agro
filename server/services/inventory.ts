@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type {
   PhysicalSaleCreate,
   PhysicalSaleList,
+  PhysicalSaleReturnInput,
   PurchaseCreate,
   StockAdjustmentInput,
   StockBatchList,
@@ -42,9 +43,30 @@ const moneyNumber = (value: Prisma.Decimal | null) => value === null ? null : Nu
 
 const saleInclude = {
   createdBy: { select: { fullName: true, role: true } },
+  physicalSaleReturns: {
+    orderBy: { createdAt: "desc" },
+    include: {
+      createdBy: { select: { fullName: true, role: true } },
+      items: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          salesOrderItem: {
+            select: {
+              productNameSnapshot: true,
+              variantNameSnapshot: true,
+              quantityUnit: true,
+            },
+          },
+        },
+      },
+    },
+  },
   items: {
     orderBy: { createdAt: "asc" },
     include: {
+      physicalSaleReturnItems: {
+        select: { quantity: true, refundAmount: true, reversedBuyingCost: true },
+      },
       allocations: {
         orderBy: { createdAt: "asc" },
         include: { stockBatch: { select: { purchaseDate: true } } },
@@ -56,6 +78,18 @@ const saleInclude = {
 type SaleRecord = Prisma.SalesOrderGetPayload<{ include: typeof saleInclude }>;
 
 function saleDto(sale: SaleRecord) {
+  const refundedAmount = sale.physicalSaleReturns.reduce(
+    (total, value) => total.plus(value.refundAmount),
+    new Prisma.Decimal(0),
+  );
+  const reversedBuyingCost = sale.physicalSaleReturns.reduce(
+    (total, value) => total.plus(value.reversedBuyingCost),
+    new Prisma.Decimal(0),
+  );
+  const reversedGrossProfit = sale.physicalSaleReturns.reduce(
+    (total, value) => total.plus(value.reversedGrossProfit),
+    new Prisma.Decimal(0),
+  );
   return {
     id: sale.id,
     orderNumber: sale.orderNumber,
@@ -71,10 +105,16 @@ function saleDto(sale: SaleRecord) {
     totalBuyingCost: moneyNumber(sale.totalBuyingCost),
     grossProfit: moneyNumber(sale.grossProfit),
     grossProfitMargin: moneyNumber(sale.grossProfitMargin),
+    refundedAmount: Number(refundedAmount),
+    remainingRevenue: Number(asMoney(sale.grandTotal).minus(refundedAmount)),
+    remainingBuyingCost: sale.totalBuyingCost === null ? null : Number(asMoney(sale.totalBuyingCost).minus(reversedBuyingCost)),
+    remainingGrossProfit: sale.grossProfit === null ? null : Number(asMoney(sale.grossProfit).minus(reversedGrossProfit)),
     unprofitableOverrideConfirmed: sale.unprofitableOverrideConfirmed,
     createdBy: sale.createdBy,
     completedAt: sale.completedAt,
-    items: sale.items.map((item) => ({
+    items: sale.items.map((item) => {
+      const returnedQuantity = item.physicalSaleReturnItems.reduce((total, value) => total + value.quantity, 0);
+      return ({
       id: item.id,
       productId: item.productId,
       productVariantId: item.productVariantId,
@@ -89,6 +129,8 @@ function saleDto(sale: SaleRecord) {
       netLineRevenue: moneyNumber(item.netLineRevenue),
       totalBuyingCost: moneyNumber(item.totalBuyingCost),
       grossProfit: moneyNumber(item.grossProfit),
+      returnedQuantity,
+      returnableQuantity: item.quantity - returnedQuantity,
       allocations: item.allocations.map((allocation) => ({
         id: allocation.id,
         stockBatchId: allocation.stockBatchId,
@@ -98,8 +140,59 @@ function saleDto(sale: SaleRecord) {
         state: allocation.state,
         purchaseDate: allocation.stockBatch.purchaseDate,
       })),
+    }); }),
+    returns: sale.physicalSaleReturns.map((value) => ({
+      id: value.id,
+      condition: value.condition,
+      reason: value.reason,
+      refundAmount: Number(value.refundAmount),
+      reversedBuyingCost: Number(value.reversedBuyingCost),
+      reversedGrossProfit: Number(value.reversedGrossProfit),
+      createdBy: value.createdBy,
+      createdAt: value.createdAt,
+      items: value.items.map((item) => ({
+        id: item.id,
+        salesOrderItemId: item.salesOrderItemId,
+        productName: item.salesOrderItem.productNameSnapshot,
+        variantName: item.salesOrderItem.variantNameSnapshot,
+        quantityUnit: item.salesOrderItem.quantityUnit,
+        quantity: item.quantity,
+        refundAmount: Number(item.refundAmount),
+        reversedBuyingCost: Number(item.reversedBuyingCost),
+        reversedGrossProfit: Number(item.reversedGrossProfit),
+      })),
     })),
   };
+}
+
+function nextDate(value: string) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function kindForQuantityUnit(unit: "PIECE" | "GRAM" | "MILLILITER") {
+  if (unit === "GRAM") return "LOOSE_WEIGHT" as const;
+  if (unit === "MILLILITER") return "LOOSE_VOLUME" as const;
+  return "PACKAGED" as const;
+}
+
+function proportionalMoney(
+  originalTotal: Prisma.Decimal,
+  requestedQuantity: number,
+  originalQuantity: number,
+  alreadyReversed: Prisma.Decimal,
+  remainingQuantity: number,
+) {
+  if (requestedQuantity === remainingQuantity) return originalTotal.minus(alreadyReversed);
+  return originalTotal
+    .mul(requestedQuantity)
+    .div(originalQuantity)
+    .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+function dhakaDateOnly(now = new Date()) {
+  return new Date(now.getTime() + 6 * 60 * 60 * 1_000).toISOString().slice(0, 10);
 }
 
 
@@ -398,9 +491,221 @@ export function createInventoryService(prisma: PrismaClient) {
       return readSale(saleId);
     },
 
+    async returnPhysicalSale(id: string, input: PhysicalSaleReturnInput, actorId: string) {
+      try {
+        await prisma.$transaction(async (transaction) => {
+          const locked = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            SELECT "id" FROM "sales_orders" WHERE "id" = ${id}::uuid FOR UPDATE
+          `);
+          if (locked.length === 0) throw inventoryError(404, "PHYSICAL_SALE_NOT_FOUND", "Physical sale not found.");
+
+          const sale = await transaction.salesOrder.findUnique({
+            where: { id },
+            include: {
+              items: {
+                include: {
+                  physicalSaleReturnItems: { select: { quantity: true, refundAmount: true } },
+                  allocations: {
+                    orderBy: { createdAt: "asc" },
+                    include: {
+                      physicalSaleReturnAllocations: {
+                        select: { quantity: true, totalBuyingCost: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          });
+          if (!sale || sale.source !== "PHYSICAL_SHOP") {
+            throw inventoryError(404, "PHYSICAL_SALE_NOT_FOUND", "Physical sale not found.");
+          }
+          if (sale.status !== "COMPLETED") {
+            throw inventoryError(409, "PHYSICAL_SALE_NOT_RETURNABLE", "Only a completed physical sale can accept item returns.");
+          }
+
+          const byId = new Map(sale.items.map((item) => [item.id, item]));
+          const prepared = input.items.map((requested) => {
+            const item = byId.get(requested.salesOrderItemId);
+            if (!item) throw inventoryError(404, "SALE_ITEM_NOT_FOUND", "One or more sold items were not found in this sale.");
+            const quantity = toBaseQuantity(requested.amount, requested.amountUnit, kindForQuantityUnit(item.quantityUnit));
+            const alreadyReturned = item.physicalSaleReturnItems.reduce((total, value) => total + value.quantity, 0);
+            const returnableQuantity = item.quantity - alreadyReturned;
+            if (quantity > returnableQuantity) {
+              throw inventoryError(409, "RETURN_QUANTITY_EXCEEDED", "The return quantity exceeds the remaining sold quantity.", {
+                salesOrderItemId: item.id,
+                requestedQuantity: quantity,
+                returnableQuantity,
+              });
+            }
+            const alreadyRefunded = item.physicalSaleReturnItems.reduce(
+              (total, value) => total.plus(value.refundAmount),
+              new Prisma.Decimal(0),
+            );
+            const refundAmount = proportionalMoney(
+              item.netLineRevenue,
+              quantity,
+              item.quantity,
+              alreadyRefunded,
+              returnableQuantity,
+            );
+
+            let remaining = quantity;
+            const allocations: Array<{
+              id: string;
+              quantity: number;
+              unitBuyingCost: Prisma.Decimal;
+              totalBuyingCost: Prisma.Decimal;
+            }> = [];
+            for (const allocation of item.allocations) {
+              if (remaining === 0) break;
+              if (allocation.state !== "CONSUMED") continue;
+              const alreadyReturnedFromAllocation = allocation.physicalSaleReturnAllocations.reduce(
+                (total, value) => total + value.quantity,
+                0,
+              );
+              const allocationRemaining = allocation.quantity - alreadyReturnedFromAllocation;
+              if (allocationRemaining <= 0) continue;
+              const allocationQuantity = Math.min(remaining, allocationRemaining);
+              const alreadyReversedCost = allocation.physicalSaleReturnAllocations.reduce(
+                (total, value) => total.plus(value.totalBuyingCost),
+                new Prisma.Decimal(0),
+              );
+              allocations.push({
+                id: allocation.id,
+                quantity: allocationQuantity,
+                unitBuyingCost: allocation.unitBuyingCost,
+                totalBuyingCost: proportionalMoney(
+                  allocation.totalBuyingCost,
+                  allocationQuantity,
+                  allocation.quantity,
+                  alreadyReversedCost,
+                  allocationRemaining,
+                ),
+              });
+              remaining -= allocationQuantity;
+            }
+            if (remaining !== 0) {
+              throw inventoryError(409, "RETURN_ALLOCATION_MISMATCH", "The original FIFO allocations cannot cover this return.");
+            }
+            const reversedBuyingCost = allocations.reduce(
+              (total, value) => total.plus(value.totalBuyingCost),
+              new Prisma.Decimal(0),
+            );
+            return {
+              item,
+              quantity,
+              refundAmount,
+              reversedBuyingCost,
+              reversedGrossProfit: refundAmount.minus(reversedBuyingCost),
+              allocations,
+            };
+          });
+
+          const refundAmount = prepared.reduce((total, value) => total.plus(value.refundAmount), new Prisma.Decimal(0));
+          const reversedBuyingCost = prepared.reduce((total, value) => total.plus(value.reversedBuyingCost), new Prisma.Decimal(0));
+          const reversedGrossProfit = refundAmount.minus(reversedBuyingCost);
+          const returnedAt = new Date();
+          const physicalReturn = await transaction.physicalSaleReturn.create({ data: {
+            salesOrderId: sale.id,
+            condition: input.condition,
+            reason: input.reason,
+            refundAmount,
+            reversedBuyingCost,
+            reversedGrossProfit,
+            createdByProfileId: actorId,
+            createdAt: returnedAt,
+          } });
+
+          for (const value of prepared) {
+            const returnItem = await transaction.physicalSaleReturnItem.create({ data: {
+              physicalSaleReturnId: physicalReturn.id,
+              salesOrderItemId: value.item.id,
+              quantity: value.quantity,
+              refundAmount: value.refundAmount,
+              reversedBuyingCost: value.reversedBuyingCost,
+              reversedGrossProfit: value.reversedGrossProfit,
+              createdAt: returnedAt,
+            } });
+            for (const allocation of value.allocations) {
+              let restoredStockBatchId: string | undefined;
+              if (input.condition === "SELLABLE") {
+                const batch = await transaction.stockBatch.create({ data: {
+                  productVariantId: value.item.productVariantId,
+                  source: "SELLABLE_RETURN",
+                  purchasedQuantity: allocation.quantity,
+                  availableQuantity: allocation.quantity,
+                  unitBuyingCost: allocation.unitBuyingCost,
+                  purchaseDate: new Date(`${dhakaDateOnly(returnedAt)}T00:00:00.000Z`),
+                  note: input.reason,
+                  sourceSalesOrderId: sale.id,
+                  createdByProfileId: actorId,
+                } });
+                restoredStockBatchId = batch.id;
+                await transaction.productVariant.update({
+                  where: { id: value.item.productVariantId },
+                  data: { availableStock: { increment: allocation.quantity } },
+                });
+              }
+              await transaction.physicalSaleReturnAllocation.create({ data: {
+                physicalSaleReturnItemId: returnItem.id,
+                orderAllocationId: allocation.id,
+                restoredStockBatchId,
+                quantity: allocation.quantity,
+                unitBuyingCost: allocation.unitBuyingCost,
+                totalBuyingCost: allocation.totalBuyingCost,
+                createdAt: returnedAt,
+              } });
+            }
+          }
+
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "PHYSICAL_SALE_ITEMS_RETURNED",
+            entityType: "SALES_ORDER",
+            entityId: sale.id,
+            newData: {
+              returnId: physicalReturn.id,
+              condition: input.condition,
+              refundAmount: refundAmount.toString(),
+              reversedBuyingCost: reversedBuyingCost.toString(),
+              items: prepared.map((value) => ({ salesOrderItemId: value.item.id, quantity: value.quantity })),
+            },
+            reason: input.reason,
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        rethrowInventoryTransactionError(error);
+      }
+      return readSale(id);
+    },
+
     async listPhysicalSales(input: PhysicalSaleList) {
+      const query = input.query?.trim();
+      const exactTotal = query && /^\d+(?:\.\d{1,2})?$/.test(query)
+        ? new Prisma.Decimal(query)
+        : null;
       const sales = await prisma.salesOrder.findMany({
-        where: { source: "PHYSICAL_SHOP", status: "COMPLETED" },
+        where: {
+          source: "PHYSICAL_SHOP",
+          status: "COMPLETED",
+          ...(input.dateFrom || input.dateTo ? { completedAt: {
+            ...(input.dateFrom ? { gte: new Date(`${input.dateFrom}T00:00:00+06:00`) } : {}),
+            ...(input.dateTo ? { lt: new Date(`${nextDate(input.dateTo)}T00:00:00+06:00`) } : {}),
+          } } : {}),
+          ...(query ? { OR: [
+            { orderNumber: { contains: query, mode: "insensitive" } },
+            { customerName: { contains: query, mode: "insensitive" } },
+            { customerPhone: { contains: query } },
+            ...(exactTotal ? [{ grandTotal: exactTotal }] : []),
+            { items: { some: {
+              OR: [
+                { productNameSnapshot: { contains: query, mode: "insensitive" } },
+                { variantNameSnapshot: { contains: query, mode: "insensitive" } },
+              ],
+            } } },
+          ] } : {}),
+        },
         include: saleInclude,
         orderBy: { completedAt: "desc" },
         take: input.limit,

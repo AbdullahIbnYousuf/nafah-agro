@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import {
   physicalSaleCreateSchema,
+  physicalSaleReturnSchema,
   purchaseCreateSchema,
   stockAdjustmentSchema,
 } from "../schemas/inventory.js";
@@ -32,7 +33,7 @@ interface BatchRow {
   id: string;
   purchaseGroupId: string | null;
   productVariantId: string;
-  source: "PURCHASE" | "ADJUSTMENT";
+  source: "PURCHASE" | "ADJUSTMENT" | "SELLABLE_RETURN";
   purchasedQuantity: number;
   availableQuantity: number;
   reservedQuantity: number;
@@ -113,6 +114,40 @@ interface AllocationRow {
   updatedAt: Date;
 }
 
+interface PhysicalReturnRow {
+  id: string;
+  salesOrderId: string;
+  condition: "SELLABLE" | "DAMAGED";
+  reason: string;
+  refundAmount: string;
+  reversedBuyingCost: string;
+  reversedGrossProfit: string;
+  createdByProfileId: string;
+  createdAt: Date;
+}
+
+interface PhysicalReturnItemRow {
+  id: string;
+  physicalSaleReturnId: string;
+  salesOrderItemId: string;
+  quantity: number;
+  refundAmount: string;
+  reversedBuyingCost: string;
+  reversedGrossProfit: string;
+  createdAt: Date;
+}
+
+interface PhysicalReturnAllocationRow {
+  id: string;
+  physicalSaleReturnItemId: string;
+  orderAllocationId: string;
+  restoredStockBatchId: string | null;
+  quantity: number;
+  unitBuyingCost: string;
+  totalBuyingCost: string;
+  createdAt: Date;
+}
+
 const money = (value: MoneyValue) => new Prisma.Decimal(value).toFixed(2);
 
 function createInMemoryPrisma() {
@@ -125,6 +160,9 @@ function createInMemoryPrisma() {
     sales: SaleRow[];
     saleItems: SaleItemRow[];
     allocations: AllocationRow[];
+    physicalReturns: PhysicalReturnRow[];
+    physicalReturnItems: PhysicalReturnItemRow[];
+    physicalReturnAllocations: PhysicalReturnAllocationRow[];
     audits: Array<Record<string, unknown>>;
     failBatchForVariant: string | null;
   } = {
@@ -140,7 +178,8 @@ function createInMemoryPrisma() {
         product: { id: PRODUCT_B, name: "Red Rice", isActive: true, kind: "PACKAGED" },
       },
     ],
-    batches: [], adjustments: [], sales: [], saleItems: [], allocations: [], audits: [],
+    batches: [], adjustments: [], sales: [], saleItems: [], allocations: [],
+    physicalReturns: [], physicalReturnItems: [], physicalReturnAllocations: [], audits: [],
     failBatchForVariant: null,
   };
 
@@ -151,11 +190,55 @@ function createInMemoryPrisma() {
   };
   const hydrateSale = (sale: SaleRow) => ({
     ...sale,
+    subtotal: new Prisma.Decimal(sale.subtotal),
+    discountTotal: new Prisma.Decimal(sale.discountTotal),
+    grandTotal: new Prisma.Decimal(sale.grandTotal),
+    totalBuyingCost: new Prisma.Decimal(sale.totalBuyingCost),
+    grossProfit: new Prisma.Decimal(sale.grossProfit),
+    grossProfitMargin: sale.grossProfitMargin === null ? null : new Prisma.Decimal(sale.grossProfitMargin),
     createdBy: creator,
+    physicalSaleReturns: state.physicalReturns.filter((value) => value.salesOrderId === sale.id).map((value) => ({
+      ...value,
+      refundAmount: new Prisma.Decimal(value.refundAmount),
+      reversedBuyingCost: new Prisma.Decimal(value.reversedBuyingCost),
+      reversedGrossProfit: new Prisma.Decimal(value.reversedGrossProfit),
+      createdBy: creator,
+      items: state.physicalReturnItems.filter((item) => item.physicalSaleReturnId === value.id).map((item) => ({
+        ...item,
+        refundAmount: new Prisma.Decimal(item.refundAmount),
+        reversedBuyingCost: new Prisma.Decimal(item.reversedBuyingCost),
+        reversedGrossProfit: new Prisma.Decimal(item.reversedGrossProfit),
+        salesOrderItem: (() => {
+          const soldItem = state.saleItems.find((candidate) => candidate.id === item.salesOrderItemId)!;
+          return {
+            productNameSnapshot: soldItem.productNameSnapshot,
+            variantNameSnapshot: soldItem.variantNameSnapshot,
+            quantityUnit: soldItem.quantityUnit,
+          };
+        })(),
+      })),
+    })),
     items: state.saleItems.filter((item) => item.salesOrderId === sale.id).map((item) => ({
       ...item,
+      unitSellingPrice: new Prisma.Decimal(item.unitSellingPrice),
+      grossLineRevenue: new Prisma.Decimal(item.grossLineRevenue),
+      allocatedDiscount: new Prisma.Decimal(item.allocatedDiscount),
+      netLineRevenue: new Prisma.Decimal(item.netLineRevenue),
+      totalBuyingCost: new Prisma.Decimal(item.totalBuyingCost),
+      grossProfit: new Prisma.Decimal(item.grossProfit),
+      physicalSaleReturnItems: state.physicalReturnItems.filter((value) => value.salesOrderItemId === item.id).map((value) => ({
+        ...value,
+        refundAmount: new Prisma.Decimal(value.refundAmount),
+        reversedBuyingCost: new Prisma.Decimal(value.reversedBuyingCost),
+      })),
       allocations: state.allocations.filter((allocation) => allocation.salesOrderItemId === item.id).map((allocation) => ({
         ...allocation,
+        unitBuyingCost: new Prisma.Decimal(allocation.unitBuyingCost),
+        totalBuyingCost: new Prisma.Decimal(allocation.totalBuyingCost),
+        physicalSaleReturnAllocations: state.physicalReturnAllocations.filter((value) => value.orderAllocationId === allocation.id).map((value) => ({
+          ...value,
+          totalBuyingCost: new Prisma.Decimal(value.totalBuyingCost),
+        })),
         reservedAt: null,
         releasedAt: null,
         stockBatch: {
@@ -298,6 +381,55 @@ function createInMemoryPrisma() {
         return row;
       },
     },
+    physicalSaleReturn: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row: PhysicalReturnRow = {
+          id: id(),
+          salesOrderId: String(data.salesOrderId),
+          condition: data.condition as PhysicalReturnRow["condition"],
+          reason: String(data.reason),
+          refundAmount: money(data.refundAmount as MoneyValue),
+          reversedBuyingCost: money(data.reversedBuyingCost as MoneyValue),
+          reversedGrossProfit: money(data.reversedGrossProfit as MoneyValue),
+          createdByProfileId: String(data.createdByProfileId),
+          createdAt: data.createdAt as Date,
+        };
+        state.physicalReturns.push(row);
+        return row;
+      },
+    },
+    physicalSaleReturnItem: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row: PhysicalReturnItemRow = {
+          id: id(),
+          physicalSaleReturnId: String(data.physicalSaleReturnId),
+          salesOrderItemId: String(data.salesOrderItemId),
+          quantity: Number(data.quantity),
+          refundAmount: money(data.refundAmount as MoneyValue),
+          reversedBuyingCost: money(data.reversedBuyingCost as MoneyValue),
+          reversedGrossProfit: money(data.reversedGrossProfit as MoneyValue),
+          createdAt: data.createdAt as Date,
+        };
+        state.physicalReturnItems.push(row);
+        return row;
+      },
+    },
+    physicalSaleReturnAllocation: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row: PhysicalReturnAllocationRow = {
+          id: id(),
+          physicalSaleReturnItemId: String(data.physicalSaleReturnItemId),
+          orderAllocationId: String(data.orderAllocationId),
+          restoredStockBatchId: (data.restoredStockBatchId as string | undefined) ?? null,
+          quantity: Number(data.quantity),
+          unitBuyingCost: money(data.unitBuyingCost as MoneyValue),
+          totalBuyingCost: money(data.totalBuyingCost as MoneyValue),
+          createdAt: data.createdAt as Date,
+        };
+        state.physicalReturnAllocations.push(row);
+        return row;
+      },
+    },
     auditLog: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
         const row = { id: id(), ...data, createdAt: new Date() };
@@ -305,7 +437,11 @@ function createInMemoryPrisma() {
         return row;
       },
     },
-    $queryRaw: async (query: { values: unknown[] }) => {
+    $queryRaw: async (query: { values: unknown[]; strings?: string[] }) => {
+      if (String(query.strings).includes('FROM "sales_orders"')) {
+        const saleId = String(query.values[0]);
+        return state.sales.some((sale) => sale.id === saleId) ? [{ id: saleId }] : [];
+      }
       const variantId = String(query.values[0]);
       return state.batches
         .filter((batch) => batch.productVariantId === variantId && batch.availableQuantity > 0)
@@ -344,6 +480,18 @@ function purchase(items: Array<{ productVariantId: string; quantity: number; uni
 
 function sale(items: Array<{ productVariantId: string; quantity: number }>, discountTotal = "0", confirmUnprofitable = false) {
   return physicalSaleCreateSchema.parse({ items: items.map(({ quantity, ...item }) => ({ ...item, amount: String(quantity), amountUnit: "PIECE" })), discountTotal, confirmUnprofitable });
+}
+
+function physicalReturn(
+  salesOrderItemId: string,
+  quantity: number,
+  condition: "SELLABLE" | "DAMAGED" = "SELLABLE",
+) {
+  return physicalSaleReturnSchema.parse({
+    condition,
+    reason: "Customer returned the product",
+    items: [{ salesOrderItemId, amount: String(quantity), amountUnit: "PIECE" }],
+  });
 }
 
 describe("Milestone 3 inventory and physical sales", () => {
@@ -514,6 +662,61 @@ describe("Milestone 3 inventory and physical sales", () => {
     }));
   });
 
+  it("returns selected physical-sale quantities and restores only SELLABLE stock", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 4, unitBuyingCost: "300" }]), OWNER_ID);
+    const sold = await service.createPhysicalSale(sale([{ productVariantId: VARIANT_A, quantity: 2 }], "100"), OWNER_ID);
+
+    const firstReturn = await service.returnPhysicalSale(
+      sold.id,
+      physicalReturn(sold.items[0].id, 1, "SELLABLE"),
+      OWNER_ID,
+    );
+
+    expect(firstReturn).toMatchObject({
+      refundedAmount: 450,
+      remainingRevenue: 450,
+      remainingBuyingCost: 300,
+      remainingGrossProfit: 150,
+    });
+    expect(firstReturn.items[0]).toMatchObject({ returnedQuantity: 1, returnableQuantity: 1 });
+    expect(firstReturn.returns[0]).toMatchObject({ condition: "SELLABLE", refundAmount: 450, reversedBuyingCost: 300 });
+    expect(state.variants[0].availableStock).toBe(3);
+    expect(state.batches.some((batch) => batch.source === "SELLABLE_RETURN" && batch.availableQuantity === 1)).toBe(true);
+
+    const finalReturn = await service.returnPhysicalSale(
+      sold.id,
+      physicalReturn(sold.items[0].id, 1, "DAMAGED"),
+      OWNER_ID,
+    );
+    expect(finalReturn).toMatchObject({ refundedAmount: 900, remainingRevenue: 0, remainingBuyingCost: 0, remainingGrossProfit: 0 });
+    expect(finalReturn.items[0]).toMatchObject({ returnedQuantity: 2, returnableQuantity: 0 });
+    expect(state.variants[0].availableStock).toBe(3);
+  });
+
+  it("rejects excess and repeated physical-sale returns without partial changes", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 3, unitBuyingCost: "300" }]), OWNER_ID);
+    const sold = await service.createPhysicalSale(sale([{ productVariantId: VARIANT_A, quantity: 1 }]), OWNER_ID);
+
+    await expect(service.returnPhysicalSale(
+      sold.id,
+      physicalReturn(sold.items[0].id, 2),
+      OWNER_ID,
+    )).rejects.toMatchObject({ code: "RETURN_QUANTITY_EXCEEDED" });
+    expect(state.physicalReturns).toHaveLength(0);
+
+    await service.returnPhysicalSale(sold.id, physicalReturn(sold.items[0].id, 1), OWNER_ID);
+    await expect(service.returnPhysicalSale(
+      sold.id,
+      physicalReturn(sold.items[0].id, 1),
+      OWNER_ID,
+    )).rejects.toMatchObject({ code: "RETURN_QUANTITY_EXCEEDED" });
+    expect(state.physicalReturns).toHaveLength(1);
+  });
+
   it("purchases and sells loose weight in exact grams with per-kilogram FIFO costs", async () => {
     const { prisma, state } = createInMemoryPrisma();
     state.variants[1].product.kind = "LOOSE_WEIGHT";
@@ -530,5 +733,30 @@ describe("Milestone 3 inventory and physical sales", () => {
     expect(saleResult.items[0]).toMatchObject({ quantity: 1_250, quantityUnit: "GRAM", grossLineRevenue: 125, totalBuyingCost: 75 });
     expect(state.batches[0].availableQuantity).toBe(98_750);
     expect(state.variants[1].availableStock).toBe(98_750);
+  });
+
+  it("returns an exact loose-weight amount using the original rate and FIFO cost", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    state.variants[1].product.kind = "LOOSE_WEIGHT";
+    state.variants[1].currentSellingPrice = "100.00";
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchaseCreateSchema.parse({
+      purchaseDate: "2026-08-15",
+      items: [{ productVariantId: VARIANT_B, amount: "10", amountUnit: "KG", unitBuyingCost: "60.00" }],
+    }), OWNER_ID);
+    const sold = await service.createPhysicalSale(physicalSaleCreateSchema.parse({
+      items: [{ productVariantId: VARIANT_B, amount: "2", amountUnit: "KG" }],
+      discountTotal: "0",
+    }), OWNER_ID);
+
+    const returned = await service.returnPhysicalSale(sold.id, physicalSaleReturnSchema.parse({
+      condition: "SELLABLE",
+      reason: "Customer returned loose rice",
+      items: [{ salesOrderItemId: sold.items[0].id, amount: "500", amountUnit: "G" }],
+    }), OWNER_ID);
+
+    expect(returned).toMatchObject({ refundedAmount: 50, remainingRevenue: 150, remainingBuyingCost: 90, remainingGrossProfit: 60 });
+    expect(returned.items[0]).toMatchObject({ returnedQuantity: 500, returnableQuantity: 1_500 });
+    expect(state.variants[1].availableStock).toBe(8_500);
   });
 });

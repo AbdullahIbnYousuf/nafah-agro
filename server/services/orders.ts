@@ -513,6 +513,13 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
             return;
           }
           if (input.action === "RETURN") {
+            if (order.source === "PHYSICAL_SHOP") {
+              throw orderError(
+                409,
+                "PHYSICAL_RETURN_REQUIRES_ITEM_FLOW",
+                "Physical-shop returns must be recorded from the physical-sales screen with the returned items and quantities.",
+              );
+            }
             if (order.status !== "DELIVERED" && order.status !== "COMPLETED") {
               throw orderError(409, "INVALID_ORDER_STATUS", "Only a delivered or completed order can be returned.");
             }

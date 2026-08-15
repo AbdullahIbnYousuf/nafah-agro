@@ -170,12 +170,17 @@ Because pending website orders do not reserve stock, confirmation may fail if st
 
 ### Returns
 
-Only whole-order returns are supported:
+Delivered website and manual delivery orders support whole-order returns:
 
 - `RETURNED_SELLABLE`: reverse revenue/profit and restore the full quantity as new return batches using the original allocated buying costs
 - `RETURNED_DAMAGED`: reverse revenue/profit but do not restore sellable stock
 
-Partial returns are outside V1.
+An identified physical-shop sale supports item and quantity returns. The owner
+must find the original sale, select the returned amount, choose `SELLABLE` or
+`DAMAGED`, and enter a reason. Refund, buying cost, profit, and any restored
+stock are calculated from the original price, discount, and FIFO allocations.
+The API prevents returning more than the remaining sold quantity. Returns that
+cannot be linked to an original sale remain outside V1.
 
 ## 7. Pricing, discounts, and delivery charges
 
@@ -265,7 +270,7 @@ V1 is complete when:
 
 - Real payment gateways, bKash/Nagad gateways, SSLCommerz, or cards
 - Phone OTP
-- Partial returns
+- Returns that cannot be linked to an original sale
 - FEFO, weighted-average costing, or expiry tracking
 - Separate inventory-movement or reservation systems
 - Supplier, warehouse, expense, or business-settings systems

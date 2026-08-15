@@ -27,10 +27,11 @@ the tester, date, deployment URL, commit, and evidence for every checked item.
    and recognized revenue/profit.
 9. Cancel one pending/confirmed order and mark another failed delivery with
    explicit reasons. Confirm reserved stock is released and analytics exclude both.
-10. Return one complete order as SELLABLE and another as DAMAGED. Confirm the
-    dialog lists items, requires a reason, explains stock impact, and closing it
-    performs no action. Verify only SELLABLE restores stock and both reverse
-    revenue/profit.
+10. Return one complete delivery order as SELLABLE and another as DAMAGED. Also
+    return part of an identified physical sale in each condition. Confirm the
+    dialogs list items, require a reason, explain stock impact, and closing them
+    performs no action. Verify only SELLABLE restores stock and every return
+    reverses the correct revenue, FIFO cost, and profit.
 11. Show customer history and OWNER analytics for today, week, month, and a
     custom range; reconcile sources, rankings, low/out-of-stock counts, stock
     totals, inventory value, discounts, returns, and delivery-charge separation.

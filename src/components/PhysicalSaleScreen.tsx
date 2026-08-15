@@ -6,7 +6,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
-import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales } from '@/lib/api';
+import PhysicalSaleReturnDialog from '@/components/PhysicalSaleReturnDialog';
+import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales, returnPhysicalSale } from '@/lib/api';
 import type { AmountUnit, PhysicalSale, Product, ProductVariant } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
 import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
@@ -30,13 +31,23 @@ export default function PhysicalSaleScreen() {
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState<PhysicalSale | null>(null);
   const [projectedLoss, setProjectedLoss] = useState<unknown>(null);
+  const [returnSale, setReturnSale] = useState<PhysicalSale | null>(null);
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
+  const [historyFilters, setHistoryFilters] = useState({ query: '', dateFrom: '', dateTo: '' });
   const [errors, setErrors] = useState<{ items?: string; phone?: string; discount?: string; submit?: string }>({});
 
   const load = useCallback(() => {
-    Promise.all([getAdminProducts({ limit: 100 }), getPhysicalSales(20)])
+    Promise.all([getAdminProducts({ limit: 100 }), getPhysicalSales({
+      limit: 50,
+      ...(historyFilters.query ? { query: historyFilters.query } : {}),
+      ...(historyFilters.dateFrom ? { dateFrom: historyFilters.dateFrom } : {}),
+      ...(historyFilters.dateTo ? { dateTo: historyFilters.dateTo } : {}),
+    })])
       .then(([page, sales]) => { setProducts(page.data); setRecentSales(sales); })
       .catch((error) => toast.error(getErrorMessage(error, 'বিক্রয় স্ক্রিন লোড হয়নি')));
-  }, []);
+  }, [historyFilters]);
   useEffect(load, [load]);
 
   const variants = useMemo(() => products.flatMap((product) =>
@@ -104,6 +115,27 @@ export default function PhysicalSaleScreen() {
     }
   }
 
+  async function submitReturn(input: Parameters<typeof returnPhysicalSale>[1]) {
+    if (!returnSale) return;
+    const updated = await returnPhysicalSale(returnSale.id, input);
+    setRecentSales((current) => current.map((sale) => sale.id === updated.id ? updated : sale));
+    setCompleted((current) => current?.id === updated.id ? updated : current);
+    setReturnSale(updated);
+    toast.success('পণ্য ফেরত সম্পন্ন হয়েছে');
+  }
+
+  function applyHistoryFilters(event: React.FormEvent) {
+    event.preventDefault();
+    setHistoryFilters({ query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo });
+  }
+
+  function clearHistoryFilters() {
+    setHistoryQuery('');
+    setHistoryDateFrom('');
+    setHistoryDateTo('');
+    setHistoryFilters({ query: '', dateFrom: '', dateTo: '' });
+  }
+
   return <div className="space-y-8">
     <div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">পেমেন্ট CASH। বিক্রি সম্পন্ন হলে আগে কেনা স্টক আগে কমবে।</p></div>
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
@@ -127,11 +159,19 @@ export default function PhysicalSaleScreen() {
 
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
+      <form onSubmit={applyHistoryFilters} className="mb-4 grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_170px_170px_auto_auto] md:items-end">
+        <Field label="বিক্রি খুঁজুন"><Input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="পণ্য, ফোন, বিক্রয় নম্বর বা মোট দাম" /></Field>
+        <Field label="তারিখ থেকে"><Input type="date" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></Field>
+        <Field label="তারিখ পর্যন্ত"><Input type="date" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></Field>
+        <Button type="submit" variant="outline"><Search size={16} className="mr-2" />খুঁজুন</Button>
+        <Button type="button" variant="ghost" onClick={clearHistoryFilters} disabled={!historyQuery && !historyDateFrom && !historyDateTo && !historyFilters.query && !historyFilters.dateFrom && !historyFilters.dateTo}>ফিল্টার মুছুন</Button>
+      </form>
       {recentSales.length === 0
-        ? <div className="rounded-lg border bg-card px-4 py-10 text-center text-sm text-muted-foreground">এখনও কোনো বিক্রি নেই</div>
-        : <div className="space-y-3">{recentSales.map((sale) => <PhysicalSaleHistoryCard key={sale.id} sale={sale} />)}</div>}
+        ? <div className="rounded-lg border bg-card px-4 py-10 text-center text-sm text-muted-foreground">এই খোঁজে কোনো বিক্রি পাওয়া যায়নি</div>
+        : <div className="space-y-3">{recentSales.map((sale) => <PhysicalSaleHistoryCard key={sale.id} sale={sale} onReturn={() => setReturnSale(sale)} />)}</div>}
     </section>
     <ProfitWarningDialog open={projectedLoss !== null} projectedGrossProfit={projectedLoss} onClose={() => setProjectedLoss(null)} onConfirm={() => saveSale(true)} />
+    <PhysicalSaleReturnDialog sale={returnSale} onClose={() => setReturnSale(null)} onConfirm={submitReturn} />
   </div>;
 }
 
@@ -153,11 +193,12 @@ function saleRateLabel(unit: PhysicalSale['items'][number]['quantityUnit']) {
   return 'প্রতি ইউনিট';
 }
 
-function PhysicalSaleHistoryCard({ sale }: { sale: PhysicalSale }) {
+function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onReturn: () => void }) {
   const [open, setOpen] = useState(false);
   const customer = [sale.customerName, sale.customerPhone].filter(Boolean).join(' · ');
   const firstItem = sale.items[0];
   const remainingItems = sale.items.length - 1;
+  const remainingMargin = sale.remainingRevenue === 0 ? null : sale.remainingGrossProfit / sale.remainingRevenue * 100;
   return <Collapsible open={open} onOpenChange={setOpen} className="overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
     <CollapsibleTrigger asChild>
       <button
@@ -178,8 +219,9 @@ function PhysicalSaleHistoryCard({ sale }: { sale: PhysicalSale }) {
           </div>
         </div>
         <div className="flex items-center justify-between gap-4 sm:block sm:min-w-28 sm:text-right">
-          <span className="text-xs text-muted-foreground">মোট দাম</span>
-          <strong className="block text-lg text-primary">{money(sale.grandTotal)}</strong>
+          <span className="text-xs text-muted-foreground">{sale.refundedAmount > 0 ? 'বর্তমান বিক্রি' : 'মোট দাম'}</span>
+          <strong className="block text-lg text-primary">{money(sale.remainingRevenue)}</strong>
+          {sale.refundedAmount > 0 && <span className="block text-xs text-destructive">ফেরত {money(sale.refundedAmount)}</span>}
         </div>
         <div className="flex items-center justify-end gap-1 text-xs font-medium text-secondary">
           <span>{open ? 'বন্ধ করুন' : 'বিস্তারিত'}</span>
@@ -197,6 +239,7 @@ function PhysicalSaleHistoryCard({ sale }: { sale: PhysicalSale }) {
               <div className="mt-0.5 text-sm text-muted-foreground">
                 {formatQuantity(item.quantity, item.quantityUnit)} × {money(item.unitSellingPrice)} {saleRateLabel(item.quantityUnit)}
               </div>
+              {item.returnedQuantity > 0 && <div className="mt-1 text-xs text-destructive">ফেরত নেওয়া হয়েছে {formatQuantity(item.returnedQuantity, item.quantityUnit)} · বাকি {formatQuantity(item.returnableQuantity, item.quantityUnit)}</div>}
             </div>
             <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm sm:min-w-64 sm:text-right">
               <span className="text-muted-foreground">পণ্যের দাম</span><strong>{money(item.grossLineRevenue)}</strong>
@@ -208,15 +251,24 @@ function PhysicalSaleHistoryCard({ sale }: { sale: PhysicalSale }) {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <SaleSummaryMetric label="সাবটোটাল" value={money(sale.subtotal)} />
-          <SaleSummaryMetric label="ডিসকাউন্ট" value={`-${money(sale.discountTotal)}`} />
-          <SaleSummaryMetric label="ক্রয়মূল্য" value={money(sale.totalBuyingCost)} />
-          <SaleSummaryMetric label="মোট লাভ" value={money(sale.grossProfit)} negative={sale.grossProfit < 0} />
+          <SaleSummaryMetric label="মূল মোট দাম" value={money(sale.grandTotal)} />
+          <SaleSummaryMetric label="ফেরত টাকা" value={`-${money(sale.refundedAmount)}`} negative={sale.refundedAmount > 0} />
+          <SaleSummaryMetric label="বর্তমান ক্রয়মূল্য" value={money(sale.remainingBuyingCost)} />
+          <SaleSummaryMetric label="বর্তমান লাভ" value={money(sale.remainingGrossProfit)} negative={sale.remainingGrossProfit < 0} />
         </div>
+        {sale.returns.length > 0 && <div className="mt-4 space-y-2">
+          <h3 className="text-sm font-semibold">ফেরতের ইতিহাস</h3>
+          {sale.returns.map((value) => <div key={value.id} className="rounded-lg border bg-card p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{new Date(value.createdAt).toLocaleString('bn-BD')}</span></div>
+            <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
+            <div className="mt-1">ফেরত টাকা {money(value.refundAmount)} · কারণ: {value.reason}</div>
+          </div>)}
+        </div>}
         <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
           <span>বিক্রি করেছেন: {sale.createdBy.fullName}</span>
-          <span>লাভের মার্জিন: {sale.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${sale.grossProfitMargin.toFixed(2)}%`}</span>
+          <span>বর্তমান লাভের মার্জিন: {remainingMargin === null ? 'প্রযোজ্য নয়' : `${remainingMargin.toFixed(2)}%`}</span>
         </div>
+        <div className="mt-4 flex justify-end"><Button type="button" variant="outline" onClick={onReturn} disabled={!sale.items.some((item) => item.returnableQuantity > 0)}>{sale.items.some((item) => item.returnableQuantity > 0) ? 'পণ্য ফেরত নিন' : 'সব পণ্য ফেরত হয়েছে'}</Button></div>
       </div>
     </CollapsibleContent>
   </Collapsible>;

@@ -420,12 +420,18 @@ For a confirmed/processing delivery order:
 
 A pending order has no allocations to release.
 
-### Whole-order return
+### Returns
 
-- Only a fully delivered/completed order can be returned.
+- Website and manual delivery orders use whole-order returns after delivery.
 - `RETURNED_SELLABLE` creates new return batches using the original allocation quantities and buying costs, reverses recognized revenue/profit, and audits the action.
 - `RETURNED_DAMAGED` reverses recognized revenue/profit without creating stock.
-- Partial returns are rejected in V1.
+- An identified completed physical sale uses item/quantity return records linked
+  to the original sale item and FIFO allocation. `SELLABLE` restores only the
+  selected quantity at its original allocation cost; `DAMAGED` restores no stock.
+- Physical-sale refunds and financial reversals are proportional to the original
+  captured line revenue, discount, and FIFO cost. Cumulative quantities cannot
+  exceed the original sale.
+- Unidentifiable physical-sale returns and owner overrides are deferred.
 
 ## 7. Order creation and pricing
 

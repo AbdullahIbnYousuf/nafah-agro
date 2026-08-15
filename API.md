@@ -103,6 +103,8 @@ All order sources use `sales_orders`, `sales_order_items`, and
 | `POST` | `/api/v1/orders/manual` | OWNER | Facebook/phone/WhatsApp/other delivery order |
 | `GET` | `/api/v1/orders` | OWNER | Unified paginated/filterable order list |
 | `PATCH` | `/api/v1/orders/:id/status` | OWNER | Confirm/process/deliver/cancel/fail/return |
+| `GET` | `/api/v1/physical-sales` | OWNER | Find physical sales by product, phone, sale number, exact total, or Dhaka date range |
+| `POST` | `/api/v1/physical-sales/:id/returns` | OWNER | Return selected items/quantities from an identified physical sale |
 
 Website checkout accepts only variant IDs, quantities, customer delivery data,
 delivery-rate ID, and an idempotency key:
@@ -148,9 +150,13 @@ Status actions:
 - `DELIVER` consumes reservations, marks COD paid, and recognizes captured
   revenue/cost/profit.
 - cancellation/failure releases reservations and clears recognized costs/profit.
-- whole sellable return creates cost-preserving return batches; damaged return
+- whole delivery-order SELLABLE return creates cost-preserving return batches; DAMAGED return
   restores no stock. Both return statuses reverse recognition in reporting while
   retaining original snapshots.
+- physical-shop returns must use `/physical-sales/:id/returns`. The request
+  includes `condition`, a required `reason`, and one or more original sale-item
+  IDs with `amount` and `amountUnit`. Refund and reversed FIFO cost are calculated
+  from captured snapshots. Cumulative returns cannot exceed the sold quantity.
 - delivery-rate and order mutations write append-only audit rows transactionally.
 
 List filters: `source`, `status`, ISO `dateFrom`, ISO `dateTo`, `orderNumber`,
@@ -184,8 +190,10 @@ Financial rules:
 - product revenue is captured `subtotal - discount_total`
 - gross profit is product revenue minus exact FIFO allocation costs
 - delivery charge contributes to total recognized sales but not product profit
-- sellable and damaged whole returns add equal negative financial, quantity,
-  and FIFO-cost events on `returned_at`; they do not rewrite the original day
+- sellable and damaged whole delivery returns add equal negative financial,
+  quantity, and FIFO-cost events on `returned_at`; identified physical-sale item
+  returns add proportional negative events on their own `created_at`. Neither
+  rewrites the original sale day
 - FIFO inventory value is the remaining quantity times its buying-cost rate;
   gram/millilitre quantities are divided by 1,000 before applying the kg/litre rate
 - quantity summaries are separate for pieces, kg, and litres and are never

@@ -149,6 +149,51 @@ describe("recognized sales and returns", () => {
     },
   );
 
+  it("posts an item-level physical return without removing the completed order count", () => {
+    const result = dashboard({
+      orders: [order({
+        id: "loose-rice-sale",
+        items: [{
+          productId: "product-rice",
+          productVariantId: "variant-rice",
+          productNameSnapshot: "Loose Rice",
+          variantNameSnapshot: "Default",
+          skuSnapshot: "INTERNAL",
+          quantityUnit: "GRAM",
+          quantity: 2_000,
+          netLineRevenue: "500.00",
+          totalBuyingCost: "300.00",
+          allocations: [{ totalBuyingCost: "300.00" }],
+        }],
+      })],
+      physicalSaleReturns: [{
+        createdAt: instant("2026-08-04", 15),
+        refundAmount: "250.00",
+        reversedBuyingCost: "150.00",
+        reversedGrossProfit: "100.00",
+        items: [{
+          quantity: 1_000,
+          refundAmount: "250.00",
+          reversedBuyingCost: "150.00",
+          reversedGrossProfit: "100.00",
+          salesOrderItem: {
+            productId: "product-rice",
+            productVariantId: "variant-rice",
+            productNameSnapshot: "Loose Rice",
+            variantNameSnapshot: "Default",
+            skuSnapshot: "INTERNAL",
+            quantityUnit: "GRAM",
+          },
+        }],
+      }],
+    });
+
+    expect(result.summary.recognizedOrderCount.value).toBe(1);
+    expect(result.summary.recognizedSales.value).toBe(250);
+    expect(result.summary.grossProfit.value).toBe(100);
+    expect(result.summary.soldQuantities.weightKg.value).toBe(1);
+  });
+
   it("separates grand-total revenue, product revenue, delivery charge, and FIFO cost", () => {
     const result = dashboard({ orders: [order({
       id: "delivery",

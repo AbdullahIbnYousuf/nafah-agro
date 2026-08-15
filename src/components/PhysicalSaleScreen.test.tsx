@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createPhysicalSale: vi.fn(),
   getAdminProducts: vi.fn(),
   getPhysicalSales: vi.fn(),
+  returnPhysicalSale: vi.fn(),
 }));
 
 vi.mock('@/lib/api', async (importOriginal) => ({
@@ -14,6 +15,7 @@ vi.mock('@/lib/api', async (importOriginal) => ({
   createPhysicalSale: mocks.createPhysicalSale,
   getAdminProducts: mocks.getAdminProducts,
   getPhysicalSales: mocks.getPhysicalSales,
+  returnPhysicalSale: mocks.returnPhysicalSale,
 }));
 
 const sale: PhysicalSale = {
@@ -31,6 +33,10 @@ const sale: PhysicalSale = {
   totalBuyingCost: 120,
   grossProfit: 60,
   grossProfitMargin: 33.33,
+  refundedAmount: 0,
+  remainingRevenue: 180,
+  remainingBuyingCost: 120,
+  remainingGrossProfit: 60,
   unprofitableOverrideConfirmed: false,
   createdBy: { fullName: 'দোকান মালিক', role: 'OWNER' },
   completedAt: '2026-08-15T12:00:00.000Z',
@@ -49,8 +55,11 @@ const sale: PhysicalSale = {
     netLineRevenue: 180,
     totalBuyingCost: 120,
     grossProfit: 60,
+    returnedQuantity: 0,
+    returnableQuantity: 2_000,
     allocations: [],
   }],
+  returns: [],
 };
 
 describe('physical sale history', () => {

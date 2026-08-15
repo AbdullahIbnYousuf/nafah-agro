@@ -12,6 +12,8 @@ const measuredSaleConstraintMigrationPath =
   'prisma/migrations/202608150002_measured_sale_values_constraint/migration.sql';
 const measuredAllocationConstraintMigrationPath =
   'prisma/migrations/202608150003_measured_allocation_values_constraint/migration.sql';
+const physicalSaleReturnMigrationPath =
+  'prisma/migrations/202608150004_physical_sale_item_returns/migration.sql';
 
 describe('Milestone 6 integrity safeguards', () => {
   it('validates cached variant stock totals at transaction commit', () => {
@@ -65,7 +67,7 @@ describe('Milestone 6 integrity safeguards', () => {
     expect(migration).toContain("'PACKAGED', 'LOOSE_WEIGHT', 'LOOSE_VOLUME'");
     expect(migration).toContain('"kind" "ProductKind" NOT NULL DEFAULT \'PACKAGED\'');
     expect(migration).toContain('"quantity_unit" "QuantityUnit" NOT NULL DEFAULT \'PIECE\'');
-    expect(migration).not.toMatch(/\bUPDATE\b|\bDELETE\b|\bTRUNCATE\b/i);
+    expect(migration).not.toMatch(/^\s*(?:UPDATE|DELETE\s+FROM|TRUNCATE)\b/im);
   });
 
   it('validates measured sale revenue using per-kilogram and per-litre rates', () => {
@@ -83,6 +85,17 @@ describe('Milestone 6 integrity safeguards', () => {
     expect(migration).toContain('DROP CONSTRAINT "order_allocations_values_valid"');
     expect(migration).toContain('"total_buying_cost" = "unit_buying_cost" * "quantity"');
     expect(migration).toContain('round(("unit_buying_cost" * "quantity") / 1000, 2)');
+  });
+
+  it('adds append-only physical-sale return records without rewriting business data', () => {
+    const migration = readFileSync(physicalSaleReturnMigrationPath, 'utf8');
+
+    expect(migration).toContain('CREATE TABLE "physical_sale_returns"');
+    expect(migration).toContain('CREATE TABLE "physical_sale_return_items"');
+    expect(migration).toContain('CREATE TABLE "physical_sale_return_allocations"');
+    expect(migration).toContain('"sales_order_item_id" UUID NOT NULL');
+    expect(migration).toContain('"order_allocation_id" UUID NOT NULL');
+    expect(migration).not.toMatch(/^\s*(?:UPDATE|DELETE\s+FROM|TRUNCATE)\b/im);
   });
 
   it('refreshes only known demo-order dates for dashboard demonstrations', () => {
@@ -103,6 +116,7 @@ describe('Milestone 6 integrity safeguards', () => {
       'src/components/PhysicalSaleScreen.tsx',
       'src/components/UnifiedOrderManager.tsx',
       'src/components/ReturnOrderDialog.tsx',
+      'src/components/PhysicalSaleReturnDialog.tsx',
     ].map((path) => readFileSync(path, 'utf8')).join('\n');
     expect(sources).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
   });

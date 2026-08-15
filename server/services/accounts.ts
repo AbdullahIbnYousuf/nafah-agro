@@ -61,6 +61,7 @@ const ownerHistoryCountSelect = {
   unprofitableOverrides: true,
   updatedDeliveryRates: true,
   auditLogs: true,
+  physicalSaleReturns: true,
 } as const;
 
 function hasOwnerHistory(counts: Record<keyof typeof ownerHistoryCountSelect, number>) {

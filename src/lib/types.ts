@@ -84,7 +84,31 @@ export interface PhysicalSaleItem {
   netLineRevenue: number;
   totalBuyingCost: number;
   grossProfit: number;
+  returnedQuantity: number;
+  returnableQuantity: number;
   allocations: PhysicalSaleAllocation[];
+}
+
+export interface PhysicalSaleReturn {
+  id: string;
+  condition: 'SELLABLE' | 'DAMAGED';
+  reason: string;
+  refundAmount: number;
+  reversedBuyingCost: number;
+  reversedGrossProfit: number;
+  createdBy: { fullName: string; role: Role };
+  createdAt: string;
+  items: Array<{
+    id: string;
+    salesOrderItemId: string;
+    productName: string;
+    variantName: string;
+    quantityUnit: QuantityUnit;
+    quantity: number;
+    refundAmount: number;
+    reversedBuyingCost: number;
+    reversedGrossProfit: number;
+  }>;
 }
 
 export interface PhysicalSale {
@@ -102,10 +126,15 @@ export interface PhysicalSale {
   totalBuyingCost: number;
   grossProfit: number;
   grossProfitMargin: number | null;
+  refundedAmount: number;
+  remainingRevenue: number;
+  remainingBuyingCost: number;
+  remainingGrossProfit: number;
   unprofitableOverrideConfirmed: boolean;
   createdBy: { fullName: string; role: Role };
   completedAt: string;
   items: PhysicalSaleItem[];
+  returns: PhysicalSaleReturn[];
 }
 
 export interface Product {
