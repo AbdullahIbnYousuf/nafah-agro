@@ -8,6 +8,10 @@ const triggerFixMigrationPath =
   'prisma/migrations/202608080001_fix_stock_integrity_trigger/migration.sql';
 const looseProductsMigrationPath =
   'prisma/migrations/202608150001_loose_products/migration.sql';
+const measuredSaleConstraintMigrationPath =
+  'prisma/migrations/202608150002_measured_sale_values_constraint/migration.sql';
+const measuredAllocationConstraintMigrationPath =
+  'prisma/migrations/202608150003_measured_allocation_values_constraint/migration.sql';
 
 describe('Milestone 6 integrity safeguards', () => {
   it('validates cached variant stock totals at transaction commit', () => {
@@ -62,6 +66,23 @@ describe('Milestone 6 integrity safeguards', () => {
     expect(migration).toContain('"kind" "ProductKind" NOT NULL DEFAULT \'PACKAGED\'');
     expect(migration).toContain('"quantity_unit" "QuantityUnit" NOT NULL DEFAULT \'PIECE\'');
     expect(migration).not.toMatch(/\bUPDATE\b|\bDELETE\b|\bTRUNCATE\b/i);
+  });
+
+  it('validates measured sale revenue using per-kilogram and per-litre rates', () => {
+    const migration = readFileSync(measuredSaleConstraintMigrationPath, 'utf8');
+
+    expect(migration).toContain('DROP CONSTRAINT "sales_order_items_values_valid"');
+    expect(migration).toContain("WHEN \"quantity_unit\" = 'PIECE'");
+    expect(migration).toContain('round(("unit_selling_price" * "quantity") / 1000, 2)');
+    expect(migration).not.toContain("ADD VALUE 'FAILED_DELIVERY'");
+  });
+
+  it('accepts exact piece or scaled measured FIFO allocation costs', () => {
+    const migration = readFileSync(measuredAllocationConstraintMigrationPath, 'utf8');
+
+    expect(migration).toContain('DROP CONSTRAINT "order_allocations_values_valid"');
+    expect(migration).toContain('"total_buying_cost" = "unit_buying_cost" * "quantity"');
+    expect(migration).toContain('round(("unit_buying_cost" * "quantity") / 1000, 2)');
   });
 
   it('refreshes only known demo-order dates for dashboard demonstrations', () => {
