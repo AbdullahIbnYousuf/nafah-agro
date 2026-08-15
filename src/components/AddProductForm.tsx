@@ -167,7 +167,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground sm:px-6 sm:py-4">
           <h2 className="text-lg font-bold">
-            {isEdit ? 'পণ্য সম্পাদনা করুন' : 'নতুন পণ্য যোগ করুন'}
+            {isEdit ? 'পণ্য সম্পাদনা' : 'নতুন পণ্য'}
           </h2>
           <button
             type="button"

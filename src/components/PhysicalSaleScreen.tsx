@@ -91,7 +91,7 @@ export default function PhysicalSaleScreen() {
   }
 
   return <div className="space-y-8">
-    <div><h1 className="text-2xl font-bold">দোকানে নতুন বিক্রি</h1><p className="text-sm text-muted-foreground">পেমেন্ট CASH। বিক্রি সম্পন্ন হলে আগে কেনা স্টক আগে কমবে।</p></div>
+    <div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">পেমেন্ট CASH। বিক্রি সম্পন্ন হলে আগে কেনা স্টক আগে কমবে।</p></div>
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য, ভ্যারিয়েন্ট বা SKU খুঁজুন" /></div>

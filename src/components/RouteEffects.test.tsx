@@ -10,7 +10,7 @@ describe('route presentation effects', () => {
   it('provides meaningful titles for public and nested admin pages', () => {
     expect(titleForPath('/')).toBe('হোম | নাফাহ এগ্রো');
     expect(titleForPath('/admin/products/new')).toBe('নতুন পণ্য | নাফাহ এগ্রো');
-    expect(titleForPath('/admin/orders')).toBe('অর্ডার পরিচালনা | নাফাহ এগ্রো');
+    expect(titleForPath('/admin/orders')).toBe('অর্ডার | নাফাহ এগ্রো');
     expect(titleForPath('/missing')).toBe('পৃষ্ঠা পাওয়া যায়নি | নাফাহ এগ্রো');
   });
 

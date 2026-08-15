@@ -119,7 +119,7 @@ export default function InventoryManager() {
   if (loading) return <div className="py-16 text-center text-muted-foreground">ইনভেন্টরি লোড হচ্ছে…</div>;
 
   return <div className="space-y-8">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">ক্রয় ও স্টক</h1><p className="text-sm text-muted-foreground">প্রতিটি ক্রয় আলাদা ব্যাচ হিসেবে রাখা হয়। আগে কেনা স্টক আগে কমবে।</p></div><Button variant="outline" onClick={load}><RefreshCw size={15} className="mr-2" />রিফ্রেশ</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">ক্রয় ও ইনভেন্টরি</h1><p className="text-sm text-muted-foreground">প্রতিটি ক্রয় আলাদা ব্যাচ হিসেবে রাখা হয়। আগে কেনা স্টক আগে কমবে।</p></div><Button variant="outline" onClick={load}><RefreshCw size={15} className="mr-2" />রিফ্রেশ</Button></div>
 
     <form onSubmit={submitPurchase} className="bg-card border rounded-lg p-5 space-y-4">
       <h2 className="font-semibold text-lg">নতুন ক্রয়</h2>

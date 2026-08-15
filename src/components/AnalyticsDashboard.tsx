@@ -317,7 +317,7 @@ function AnalyticsDashboardContent() {
 
   return <div>
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div><h1 className="text-2xl font-bold">ব্যবসার ড্যাশবোর্ড</h1><p className="text-sm text-muted-foreground">বিক্রি, লাভ এবং বর্তমান ইনভেন্টরি</p></div>
+      <div><h1 className="text-2xl font-bold">ড্যাশবোর্ড</h1><p className="text-sm text-muted-foreground">বিক্রি, লাভ এবং বর্তমান ইনভেন্টরি</p></div>
       <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={16} className={`mr-2 ${query.isFetching ? 'animate-spin' : ''}`} />রিফ্রেশ</Button>
     </div>
 

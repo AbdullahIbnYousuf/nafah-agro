@@ -37,7 +37,7 @@ export default function Admin() {
     { path: '/admin/products', label: 'পণ্য', mobileLabel: 'পণ্য', icon: Package },
     { path: '/admin/categories', label: 'ক্যাটাগরি', mobileLabel: 'ক্যাটাগরি', icon: Tag },
     { path: '/admin/inventory', label: 'ক্রয় ও ইনভেন্টরি', mobileLabel: 'ইনভেন্টরি', icon: Boxes },
-    { path: '/admin/physical-sales', label: 'দোকানের বিক্রি', mobileLabel: 'বিক্রয়', icon: Store },
+    { path: '/admin/physical-sales', label: 'দোকানের বিক্রি', mobileLabel: 'বিক্রি', icon: Store },
     { path: '/admin/orders', label: 'অর্ডার', mobileLabel: 'অর্ডার', icon: ClipboardList },
   ];
 
@@ -149,7 +149,7 @@ export function AdminProducts() {
           <td className="p-3 text-right">৳{product.price}</td>
           <td className="p-3 text-center">{product.variants?.length ?? 0}</td>
           <td className="p-3"><div className="flex min-w-28 items-center justify-center gap-2"><Switch checked={product.isActive !== false} disabled={changingStatus} onCheckedChange={(checked) => { setStatusError(''); setStatusTarget({ product, nextIsActive: checked }); }} aria-label={`${product.name} সক্রিয় অবস্থা`} /><span>{product.isActive === false ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</span>{changingStatus && <Loader2 size={15} className="animate-spin" aria-label="অবস্থা সংরক্ষণ হচ্ছে" />}</div></td>
-          <td className="whitespace-nowrap p-3 text-right"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button>{product.canDelete && <Button type="button" size="sm" variant="destructive" className="ml-2" onClick={() => { setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</td>
+          <td className="whitespace-nowrap p-3 text-right"><button type="button" aria-label="ভ্যারিয়েন্ট ও দাম" title="ভ্যারিয়েন্ট ও দাম" onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="পণ্য সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button>{product.canDelete && <Button type="button" size="sm" variant="destructive" className="ml-2" onClick={() => { setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button>}</td>
         </tr>;
       })}
     </tbody></table></div>

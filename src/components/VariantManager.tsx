@@ -103,7 +103,8 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
       <section className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-background shadow-2xl flex flex-col">
         <header className="flex items-start justify-between gap-3 bg-primary px-4 py-4 text-primary-foreground sm:px-5">
           <div className="min-w-0">
-            <h2 className="break-words text-lg font-bold">{product.name}: ভ্যারিয়েন্ট ও দাম</h2>
+            <h2 className="text-lg font-bold">ভ্যারিয়েন্ট ও দাম</h2>
+            <p className="break-words text-sm font-medium opacity-90">{product.name}</p>
             <p className="text-xs opacity-80">প্রতিটি SKU আলাদা হতে হবে। দাম বদলালে আগের দাম ইতিহাসে থাকবে।</p>
           </div>
           <button type="button" aria-label="বন্ধ করুন" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-primary-foreground/10"><X size={20} /></button>
