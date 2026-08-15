@@ -12,13 +12,13 @@ describe('unprofitable sale dialog', () => {
     expect(onConfirm).not.toHaveBeenCalled();
 
     rerender(<ProfitWarningDialog open projectedGrossProfit="-50.00" onClose={onClose} onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByRole('button', { name: 'ক্ষতি মেনে চালিয়ে যান' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ক্ষতি হলেও বিক্রি করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce());
   });
 
   it('shows submission errors inside the dialog', async () => {
     render(<ProfitWarningDialog open onClose={vi.fn()} onConfirm={vi.fn(async () => { throw new Error('Stock changed'); })} />);
-    fireEvent.click(screen.getByRole('button', { name: 'ক্ষতি মেনে চালিয়ে যান' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ক্ষতি হলেও বিক্রি করুন' }));
     expect(await screen.findByText('Stock changed')).toBeInTheDocument();
   });
 });

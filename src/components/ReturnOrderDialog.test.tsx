@@ -26,7 +26,7 @@ describe('whole-order return dialog', () => {
     expect(screen.getByText(order.orderNumber)).toBeInTheDocument();
     expect(screen.getByText(/Raw Honey/)).toBeInTheDocument();
     expect(screen.getByText(/Red Rice/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'বাতিল / বন্ধ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বন্ধ করুন' }));
 
     expect(onClose).toHaveBeenCalledOnce();
     expect(onConfirm).not.toHaveBeenCalled();
@@ -43,7 +43,7 @@ describe('whole-order return dialog', () => {
   it('submits a damaged whole-order return', async () => {
     const { onConfirm } = setup();
     fireEvent.click(screen.getByRole('radio', { name: /DAMAGED/ }));
-    expect(screen.getByText(/কোনো স্টক পুনরুদ্ধার হবে না/)).toBeInTheDocument();
+    expect(screen.getByText(/পণ্যগুলো স্টকে যোগ হবে না/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('ফেরতের কারণ *'), { target: { value: 'Package and products damaged' } });
     fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
 

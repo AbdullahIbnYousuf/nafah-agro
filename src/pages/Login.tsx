@@ -42,7 +42,7 @@ const Login = () => {
           <div className="bg-card rounded-2xl shadow-xl border border-border p-8">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-foreground">লগইন</h1>
-              <p className="text-muted-foreground mt-2">আপনার অ্যাকাউন্টে প্রবেশ করুন</p>
+              <p className="text-muted-foreground mt-2">আপনার অ্যাকাউন্টে লগইন করুন</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">

@@ -79,7 +79,7 @@ export default function PhysicalSaleScreen() {
       load();
     } catch (error) {
       if (!confirmUnprofitable && error instanceof ApiError && error.code === 'UNPROFITABLE_SALE_CONFIRMATION_REQUIRED') {
-        setProjectedLoss(error.details?.projectedGrossProfit ?? 'ঋণাত্মক');
+        setProjectedLoss(error.details?.projectedGrossProfit ?? 'ক্ষতি হবে');
       } else if (confirmUnprofitable) {
         throw error;
       } else {
@@ -91,7 +91,7 @@ export default function PhysicalSaleScreen() {
   }
 
   return <div className="space-y-8">
-    <div><h1 className="text-2xl font-bold">দ্রুত ফিজিক্যাল-শপ বিক্রয়</h1><p className="text-sm text-muted-foreground">CASH · PAID · তাৎক্ষণিক FIFO স্টক কর্তন</p></div>
+    <div><h1 className="text-2xl font-bold">দোকানে নতুন বিক্রি</h1><p className="text-sm text-muted-foreground">পেমেন্ট CASH। বিক্রি সম্পন্ন হলে আগে কেনা স্টক আগে কমবে।</p></div>
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য, ভ্যারিয়েন্ট বা SKU খুঁজুন" /></div>
@@ -111,7 +111,7 @@ export default function PhysicalSaleScreen() {
 
     {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label="মার্জিন" value={completed.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
 
-    <section><h2 className="font-semibold text-lg mb-3">সাম্প্রতিক ফিজিক্যাল বিক্রয়</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">নম্বর / সময়</th><th className="text-right p-3">বিক্রয়</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-right p-3">মোট লাভ</th><th className="text-right p-3">মার্জিন</th></tr></thead><tbody>{recentSales.map((sale) => <tr key={sale.id} className="border-t"><td className="p-3"><strong>{sale.orderNumber}</strong><div className="text-xs text-muted-foreground">{new Date(sale.completedAt).toLocaleString('bn-BD')}</div></td><td className="p-3 text-right">৳{sale.grandTotal.toFixed(2)}</td><td className="p-3 text-right">৳{sale.totalBuyingCost.toFixed(2)}</td><td className={`p-3 text-right font-medium ${sale.grossProfit < 0 ? 'text-destructive' : ''}`}>৳{sale.grossProfit.toFixed(2)}</td><td className="p-3 text-right">{sale.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${sale.grossProfitMargin.toFixed(2)}%`}</td></tr>)}</tbody></table></div></section>
+    <section><h2 className="font-semibold text-lg mb-3">দোকানের সাম্প্রতিক বিক্রি</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">বিক্রয় নম্বর ও সময়</th><th className="text-right p-3">বিক্রয়</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-right p-3">মোট লাভ</th><th className="text-right p-3">মার্জিন</th></tr></thead><tbody>{recentSales.map((sale) => <tr key={sale.id} className="border-t"><td className="p-3"><strong>{sale.orderNumber}</strong><div className="text-xs text-muted-foreground">{new Date(sale.completedAt).toLocaleString('bn-BD')}</div></td><td className="p-3 text-right">৳{sale.grandTotal.toFixed(2)}</td><td className="p-3 text-right">৳{sale.totalBuyingCost.toFixed(2)}</td><td className={`p-3 text-right font-medium ${sale.grossProfit < 0 ? 'text-destructive' : ''}`}>৳{sale.grossProfit.toFixed(2)}</td><td className="p-3 text-right">{sale.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${sale.grossProfitMargin.toFixed(2)}%`}</td></tr>)}</tbody></table></div></section>
     <ProfitWarningDialog open={projectedLoss !== null} projectedGrossProfit={projectedLoss} onClose={() => setProjectedLoss(null)} onConfirm={() => saveSale(true)} />
   </div>;
 }

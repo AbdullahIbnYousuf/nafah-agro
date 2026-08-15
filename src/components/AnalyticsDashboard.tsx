@@ -119,7 +119,7 @@ function customRangeError(range: { from: string; to: string }) {
 }
 
 function Change({ metric, suffix = '%' }: { metric: ComparedAnalyticsMetric; suffix?: string }) {
-  if (metric.absoluteChange === null) return <span className="text-xs text-muted-foreground">আগের সময়ের তুলনা নেই</span>;
+  if (metric.absoluteChange === null) return <span className="text-xs text-muted-foreground">আগের সময়ের তথ্য নেই</span>;
   const positive = metric.absoluteChange >= 0;
   const Icon = positive ? ArrowUpRight : ArrowDownRight;
   const value = metric.percentChange === null
@@ -176,7 +176,7 @@ function OperationalCard({ label, value, detail, icon: Icon }: {
 }
 
 function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sales' | 'profit' }) {
-  if (rows.length === 0) return <p className="py-10 text-center text-sm text-muted-foreground">এই সময়ে কোনো স্বীকৃত বিক্রয় নেই।</p>;
+  if (rows.length === 0) return <p className="py-10 text-center text-sm text-muted-foreground">এই সময়ে কোনো সম্পন্ন বিক্রি নেই।</p>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[680px] text-sm">
@@ -186,7 +186,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
             <th className="p-3 text-left">SKU</th>
             <th className="p-3 text-right">নিট পরিমাণ</th>
             <th className="p-3 text-right">পণ্য আয়</th>
-            {mode === 'profit' && <><th className="p-3 text-right">FIFO খরচ</th><th className="p-3 text-right">মোট লাভ</th><th className="p-3 text-right">মার্জিন</th></>}
+            {mode === 'profit' && <><th className="p-3 text-right">বিক্রি হওয়া পণ্যের ক্রয়মূল্য</th><th className="p-3 text-right">মোট লাভ</th><th className="p-3 text-right">মার্জিন</th></>}
           </tr>
         </thead>
         <tbody>
@@ -208,7 +208,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
 function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
   const showTrend = data.range.current.from !== data.range.current.to;
   const primaryMetrics = [
-    { label: 'মোট স্বীকৃত বিক্রয়', metric: data.summary.recognizedSales, icon: CircleDollarSign },
+    { label: 'মোট সম্পন্ন বিক্রি', metric: data.summary.recognizedSales, icon: CircleDollarSign },
     { label: 'পণ্য আয়', metric: data.summary.productRevenue, icon: ShoppingBag },
     { label: 'ডেলিভারি চার্জ', metric: data.summary.deliveryCharges, icon: Truck },
     { label: 'মোট লাভ', metric: data.summary.grossProfit, icon: TrendingUp },
@@ -225,12 +225,12 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
 
     <div className="grid gap-3 sm:grid-cols-3">
       <OperationalCard label="চলমান COD অর্ডার" value={data.summary.pendingCodOrderCount} detail={`পেন্ডিং ${count(data.pendingCod.pending)} · নিশ্চিত ${count(data.pendingCod.confirmed)} · প্রসেসিং ${count(data.pendingCod.processing)}`} icon={Truck} />
-      <OperationalCard label="কম স্টকের ভ্যারিয়েন্ট" value={data.summary.lowStockVariantCount} detail="উপলভ্য স্টক সতর্কতা সীমার মধ্যে" icon={AlertTriangle} />
-      <OperationalCard label="স্টক শেষ ভ্যারিয়েন্ট" value={data.summary.outOfStockVariantCount} detail="উপলভ্য স্টক শূন্য" icon={Boxes} />
+      <OperationalCard label="কম স্টকের ভ্যারিয়েন্ট" value={data.summary.lowStockVariantCount} detail="স্টক নির্ধারিত সীমায় নেমে এসেছে" icon={AlertTriangle} />
+      <OperationalCard label="স্টক নেই এমন ভ্যারিয়েন্ট" value={data.summary.outOfStockVariantCount} detail="বিক্রির জন্য স্টক নেই" icon={Boxes} />
     </div>
 
     {showTrend ? <section className="rounded-xl border bg-card p-4 sm:p-5">
-      <div className="mb-4"><h2 className="text-lg font-bold">দৈনিক বিক্রয় ও মোট লাভ</h2><p className="text-sm text-muted-foreground">ফেরত অর্ডার ফেরতের তারিখে ঋণাত্মক হিসেবে দেখানো হয়েছে।</p></div>
+      <div className="mb-4"><h2 className="text-lg font-bold">প্রতিদিনের বিক্রি ও লাভ</h2><p className="text-sm text-muted-foreground">ফেরত দেওয়া অর্ডারের টাকা ফেরতের তারিখে বিয়োগ হিসেবে দেখানো হয়েছে।</p></div>
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data.trend} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
@@ -249,22 +249,22 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
     <section className="rounded-xl border bg-card p-4 sm:p-5">
       <h2 className="mb-4 text-lg font-bold">উৎস অনুযায়ী বিক্রয়</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {data.salesBySource.map((source) => <div key={source.source} className="rounded-lg border bg-background/40 p-3"><div className="font-semibold">{sourceLabels[source.source]}</div><div className="mt-2 text-xl font-bold">{money(source.recognizedSales)}</div><div className="text-xs text-muted-foreground">{count(source.orderCount)}টি স্বীকৃত অর্ডার</div></div>)}
+        {data.salesBySource.map((source) => <div key={source.source} className="rounded-lg border bg-background/40 p-3"><div className="font-semibold">{sourceLabels[source.source]}</div><div className="mt-2 text-xl font-bold">{money(source.recognizedSales)}</div><div className="text-xs text-muted-foreground">{count(source.orderCount)}টি সম্পন্ন অর্ডার</div></div>)}
       </div>
     </section>
 
     <div className="grid gap-6 2xl:grid-cols-2">
       <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে বেশি বিক্রি</h2><p className="text-sm text-muted-foreground">ফেরতের পর নিট পরিমাণ অনুসারে</p></div><ProductTable rows={data.bestSelling} mode="sales" /></section>
-      <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে লাভজনক</h2><p className="text-sm text-muted-foreground">সংরক্ষিত FIFO খরচ অনুসারে</p></div><ProductTable rows={data.mostProfitable} mode="profit" /></section>
+      <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে লাভজনক</h2><p className="text-sm text-muted-foreground">বিক্রি হওয়া পণ্যের ক্রয়মূল্য ধরে</p></div><ProductTable rows={data.mostProfitable} mode="profit" /></section>
     </div>
 
     <section className="rounded-xl border bg-card p-4 sm:p-5">
-      <div className="mb-4"><h2 className="text-lg font-bold">ইনভেন্টরি সারাংশ</h2><p className="text-sm text-muted-foreground">উপলভ্য ও সংরক্ষিত ব্যাচ মিলিয়ে বর্তমান FIFO মূল্য</p></div>
+      <div className="mb-4"><h2 className="text-lg font-bold">ইনভেন্টরি সারাংশ</h2><p className="text-sm text-muted-foreground">বিক্রির জন্য থাকা ও অর্ডারের জন্য রাখা স্টকের মোট ক্রয়মূল্য</p></div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">উপলভ্য ইউনিট</span><div className="text-xl font-bold">{count(data.inventory.availableUnits)}</div></div>
+        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">বিক্রির জন্য থাকা ইউনিট</span><div className="text-xl font-bold">{count(data.inventory.availableUnits)}</div></div>
         <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">সংরক্ষিত ইউনিট</span><div className="text-xl font-bold">{count(data.inventory.reservedUnits)}</div></div>
         <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">মোট হাতে আছে</span><div className="text-xl font-bold">{count(data.inventory.onHandUnits)}</div></div>
-        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">FIFO ইনভেন্টরি মূল্য</span><div className="text-xl font-bold">{money(data.inventory.fifoValuation)}</div></div>
+        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">বর্তমান স্টকের ক্রয়মূল্য</span><div className="text-xl font-bold">{money(data.inventory.fifoValuation)}</div></div>
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <StockAlertList title="কম স্টক" rows={data.inventory.lowStock} empty="কোনো কম-স্টক ভ্যারিয়েন্ট নেই।" />
@@ -317,8 +317,8 @@ function AnalyticsDashboardContent() {
 
   return <div>
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div><h1 className="text-2xl font-bold">ব্যবসার ড্যাশবোর্ড</h1><p className="text-sm text-muted-foreground">বিক্রয়, FIFO লাভ এবং বর্তমান ইনভেন্টরি</p></div>
-      <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={16} className={`mr-2 ${query.isFetching ? 'animate-spin' : ''}`} />হালনাগাদ</Button>
+      <div><h1 className="text-2xl font-bold">ব্যবসার ড্যাশবোর্ড</h1><p className="text-sm text-muted-foreground">বিক্রি, লাভ এবং বর্তমান ইনভেন্টরি</p></div>
+      <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={16} className={`mr-2 ${query.isFetching ? 'animate-spin' : ''}`} />রিফ্রেশ</Button>
     </div>
 
     <div className="mb-5 rounded-xl border bg-card p-3 sm:p-4">

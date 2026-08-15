@@ -104,7 +104,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
         <header className="flex items-start justify-between gap-3 bg-primary px-4 py-4 text-primary-foreground sm:px-5">
           <div className="min-w-0">
             <h2 className="break-words text-lg font-bold">{product.name}: ভ্যারিয়েন্ট ও দাম</h2>
-            <p className="text-xs opacity-80">SKU অনন্য; প্রতিটি দাম পরিবর্তনে ইতিহাস তৈরি হয়</p>
+            <p className="text-xs opacity-80">প্রতিটি SKU আলাদা হতে হবে। দাম বদলালে আগের দাম ইতিহাসে থাকবে।</p>
           </div>
           <button type="button" aria-label="বন্ধ করুন" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-primary-foreground/10"><X size={20} /></button>
         </header>
@@ -135,7 +135,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
             <section className="border rounded-lg p-4 space-y-3">
               <div>
                 <h3 className="font-semibold">বাল্ক দাম আপডেট</h3>
-                <p className="text-xs text-muted-foreground">সব পরিবর্তন একটি transaction-এ হবে; একটি ব্যর্থ হলে কোনোটিই সংরক্ষিত হবে না।</p>
+                <p className="text-xs text-muted-foreground">দামগুলো একসাথে পরিবর্তন হবে। কোনো একটি পরিবর্তন ব্যর্থ হলে কোনো দামই বদলাবে না।</p>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {variants.map((variant) => (
@@ -144,7 +144,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
                   </Field>
                 ))}
               </div>
-              <Field label="সবার জন্য পরিবর্তনের কারণ"><Input value={bulkReason} onChange={(event) => setBulkReason(event.target.value)} /></Field>
+              <Field label="দাম পরিবর্তনের কারণ"><Input value={bulkReason} onChange={(event) => setBulkReason(event.target.value)} /></Field>
               <div className="text-right"><Button type="button" disabled={bulkSaving} onClick={() => void handleBulkPriceUpdate()}>{bulkSaving ? 'আপডেট হচ্ছে…' : 'বাল্ক দাম সংরক্ষণ'}</Button></div>
             </section>
           )}

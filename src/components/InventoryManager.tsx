@@ -62,17 +62,17 @@ export default function InventoryManager() {
       unitBuyingCost: Number(row.unitBuyingCost),
     }));
     if (items.some((item) => !item.productVariantId || !Number.isInteger(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.unitBuyingCost) || item.unitBuyingCost <= 0)) {
-      toast.error('প্রতিটি ক্রয় আইটেমে ভ্যারিয়েন্ট, ধনাত্মক পরিমাণ ও ক্রয়মূল্য দিন');
+      toast.error('প্রতিটি পণ্যের ভ্যারিয়েন্ট, ধনাত্মক পরিমাণ ও ক্রয়মূল্য দিন');
       return;
     }
     if (new Set(items.map((item) => item.productVariantId)).size !== items.length) {
-      toast.error('একই ভ্যারিয়েন্ট এক ক্রয়ে একবারই দিন');
+      toast.error('একই ভ্যারিয়েন্ট একবারের বেশি যোগ করবেন না');
       return;
     }
     setSavingPurchase(true);
     try {
       const result = await createPurchase({ purchaseDate, note: note.trim() || undefined, items });
-      toast.success(`${result.batches.length}টি FIFO ব্যাচ তৈরি হয়েছে`);
+      toast.success(`${result.batches.length}টি স্টক ব্যাচ যোগ হয়েছে`);
       setRows([{ productVariantId: '', quantity: '', unitBuyingCost: '' }]);
       setNote('');
       load();
@@ -106,7 +106,7 @@ export default function InventoryManager() {
       } : {
         direction, productVariantId: adjustVariantId, quantity, reason: adjustReason.trim(),
       });
-      toast.success('কারণসহ স্টক সমন্বয় সংরক্ষিত হয়েছে');
+      toast.success('স্টক সমন্বয় সংরক্ষিত হয়েছে');
       setAdjustQuantity(''); setAdjustCost(''); setAdjustReason('');
       load();
     } catch (error) {
@@ -119,7 +119,7 @@ export default function InventoryManager() {
   if (loading) return <div className="py-16 text-center text-muted-foreground">ইনভেন্টরি লোড হচ্ছে…</div>;
 
   return <div className="space-y-8">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">ক্রয় ও FIFO ইনভেন্টরি</h1><p className="text-sm text-muted-foreground">ব্যাচই মূল স্টক রেকর্ড; সরাসরি স্টক ওভাররাইট করা হয় না</p></div><Button variant="outline" onClick={load}><RefreshCw size={15} className="mr-2" />রিফ্রেশ</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold">ক্রয় ও স্টক</h1><p className="text-sm text-muted-foreground">প্রতিটি ক্রয় আলাদা ব্যাচ হিসেবে রাখা হয়। আগে কেনা স্টক আগে কমবে।</p></div><Button variant="outline" onClick={load}><RefreshCw size={15} className="mr-2" />রিফ্রেশ</Button></div>
 
     <form onSubmit={submitPurchase} className="bg-card border rounded-lg p-5 space-y-4">
       <h2 className="font-semibold text-lg">নতুন ক্রয়</h2>
@@ -134,19 +134,19 @@ export default function InventoryManager() {
     </form>
 
     <form onSubmit={submitAdjustment} className="bg-card border rounded-lg p-5 space-y-4">
-      <h2 className="font-semibold text-lg">কারণসহ স্টক সমন্বয়</h2>
+      <h2 className="font-semibold text-lg">স্টক সমন্বয়</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
         <Field label="ভ্যারিয়েন্ট"><VariantSelect variants={variants} value={adjustVariantId} onChange={setAdjustVariantId} /></Field>
-        <Field label="ধরন"><select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={direction} onChange={(event) => setDirection(event.target.value as 'INCREASE' | 'DECREASE')}><option value="DECREASE">কমাবেন (FIFO)</option><option value="INCREASE">বাড়াবেন (নতুন ব্যাচ)</option></select></Field>
+        <Field label="ধরন"><select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={direction} onChange={(event) => setDirection(event.target.value as 'INCREASE' | 'DECREASE')}><option value="DECREASE">স্টক কমান, আগের স্টক আগে</option><option value="INCREASE">স্টক বাড়ান, নতুন ব্যাচ</option></select></Field>
         <Field label="পরিমাণ"><Input type="number" min="1" step="1" value={adjustQuantity} onChange={(event) => setAdjustQuantity(event.target.value)} /></Field>
         {direction === 'INCREASE' && <Field label="একক ক্রয়মূল্য (৳)"><Input type="number" min="0.01" step="0.01" value={adjustCost} onChange={(event) => setAdjustCost(event.target.value)} /></Field>}
-        {direction === 'INCREASE' && <Field label="ব্যাচের তারিখ"><Input type="date" value={adjustDate} onChange={(event) => setAdjustDate(event.target.value)} /></Field>}
+        {direction === 'INCREASE' && <Field label="স্টক যোগ করার তারিখ"><Input type="date" value={adjustDate} onChange={(event) => setAdjustDate(event.target.value)} /></Field>}
       </div>
-      <Field label="সমন্বয়ের কারণ (আবশ্যক)"><Input value={adjustReason} onChange={(event) => setAdjustReason(event.target.value)} placeholder="যেমন: ক্ষতিগ্রস্ত ২ ইউনিট" /></Field>
+      <Field label="সমন্বয়ের কারণ *"><Input value={adjustReason} onChange={(event) => setAdjustReason(event.target.value)} placeholder="যেমন: ক্ষতিগ্রস্ত ২ ইউনিট" /></Field>
       <div className="text-right"><Button type="submit" disabled={savingAdjustment}>{direction === 'INCREASE' ? <Plus size={15} className="mr-2" /> : <Minus size={15} className="mr-2" />}{savingAdjustment ? 'সংরক্ষণ হচ্ছে…' : 'সমন্বয় সংরক্ষণ'}</Button></div>
     </form>
 
-    <section><h2 className="font-semibold text-lg mb-3">স্টক ব্যাচ ও ক্রয়মূল্য</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">পণ্য / SKU</th><th className="text-left p-3">উৎস ও তারিখ</th><th className="text-right p-3">ক্রয়</th><th className="text-right p-3">অবশিষ্ট</th><th className="text-right p-3">রিজার্ভ</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-left p-3">কারণ/নোট</th></tr></thead><tbody>{batches.map((batch) => <tr key={batch.id} className="border-t"><td className="p-3"><strong>{batch.productName}</strong><div className="text-xs text-muted-foreground">{batch.variantName} · {batch.sku}</div></td><td className="p-3">{batch.source === 'PURCHASE' ? 'ক্রয়' : 'সমন্বয়'}<div className="text-xs">{new Date(batch.purchaseDate).toLocaleDateString('bn-BD')}</div></td><td className="p-3 text-right">{batch.purchasedQuantity}</td><td className="p-3 text-right font-medium">{batch.availableQuantity}</td><td className="p-3 text-right">{batch.reservedQuantity}</td><td className="p-3 text-right">৳{batch.unitBuyingCost.toFixed(2)}</td><td className="p-3 text-xs">{batch.adjustmentReason ?? batch.note ?? 'নোট নেই'}</td></tr>)}</tbody></table>{batches.length === 0 && <p className="p-6 text-center text-muted-foreground">এখনো কোনো স্টক ব্যাচ নেই</p>}</div></section>
+    <section><h2 className="font-semibold text-lg mb-3">স্টকের বিস্তারিত ও ক্রয়মূল্য</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">পণ্য / SKU</th><th className="text-left p-3">উৎস ও তারিখ</th><th className="text-right p-3">ক্রয়</th><th className="text-right p-3">অবশিষ্ট</th><th className="text-right p-3">রিজার্ভ</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-left p-3">কারণ/নোট</th></tr></thead><tbody>{batches.map((batch) => <tr key={batch.id} className="border-t"><td className="p-3"><strong>{batch.productName}</strong><div className="text-xs text-muted-foreground">{batch.variantName} · {batch.sku}</div></td><td className="p-3">{batch.source === 'PURCHASE' ? 'ক্রয়' : 'সমন্বয়'}<div className="text-xs">{new Date(batch.purchaseDate).toLocaleDateString('bn-BD')}</div></td><td className="p-3 text-right">{batch.purchasedQuantity}</td><td className="p-3 text-right font-medium">{batch.availableQuantity}</td><td className="p-3 text-right">{batch.reservedQuantity}</td><td className="p-3 text-right">৳{batch.unitBuyingCost.toFixed(2)}</td><td className="p-3 text-xs">{batch.adjustmentReason ?? batch.note ?? 'নোট নেই'}</td></tr>)}</tbody></table>{batches.length === 0 && <p className="p-6 text-center text-muted-foreground">এখনো কোনো স্টক ব্যাচ নেই</p>}</div></section>
   </div>;
 }
 

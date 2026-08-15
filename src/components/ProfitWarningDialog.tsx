@@ -34,17 +34,17 @@ export default function ProfitWarningDialog({ open, projectedGrossProfit, onClos
 
   const amount = typeof projectedGrossProfit === 'string' || typeof projectedGrossProfit === 'number'
     ? `৳${projectedGrossProfit}`
-    : 'ঋণাত্মক';
+    : 'ক্ষতি হবে';
 
   return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !submitting) onClose(); }}>
     <DialogContent>
       <DialogHeader>
         <DialogTitle>ক্ষতির সতর্কতা</DialogTitle>
-        <DialogDescription>এই বিক্রয়ের আনুমানিক মোট লাভ {amount}।</DialogDescription>
+        <DialogDescription>এই বিক্রির পর আনুমানিক লাভ বা ক্ষতির হিসাব: {amount}।</DialogDescription>
       </DialogHeader>
-      <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>বিক্রয়টি অলাভজনক</AlertTitle><AlertDescription>এগিয়ে গেলে ক্ষতির সতর্কতা এবং আপনার সিদ্ধান্ত অডিট রেকর্ডে সংরক্ষিত হবে।</AlertDescription></Alert>
+      <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>এই বিক্রয়ে ক্ষতি হবে</AlertTitle><AlertDescription>এগিয়ে গেলে আপনার সিদ্ধান্তটি রেকর্ডে রাখা হবে।</AlertDescription></Alert>
       {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
-      <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={submitting}>বন্ধ করুন</Button><Button type="button" variant="destructive" onClick={() => void submit()} disabled={submitting}>{submitting ? 'সংরক্ষণ হচ্ছে…' : 'ক্ষতি মেনে চালিয়ে যান'}</Button></DialogFooter>
+      <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={submitting}>বন্ধ করুন</Button><Button type="button" variant="destructive" onClick={() => void submit()} disabled={submitting}>{submitting ? 'সংরক্ষণ হচ্ছে…' : 'ক্ষতি হলেও বিক্রি করুন'}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

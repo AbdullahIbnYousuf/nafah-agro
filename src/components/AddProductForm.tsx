@@ -241,7 +241,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                     placeholder="০"
                     className="mt-1 bg-card"
                   />
-                  {isEdit && <p className="text-xs text-muted-foreground mt-1">দাম ভ্যারিয়েন্ট ব্যবস্থাপনা থেকে পরিবর্তন করুন।</p>}
+                  {isEdit && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “ভ্যারিয়েন্ট ও দাম” খুলুন।</p>}
                 </div>
                 <div>
                   <Label htmlFor="sku">SKU *</Label>
@@ -346,7 +346,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
             {totalImages === 0 && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-md px-3 py-2">
                 <ImageIcon size={16} />
-                কোনো ছবি নির্বাচন করা হয়নি। ছবি না দিলে প্লেসহোল্ডার দেখাবে
+                কোনো ছবি দেওয়া হয়নি। ছবি না দিলে ডিফল্ট ছবি দেখাবে।
               </div>
             )}
           </section>

@@ -94,7 +94,7 @@ export default function Cart() {
       <h1 className="text-2xl font-bold mb-2">অর্ডার সফল হয়েছে</h1>
       <p className="font-semibold mb-1">{placedOrder.orderNumber}</p>
       <p className="text-muted-foreground mb-2">অবস্থা: অপেক্ষমান। এখনো স্টক সংরক্ষণ করা হয়নি</p>
-      <p className="text-lg font-bold text-secondary mb-6">সার্ভার-নির্ধারিত মোট: ৳{placedOrder.grandTotal}</p>
+      <p className="text-lg font-bold text-secondary mb-6">মোট দাম: ৳{placedOrder.grandTotal}</p>
       <Button asChild><Link to="/shop">আরও কেনাকাটা করুন</Link></Button>
     </div></main><Footer /></div>
   );
@@ -129,7 +129,7 @@ export default function Cart() {
         <div className="mt-4"><Label>ডেলিভারি এলাকা *</Label><div className="mt-2 space-y-2">{rates.map(rate => <label key={rate.id} className={`flex min-h-12 cursor-pointer items-center rounded border p-3 ${deliveryRateId === rate.id ? 'border-secondary bg-secondary/10' : ''}`}><input type="radio" className="mr-2 h-5 w-5 shrink-0" checked={deliveryRateId === rate.id} onChange={() => setDeliveryRateId(rate.id)} />{rate.name} · {rate.charge === null ? 'চার্জ নির্ধারিত নয়' : `৳${rate.charge}`}</label>)}</div></div>
         <div className="border-t mt-4 pt-4 flex justify-between font-bold"><span>আনুমানিক মোট</span><span>{estimatedTotal === null ? 'নির্ধারিত নয়' : `৳${estimatedTotal}`}</span></div>
         <p className="text-xs text-muted-foreground mt-2">চূড়ান্ত দাম, ছাড় ও ডেলিভারি চার্জ সার্ভার যাচাই করে নির্ধারণ করবে।</p>
-        {!showCheckout ? <><Button className="w-full mt-4" onClick={() => setShowCheckout(true)}>অতিথি বা অ্যাকাউন্ট দিয়ে অর্ডার করুন</Button><Button asChild variant="ghost" className="w-full mt-2"><Link to="/shop"><ArrowLeft size={16} className="mr-1" />আরও পণ্য</Link></Button></> : <div className="mt-5 space-y-3 border-t pt-4">
+        {!showCheckout ? <><Button className="w-full mt-4" onClick={() => setShowCheckout(true)}>লগইন ছাড়াও অর্ডার করতে পারবেন</Button><Button asChild variant="ghost" className="w-full mt-2"><Link to="/shop"><ArrowLeft size={16} className="mr-1" />আরও পণ্য</Link></Button></> : <div className="mt-5 space-y-3 border-t pt-4">
           <div><Label htmlFor="name">নাম *</Label><Input id="name" value={customerName} onChange={event => setCustomerName(event.target.value)} /></div>
           <div><Label htmlFor="phone">ফোন *</Label><Input id="phone" type="tel" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} /></div>
           <div><Label htmlFor="email">ইমেইল (ঐচ্ছিক)</Label><Input id="email" type="email" value={customerEmail} onChange={event => setCustomerEmail(event.target.value)} /></div>

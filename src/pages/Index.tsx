@@ -131,7 +131,7 @@ const Index = () => {
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold">জনপ্রিয় পণ্য</h2>
             <p className="text-muted-foreground mt-2">
-              আমাদের সবচেয়ে বেশি বিক্রিত পণ্যসমূহ
+              ক্রেতাদের পছন্দের পণ্য
             </p>
           </div>
           {loading ? (
