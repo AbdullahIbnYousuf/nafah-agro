@@ -124,7 +124,12 @@ export default function PhysicalSaleScreen() {
 
     {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label="মার্জিন" value={completed.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
 
-    <section><h2 className="font-semibold text-lg mb-3">দোকানের সাম্প্রতিক বিক্রি</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">বিক্রয় নম্বর ও সময়</th><th className="text-right p-3">বিক্রয়</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-right p-3">মোট লাভ</th><th className="text-right p-3">মার্জিন</th></tr></thead><tbody>{recentSales.map((sale) => <tr key={sale.id} className="border-t"><td className="p-3"><strong>{sale.orderNumber}</strong><div className="text-xs text-muted-foreground">{new Date(sale.completedAt).toLocaleString('bn-BD')}</div></td><td className="p-3 text-right">৳{sale.grandTotal.toFixed(2)}</td><td className="p-3 text-right">৳{sale.totalBuyingCost.toFixed(2)}</td><td className={`p-3 text-right font-medium ${sale.grossProfit < 0 ? 'text-destructive' : ''}`}>৳{sale.grossProfit.toFixed(2)}</td><td className="p-3 text-right">{sale.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${sale.grossProfitMargin.toFixed(2)}%`}</td></tr>)}</tbody></table></div></section>
+    <section>
+      <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
+      {recentSales.length === 0
+        ? <div className="rounded-lg border bg-card px-4 py-10 text-center text-sm text-muted-foreground">এখনও কোনো বিক্রি নেই</div>
+        : <div className="space-y-3">{recentSales.map((sale) => <PhysicalSaleHistoryCard key={sale.id} sale={sale} />)}</div>}
+    </section>
     <ProfitWarningDialog open={projectedLoss !== null} projectedGrossProfit={projectedLoss} onClose={() => setProjectedLoss(null)} onConfirm={() => saveSale(true)} />
   </div>;
 }
@@ -135,6 +140,60 @@ function Field({ label, children, error }: { label: string; children: React.Reac
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div><div className="text-muted-foreground">{label}</div><div className="font-bold text-lg">{value}</div></div>;
+}
+
+function money(value: number) {
+  return `৳${value.toFixed(2)}`;
+}
+
+function saleRateLabel(unit: PhysicalSale['items'][number]['quantityUnit']) {
+  if (unit === 'GRAM') return 'প্রতি কেজি';
+  if (unit === 'MILLILITER') return 'প্রতি লিটার';
+  return 'প্রতি ইউনিট';
+}
+
+function PhysicalSaleHistoryCard({ sale }: { sale: PhysicalSale }) {
+  const customer = [sale.customerName, sale.customerPhone].filter(Boolean).join(' · ');
+  return <article className="rounded-lg border bg-card p-4 sm:p-5">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <strong className="break-words text-base">{sale.orderNumber}</strong>
+        <div className="mt-1 text-xs text-muted-foreground">{new Date(sale.completedAt).toLocaleString('bn-BD')}</div>
+        <div className="mt-1 text-sm">{customer || 'ক্রেতার তথ্য নেই'}</div>
+        <div className="text-xs text-muted-foreground">বিক্রি করেছেন: {sale.createdBy.fullName}</div>
+      </div>
+      <div className="rounded-md bg-muted/60 px-3 py-2 sm:text-right">
+        <div className="text-xs text-muted-foreground">মোট দাম</div>
+        <div className="text-lg font-bold">{money(sale.grandTotal)}</div>
+      </div>
+    </div>
+
+    <div className="mt-4 divide-y rounded-md border">
+      {sale.items.map((item) => <div key={item.id} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="min-w-0">
+          <div className="break-words font-medium">{productPackLabel(item.productName, item.variantName)}</div>
+          <div className="text-sm text-muted-foreground">
+            {formatQuantity(item.quantity, item.quantityUnit)} × {money(item.unitSellingPrice)} {saleRateLabel(item.quantityUnit)}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:text-right">
+          <span className="text-muted-foreground">পণ্যের দাম</span><strong>{money(item.grossLineRevenue)}</strong>
+          {item.allocatedDiscount > 0 && <><span className="text-muted-foreground">ডিসকাউন্ট</span><span>-{money(item.allocatedDiscount)}</span></>}
+          <span className="text-muted-foreground">ক্রয়মূল্য</span><span>{money(item.totalBuyingCost)}</span>
+          <span className="text-muted-foreground">লাভ</span><span className={item.grossProfit < 0 ? 'text-destructive' : ''}>{money(item.grossProfit)}</span>
+        </div>
+      </div>)}
+    </div>
+
+    <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-2 border-t pt-4 text-sm sm:ml-auto sm:max-w-md">
+      <span className="text-muted-foreground">সাবটোটাল</span><span className="text-right">{money(sale.subtotal)}</span>
+      <span className="text-muted-foreground">ডিসকাউন্ট</span><span className="text-right">-{money(sale.discountTotal)}</span>
+      <span className="font-medium">মোট দাম</span><strong className="text-right">{money(sale.grandTotal)}</strong>
+      <span className="text-muted-foreground">ক্রয়মূল্য</span><span className="text-right">{money(sale.totalBuyingCost)}</span>
+      <span className="font-medium">মোট লাভ</span><strong className={`text-right ${sale.grossProfit < 0 ? 'text-destructive' : ''}`}>{money(sale.grossProfit)}</strong>
+      <span className="text-muted-foreground">লাভের মার্জিন</span><span className="text-right">{sale.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${sale.grossProfitMargin.toFixed(2)}%`}</span>
+    </div>
+  </article>;
 }
 
 function SaleAmountInput({ line, onChange }: { line: SaleLine; onChange: (patch: Partial<Pick<SaleLine, 'amount' | 'amountUnit'>>) => void }) {
