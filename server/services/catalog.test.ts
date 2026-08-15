@@ -29,6 +29,7 @@ interface ProductRow {
   name: string;
   slug: string;
   description: string;
+  kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME";
   featured: boolean;
   isActive: boolean;
   tags: string[];
@@ -126,6 +127,7 @@ function createInMemoryPrisma() {
   const matchesProductWhere = (product: ProductRow, where: Record<string, unknown> | undefined) => {
     if (!where) return true;
     if (where.isActive === true && !product.isActive) return false;
+    if (typeof where.kind === "string" && product.kind !== where.kind) return false;
     const categoryWhere = where.category as { isActive?: boolean; slug?: string } | undefined;
     const category = state.categories.find((item) => item.id === product.categoryId);
     if (categoryWhere?.isActive === true && !category?.isActive) return false;
@@ -181,6 +183,7 @@ function createInMemoryPrisma() {
           const hydrated = hydrateWithCounts(row);
           return {
             id: row.id,
+            kind: row.kind,
             name: row.name,
             slug: row.slug,
             isActive: row.isActive,
@@ -212,6 +215,7 @@ function createInMemoryPrisma() {
           name: String(data.name),
           slug: String(data.slug),
           description: String(data.description),
+          kind: (data.kind as ProductRow["kind"] | undefined) ?? "PACKAGED",
           featured: Boolean(data.featured),
           isActive: true,
           tags: data.tags as string[],
@@ -344,11 +348,12 @@ function createInMemoryPrisma() {
   return { prisma: api as unknown as PrismaClient, state };
 }
 
-function productInput(slug = "raw-honey", packSize = "") {
+function productInput(slug = "raw-honey", packSize = "", kind: ProductRow["kind"] = "PACKAGED") {
   return productCreateSchema.parse({
     name: "Raw Honey",
     slug,
     categoryId: CATEGORY_ID,
+    kind,
     initialVariant: { name: packSize, sellingPrice: "500.00" },
     priceReason: "Initial selling price",
   });
@@ -383,6 +388,30 @@ describe("PostgreSQL catalog service", () => {
     }), ACTOR_ID);
     expect(updated.variants.map((variant) => variant.name)).toEqual(["500 g", "1 kg"]);
     expect(new Set(updated.variants.map((variant) => variant.sku)).size).toBe(2);
+  });
+
+  it("creates a loose product with one hidden option and rejects extra pack sizes", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput("loose-rice", "ignored", "LOOSE_WEIGHT"), ACTOR_ID);
+    expect(product).toMatchObject({ kind: "LOOSE_WEIGHT", variantName: "Default" });
+    await expect(service.createVariant(product.id, variantCreateSchema.parse({
+      name: "5 kg", sellingPrice: "700", priceReason: "Not allowed",
+    }), ACTOR_ID)).rejects.toMatchObject({ code: "LOOSE_PRODUCT_SINGLE_OPTION", status: 409 });
+  });
+
+  it("changes product type only before operational history exists", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput(), ACTOR_ID);
+    const changed = await service.changeProductKind(product.id, {
+      kind: "LOOSE_WEIGHT", sellingPrice: "120.00", lowStockThreshold: 5_000, reason: "Correct product setup",
+    }, ACTOR_ID);
+    expect(changed).toMatchObject({ kind: "LOOSE_WEIGHT", price: 120 });
+    state.usedVariantIds.push(changed.variants[0].id);
+    await expect(service.changeProductKind(product.id, {
+      kind: "LOOSE_VOLUME", sellingPrice: "130.00", lowStockThreshold: 2_000, reason: "Invalid later change",
+    }, ACTOR_ID)).rejects.toMatchObject({ code: "PRODUCT_KIND_LOCKED", status: 409 });
   });
 
   it("rejects duplicate product slugs", async () => {

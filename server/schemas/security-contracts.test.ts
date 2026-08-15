@@ -8,7 +8,8 @@ import { manualDeliveryOrderSchema, websiteCheckoutSchema } from './orders.js';
 const variantId = '10000000-0000-4000-8000-000000000001';
 const categoryId = '20000000-0000-4000-8000-000000000001';
 const deliveryRateId = '30000000-0000-4000-8000-000000000001';
-const items = [{ productVariantId: variantId, quantity: 1 }];
+const orderItems = [{ productVariantId: variantId, quantity: 1 }];
+const physicalItems = [{ productVariantId: variantId, amount: '1', amountUnit: 'PIECE' }];
 const customer = { name: 'Customer', phone: '01700000000', address: 'Dhaka address' };
 
 describe('strict API input contracts', () => {
@@ -31,8 +32,17 @@ describe('strict API input contracts', () => {
   });
 
   it('rejects client-supplied totals, costs, discounts, and roles', () => {
-    expect(physicalSaleCreateSchema.safeParse({ items, discountTotal: 0, totalBuyingCost: 1 }).success).toBe(false);
-    expect(websiteCheckoutSchema.safeParse({ items, customer, deliveryRateId, idempotencyKey: 'checkout-key-123456', discountTotal: 1 }).success).toBe(false);
-    expect(manualDeliveryOrderSchema.safeParse({ source: 'PHONE', initialStatus: 'PENDING', items, customer, deliveryRateId, discountTotal: 0, confirmUnprofitable: false, role: 'OWNER' }).success).toBe(false);
+    expect(physicalSaleCreateSchema.safeParse({ items: physicalItems, discountTotal: 0, totalBuyingCost: 1 }).success).toBe(false);
+    expect(websiteCheckoutSchema.safeParse({ items: orderItems, customer, deliveryRateId, idempotencyKey: 'checkout-key-123456', discountTotal: 1 }).success).toBe(false);
+    expect(manualDeliveryOrderSchema.safeParse({ source: 'PHONE', initialStatus: 'PENDING', items: orderItems, customer, deliveryRateId, discountTotal: 0, confirmUnprofitable: false, role: 'OWNER' }).success).toBe(false);
+  });
+
+  it('accepts measured sale amounts but rejects invalid precision', () => {
+    expect(physicalSaleCreateSchema.safeParse({
+      items: [{ productVariantId: variantId, amount: '1.25', amountUnit: 'KG' }],
+    }).success).toBe(true);
+    expect(physicalSaleCreateSchema.safeParse({
+      items: [{ productVariantId: variantId, amount: '1.0001', amountUnit: 'KG' }],
+    }).success).toBe(false);
   });
 });

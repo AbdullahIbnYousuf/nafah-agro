@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 const migrationPath = 'prisma/migrations/202608040002_milestone_6_integrity/migration.sql';
 const triggerFixMigrationPath =
   'prisma/migrations/202608080001_fix_stock_integrity_trigger/migration.sql';
+const looseProductsMigrationPath =
+  'prisma/migrations/202608150001_loose_products/migration.sql';
 
 describe('Milestone 6 integrity safeguards', () => {
   it('validates cached variant stock totals at transaction commit', () => {
@@ -51,6 +53,15 @@ describe('Milestone 6 integrity safeguards', () => {
     const seed = readFileSync('prisma/seed.ts', 'utf8');
     expect(seed).toContain('foundationRecord.upsert');
     expect(seed).not.toMatch(/deleteMany|TRUNCATE|\$executeRawUnsafe/);
+  });
+
+  it('adds loose-product units without rewriting existing product or order quantities', () => {
+    const migration = readFileSync(looseProductsMigrationPath, 'utf8');
+
+    expect(migration).toContain("'PACKAGED', 'LOOSE_WEIGHT', 'LOOSE_VOLUME'");
+    expect(migration).toContain('"kind" "ProductKind" NOT NULL DEFAULT \'PACKAGED\'');
+    expect(migration).toContain('"quantity_unit" "QuantityUnit" NOT NULL DEFAULT \'PIECE\'');
+    expect(migration).not.toMatch(/\bUPDATE\b|\bDELETE\b|\bTRUNCATE\b/i);
   });
 
   it('refreshes only known demo-order dates for dashboard demonstrations', () => {

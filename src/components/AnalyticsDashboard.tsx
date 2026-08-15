@@ -34,6 +34,7 @@ import type {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { productPackLabel } from '@/lib/productOptions';
+import { formatMajorQuantity } from '@/lib/quantity';
 
 type QuickPreset = Exclude<AnalyticsPreset, 'custom'>;
 
@@ -193,7 +194,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
           {rows.map((row) => (
             <tr key={row.productVariantId} className="border-t">
               <td className="p-3"><strong>{productPackLabel(row.productName, row.variantName)}</strong></td>
-              <td className="p-3 text-right">{count(row.quantity)}</td>
+              <td className="p-3 text-right">{formatMajorQuantity(row.quantity, row.quantityUnit)}</td>
               <td className="p-3 text-right">{money(row.productRevenue)}</td>
               {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(row.grossMargin)}%`}</td></>}
             </tr>
@@ -213,7 +214,9 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
     { label: 'মোট লাভ', metric: data.summary.grossProfit, icon: TrendingUp },
     { label: 'লাভের মার্জিন', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(value)}%`, icon: TrendingUp },
     { label: 'সম্পন্ন/ডেলিভারড অর্ডার', metric: data.summary.recognizedOrderCount, formatter: count, icon: ClipboardList },
-    { label: 'নিট বিক্রিত ইউনিট', metric: data.summary.unitsSold, formatter: count, icon: PackageCheck },
+    { label: 'বিক্রি হওয়া প্যাক/ইউনিট', metric: data.summary.soldQuantities.pieces, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${count(value)} ইউনিট`, icon: PackageCheck },
+    { label: 'বিক্রি হওয়া ওজন', metric: data.summary.soldQuantities.weightKg, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${count(value)} কেজি`, icon: PackageCheck },
+    { label: 'বিক্রি হওয়া তরল', metric: data.summary.soldQuantities.volumeLitres, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${count(value)} লিটার`, icon: PackageCheck },
     { label: 'গড় অর্ডার মূল্য', metric: data.summary.averageOrderValue, icon: CircleDollarSign },
   ];
 
@@ -253,16 +256,16 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
     </section>
 
     <div className="grid gap-6 2xl:grid-cols-2">
-      <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে বেশি বিক্রি</h2><p className="text-sm text-muted-foreground">ফেরতের পর নিট পরিমাণ অনুসারে</p></div><ProductTable rows={data.bestSelling} mode="sales" /></section>
+      <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে বেশি বিক্রি</h2><p className="text-sm text-muted-foreground">ফেরতের পর পণ্য আয় অনুসারে</p></div><ProductTable rows={data.bestSelling} mode="sales" /></section>
       <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে লাভজনক</h2><p className="text-sm text-muted-foreground">বিক্রি হওয়া পণ্যের ক্রয়মূল্য ধরে</p></div><ProductTable rows={data.mostProfitable} mode="profit" /></section>
     </div>
 
     <section className="rounded-xl border bg-card p-4 sm:p-5">
       <div className="mb-4"><h2 className="text-lg font-bold">ইনভেন্টরি সারাংশ</h2><p className="text-sm text-muted-foreground">বিক্রির জন্য থাকা ও অর্ডারের জন্য রাখা স্টকের মোট ক্রয়মূল্য</p></div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">বিক্রির জন্য থাকা ইউনিট</span><div className="text-xl font-bold">{count(data.inventory.availableUnits)}</div></div>
-        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">সংরক্ষিত ইউনিট</span><div className="text-xl font-bold">{count(data.inventory.reservedUnits)}</div></div>
-        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">মোট হাতে আছে</span><div className="text-xl font-bold">{count(data.inventory.onHandUnits)}</div></div>
+        <QuantitySummary label="বিক্রির জন্য আছে" values={data.inventory.availableQuantities} />
+        <QuantitySummary label="সংরক্ষিত স্টক" values={data.inventory.reservedQuantities} />
+        <QuantitySummary label="মোট হাতে আছে" values={data.inventory.onHandQuantities} />
         <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">বর্তমান স্টকের ক্রয়মূল্য</span><div className="text-xl font-bold">{money(data.inventory.fifoValuation)}</div></div>
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -274,7 +277,11 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
 }
 
 function StockAlertList({ title, rows, empty }: { title: string; rows: AnalyticsDashboardData['inventory']['lowStock']; empty: string }) {
-  return <div className="rounded-lg border"><h3 className="border-b px-3 py-2 font-semibold">{title}</h3>{rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{empty}</p> : <div className="divide-y">{rows.slice(0, 10).map((row) => <div key={row.productVariantId} className="flex items-center justify-between gap-3 p-3 text-sm"><div className="min-w-0"><strong className="block truncate">{productPackLabel(row.productName, row.variantName)}</strong><span className="text-xs text-muted-foreground">সীমা {count(row.lowStockThreshold)}</span></div><span className="shrink-0 font-bold">{count(row.availableStock)}</span></div>)}</div>}</div>;
+  return <div className="rounded-lg border"><h3 className="border-b px-3 py-2 font-semibold">{title}</h3>{rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{empty}</p> : <div className="divide-y">{rows.slice(0, 10).map((row) => <div key={row.productVariantId} className="flex items-center justify-between gap-3 p-3 text-sm"><div className="min-w-0"><strong className="block truncate">{productPackLabel(row.productName, row.variantName)}</strong><span className="text-xs text-muted-foreground">সীমা {formatMajorQuantity(row.lowStockThreshold, row.quantityUnit)}</span></div><span className="shrink-0 font-bold">{formatMajorQuantity(row.availableStock, row.quantityUnit)}</span></div>)}</div>}</div>;
+}
+
+function QuantitySummary({ label, values }: { label: string; values: { pieces: number; weightKg: number; volumeLitres: number } }) {
+  return <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">{label}</span><div className="mt-1 space-y-0.5 font-bold"><div>{count(values.pieces)} ইউনিট</div><div>{count(values.weightKg)} কেজি</div><div>{count(values.volumeLitres)} লিটার</div></div></div>;
 }
 
 function AnalyticsDashboardContent() {

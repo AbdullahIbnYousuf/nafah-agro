@@ -2,7 +2,7 @@ import { Router, type RequestHandler } from "express";
 import { z, ZodError } from "zod";
 import {
   bulkPriceChangeSchema, categoryCreateSchema, categoryUpdateSchema, priceChangeSchema,
-  productCreateSchema, productListSchema, productUpdateSchema, variantCreateSchema,
+  productCreateSchema, productKindChangeSchema, productListSchema, productUpdateSchema, variantCreateSchema,
   variantUpdateSchema,
 } from "../schemas/catalog.js";
 import type { CatalogService } from "../services/catalog.js";
@@ -62,6 +62,9 @@ export function createCatalogRouter(
   });
   router.patch("/products/:id", ...protectedRoute, async (req, res, next) => {
     try { res.json({ success: true, data: await service.updateProduct(req.params.id, validate(productUpdateSchema, req.body)) }); } catch (error) { next(error); }
+  });
+  router.patch("/products/:id/kind", ...protectedRoute, async (req, res, next) => {
+    try { res.json({ success: true, data: await service.changeProductKind(validate(idSchema, req.params.id), validate(productKindChangeSchema, req.body), req.authenticatedUser!.profile.id) }); } catch (error) { next(error); }
   });
   router.delete("/products/:id", ...protectedRoute, async (req, res, next) => {
     try { res.json({ success: true, data: await service.deleteProduct(validate(idSchema, req.params.id), req.authenticatedUser!.profile.id) }); } catch (error) { next(error); }

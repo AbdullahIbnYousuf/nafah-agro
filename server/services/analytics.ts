@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type { AnalyticsDashboardQuery } from "../schemas/analytics.js";
+import { quantityCost, type ProductKindValue, type QuantityUnitValue } from "../lib/quantity.js";
 
 export const ANALYTICS_CURRENCY = "BDT" as const;
 export const ANALYTICS_TIMEZONE = "Asia/Dhaka" as const;
@@ -39,6 +40,7 @@ export interface AnalyticsOrderRecord {
     productNameSnapshot: string;
     variantNameSnapshot: string;
     skuSnapshot: string;
+    quantityUnit?: QuantityUnitValue;
     quantity: number;
     netLineRevenue: MoneyValue;
     totalBuyingCost: MoneyValue | null;
@@ -50,6 +52,7 @@ export interface AnalyticsStockBatchRecord {
   availableQuantity: number;
   reservedQuantity: number;
   unitBuyingCost: MoneyValue;
+  productVariant?: { product: { kind: ProductKindValue } };
 }
 
 export interface AnalyticsVariantRecord {
@@ -59,7 +62,7 @@ export interface AnalyticsVariantRecord {
   availableStock: number;
   reservedStock: number;
   lowStockThreshold: number;
-  product: { name: string };
+  product: { name: string; kind?: ProductKindValue };
 }
 
 export interface AnalyticsPeriod {
@@ -192,7 +195,7 @@ interface FinancialEvent {
   deliveryCharges: Prisma.Decimal;
   fifoCost: Prisma.Decimal;
   grossProfit: Prisma.Decimal;
-  units: number;
+  quantities: QuantityTotals;
   orderCount: number;
   items: Array<{
     productId: string;
@@ -200,6 +203,7 @@ interface FinancialEvent {
     productName: string;
     variantName: string;
     sku: string;
+    quantityUnit: QuantityUnitValue;
     quantity: number;
     productRevenue: Prisma.Decimal;
     fifoCost: Prisma.Decimal;
@@ -207,8 +211,27 @@ interface FinancialEvent {
   }>;
 }
 
+interface QuantityTotals {
+  pieces: number;
+  grams: number;
+  milliliters: number;
+}
+
+function emptyQuantities(): QuantityTotals {
+  return { pieces: 0, grams: 0, milliliters: 0 };
+}
+
+function addQuantity(total: QuantityTotals, unit: QuantityUnitValue | undefined, amount: number) {
+  if (unit === "GRAM") total.grams += amount;
+  else if (unit === "MILLILITER") total.milliliters += amount;
+  else total.pieces += amount;
+}
+
 function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: FinancialEvent["kind"]): FinancialEvent {
   const direction = kind === "SALE" ? new Prisma.Decimal(1) : new Prisma.Decimal(-1);
+  const quantityDirection = kind === "SALE" ? 1 : -1;
+  const quantities = emptyQuantities();
+  for (const item of order.items) addQuantity(quantities, item.quantityUnit, item.quantity * quantityDirection);
   const productRevenue = decimal(order.subtotal).minus(decimal(order.discountTotal)).mul(direction);
   const fifoCost = order.items.reduce(
     (total, item) => total.plus(itemCost(item)),
@@ -224,7 +247,7 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
     deliveryCharges: decimal(order.deliveryCharge).mul(direction),
     fifoCost,
     grossProfit: productRevenue.minus(fifoCost),
-    units: order.items.reduce((total, item) => total + item.quantity, 0) * (kind === "SALE" ? 1 : -1),
+    quantities,
     orderCount: kind === "SALE" ? 1 : 0,
     items: order.items.map((item) => {
       const revenue = decimal(item.netLineRevenue).mul(direction);
@@ -235,7 +258,8 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
         productName: item.productNameSnapshot,
         variantName: item.variantNameSnapshot,
         sku: item.skuSnapshot,
-        quantity: item.quantity * (kind === "SALE" ? 1 : -1),
+        quantityUnit: item.quantityUnit ?? "PIECE",
+        quantity: item.quantity * quantityDirection,
         productRevenue: revenue,
         fifoCost: cost,
         grossProfit: revenue.minus(cost),
@@ -259,21 +283,24 @@ function eventsForPeriod(orders: AnalyticsOrderRecord[], value: AnalyticsPeriod)
 }
 
 function sumEvents(events: FinancialEvent[]) {
-  return events.reduce((totals, event) => ({
-    recognizedSales: totals.recognizedSales.plus(event.recognizedSales),
-    productRevenue: totals.productRevenue.plus(event.productRevenue),
-    deliveryCharges: totals.deliveryCharges.plus(event.deliveryCharges),
-    fifoCost: totals.fifoCost.plus(event.fifoCost),
-    grossProfit: totals.grossProfit.plus(event.grossProfit),
-    units: totals.units + event.units,
-    orderCount: totals.orderCount + event.orderCount,
-  }), {
+  return events.reduce((totals, event) => {
+    totals.recognizedSales = totals.recognizedSales.plus(event.recognizedSales);
+    totals.productRevenue = totals.productRevenue.plus(event.productRevenue);
+    totals.deliveryCharges = totals.deliveryCharges.plus(event.deliveryCharges);
+    totals.fifoCost = totals.fifoCost.plus(event.fifoCost);
+    totals.grossProfit = totals.grossProfit.plus(event.grossProfit);
+    totals.quantities.pieces += event.quantities.pieces;
+    totals.quantities.grams += event.quantities.grams;
+    totals.quantities.milliliters += event.quantities.milliliters;
+    totals.orderCount += event.orderCount;
+    return totals;
+  }, {
     recognizedSales: new Prisma.Decimal(0),
     productRevenue: new Prisma.Decimal(0),
     deliveryCharges: new Prisma.Decimal(0),
     fifoCost: new Prisma.Decimal(0),
     grossProfit: new Prisma.Decimal(0),
-    units: 0,
+    quantities: emptyQuantities(),
     orderCount: 0,
   });
 }
@@ -314,6 +341,7 @@ interface ProductAggregate {
   productName: string;
   variantName: string;
   sku: string;
+  quantityUnit: QuantityUnitValue;
   quantity: number;
   productRevenue: Prisma.Decimal;
   fifoCost: Prisma.Decimal;
@@ -330,6 +358,7 @@ function aggregateProducts(events: FinancialEvent[]) {
         productName: item.productName,
         variantName: item.variantName,
         sku: item.sku,
+        quantityUnit: item.quantityUnit,
         quantity: 0,
         productRevenue: new Prisma.Decimal(0),
         fifoCost: new Prisma.Decimal(0),
@@ -346,13 +375,15 @@ function aggregateProducts(events: FinancialEvent[]) {
 }
 
 function productDto(product: ProductAggregate) {
+  const divisor = product.quantityUnit === "GRAM" || product.quantityUnit === "MILLILITER" ? 1_000 : 1;
   return {
     productId: product.productId,
     productVariantId: product.productVariantId,
     productName: product.productName,
     variantName: product.variantName,
     sku: product.sku,
-    quantity: product.quantity,
+    quantity: product.quantity / divisor,
+    quantityUnit: product.quantityUnit === "GRAM" ? "KG" : product.quantityUnit === "MILLILITER" ? "LITER" : "PIECE",
     productRevenue: decimalNumber(product.productRevenue),
     fifoCost: decimalNumber(product.fifoCost),
     grossProfit: decimalNumber(product.grossProfit),
@@ -412,7 +443,7 @@ export function buildAnalyticsDashboard(input: {
     product.quantity !== 0 || !product.productRevenue.isZero() || !product.grossProfit.isZero(),
   );
   const bestSelling = [...products]
-    .sort((a, b) => b.quantity - a.quantity || b.productRevenue.comparedTo(a.productRevenue))
+    .sort((a, b) => b.productRevenue.comparedTo(a.productRevenue))
     .slice(0, 10)
     .map(productDto);
   const mostProfitable = [...products]
@@ -422,27 +453,37 @@ export function buildAnalyticsDashboard(input: {
 
   const inventory = input.stockBatches.reduce((totals, batch) => {
     const onHand = batch.availableQuantity + batch.reservedQuantity;
-    totals.availableUnits += batch.availableQuantity;
-    totals.reservedUnits += batch.reservedQuantity;
-    totals.onHandUnits += onHand;
-    totals.valuation = totals.valuation.plus(decimal(batch.unitBuyingCost).mul(onHand));
+    const kind = batch.productVariant?.product?.kind ?? "PACKAGED";
+    const unit = kind === "PACKAGED"
+      ? "pieces"
+      : kind === "LOOSE_WEIGHT" ? "grams" : "milliliters";
+    totals.available[unit] += batch.availableQuantity;
+    totals.reserved[unit] += batch.reservedQuantity;
+    totals.onHand[unit] += onHand;
+    totals.valuation = totals.valuation.plus(quantityCost(batch.unitBuyingCost.toString(), onHand, kind));
     return totals;
   }, {
-    availableUnits: 0,
-    reservedUnits: 0,
-    onHandUnits: 0,
+    available: emptyQuantities(),
+    reserved: emptyQuantities(),
+    onHand: emptyQuantities(),
     valuation: new Prisma.Decimal(0),
   });
-  const stockVariantDto = (variant: AnalyticsVariantRecord) => ({
+  const stockVariantDto = (variant: AnalyticsVariantRecord) => {
+    const kind = variant.product.kind ?? "PACKAGED";
+    const divisor = kind === "PACKAGED" ? 1 : 1_000;
+    const quantityUnit = kind === "LOOSE_WEIGHT" ? "KG" : kind === "LOOSE_VOLUME" ? "LITER" : "PIECE";
+    return ({
     productVariantId: variant.id,
     productName: variant.product.name,
     variantName: variant.name,
     sku: variant.sku,
-    availableStock: variant.availableStock,
-    reservedStock: variant.reservedStock,
-    onHandStock: variant.availableStock + variant.reservedStock,
-    lowStockThreshold: variant.lowStockThreshold,
-  });
+    productKind: kind,
+    quantityUnit,
+    availableStock: variant.availableStock / divisor,
+    reservedStock: variant.reservedStock / divisor,
+    onHandStock: (variant.availableStock + variant.reservedStock) / divisor,
+    lowStockThreshold: variant.lowStockThreshold / divisor,
+  }); };
   const outOfStock = input.variants.filter((variant) => variant.availableStock === 0).map(stockVariantDto);
   const lowStock = input.variants
     .filter((variant) => variant.availableStock > 0 && variant.availableStock <= variant.lowStockThreshold)
@@ -474,7 +515,11 @@ export function buildAnalyticsDashboard(input: {
       grossProfit: compared(current.grossProfit, previous.grossProfit),
       grossMargin: compared(currentMargin, previousMargin, 2),
       recognizedOrderCount: compared(decimal(current.orderCount), decimal(previous.orderCount), 0),
-      unitsSold: compared(decimal(current.units), decimal(previous.units), 0),
+      soldQuantities: {
+        pieces: compared(decimal(current.quantities.pieces), decimal(previous.quantities.pieces), 0),
+        weightKg: compared(decimal(current.quantities.grams).div(1_000), decimal(previous.quantities.grams).div(1_000), 3),
+        volumeLitres: compared(decimal(current.quantities.milliliters).div(1_000), decimal(previous.quantities.milliliters).div(1_000), 3),
+      },
       averageOrderValue: compared(currentAverage, previousAverage),
       pendingCodOrderCount: pendingCod.total,
       lowStockVariantCount: lowStock.length,
@@ -493,9 +538,9 @@ export function buildAnalyticsDashboard(input: {
     bestSelling,
     mostProfitable,
     inventory: {
-      availableUnits: inventory.availableUnits,
-      reservedUnits: inventory.reservedUnits,
-      onHandUnits: inventory.onHandUnits,
+      availableQuantities: { pieces: inventory.available.pieces, weightKg: inventory.available.grams / 1_000, volumeLitres: inventory.available.milliliters / 1_000 },
+      reservedQuantities: { pieces: inventory.reserved.pieces, weightKg: inventory.reserved.grams / 1_000, volumeLitres: inventory.reserved.milliliters / 1_000 },
+      onHandQuantities: { pieces: inventory.onHand.pieces, weightKg: inventory.onHand.grams / 1_000, volumeLitres: inventory.onHand.milliliters / 1_000 },
       fifoValuation: decimalNumber(inventory.valuation),
       lowStock,
       outOfStock,
@@ -539,6 +584,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
                 variantNameSnapshot: true,
                 skuSnapshot: true,
                 quantity: true,
+                quantityUnit: true,
                 netLineRevenue: true,
                 totalBuyingCost: true,
                 allocations: { select: { totalBuyingCost: true } },
@@ -555,7 +601,12 @@ export function createAnalyticsService(prisma: PrismaClient) {
         }),
         prisma.stockBatch.findMany({
           where: { OR: [{ availableQuantity: { gt: 0 } }, { reservedQuantity: { gt: 0 } }] },
-          select: { availableQuantity: true, reservedQuantity: true, unitBuyingCost: true },
+          select: {
+            availableQuantity: true,
+            reservedQuantity: true,
+            unitBuyingCost: true,
+            productVariant: { select: { product: { select: { kind: true } } } },
+          },
         }),
         prisma.productVariant.findMany({
           where: { isActive: true, product: { isActive: true } },
@@ -566,7 +617,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
             availableStock: true,
             reservedStock: true,
             lowStockThreshold: true,
-            product: { select: { name: true } },
+            product: { select: { name: true, kind: true } },
           },
         }),
       ]);

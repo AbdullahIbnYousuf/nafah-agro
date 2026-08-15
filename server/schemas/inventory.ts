@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 const uuid = z.string().uuid();
-const positiveQuantity = z.number().int().min(1).max(1_000_000);
+const amount = z.string().regex(/^\d+(?:\.\d{1,3})?$/).refine((value) => Number(value) > 0);
+const amountUnit = z.enum(["PIECE", "KG", "G", "LITER", "ML"]);
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/);
 const positiveMoney = money.refine((value) => Number(value) > 0, "Buying cost must be greater than zero");
 const nonNegativeMoney = money.refine((value) => Number(value) >= 0);
@@ -26,14 +27,16 @@ export const purchaseCreateSchema = z.object({
   note: z.string().trim().max(1_000).optional(),
   items: z.array(z.object({
     productVariantId: uuid,
-    quantity: positiveQuantity,
+    amount,
+    amountUnit,
     unitBuyingCost: positiveMoney,
   }).strict()).min(1).max(100),
 }).strict().superRefine(uniqueVariantIds);
 
 const adjustmentBase = {
   productVariantId: uuid,
-  quantity: positiveQuantity,
+  amount,
+  amountUnit,
   reason,
 };
 
@@ -58,7 +61,8 @@ export const stockBatchListSchema = z.object({
 export const physicalSaleCreateSchema = z.object({
   items: z.array(z.object({
     productVariantId: uuid,
-    quantity: positiveQuantity,
+    amount,
+    amountUnit,
   }).strict()).min(1).max(100),
   customerName: z.string().trim().min(1).max(120).optional(),
   customerPhone: z.string().trim().min(7).max(30).optional(),

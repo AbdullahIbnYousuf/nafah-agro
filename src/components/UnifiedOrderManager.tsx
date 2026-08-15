@@ -18,6 +18,7 @@ import {
 } from '@/lib/api';
 import type { DeliveryRate, OrderSource, OrderStatus, Product, UnifiedOrder } from '@/lib/types';
 import { productPackLabel } from '@/lib/productOptions';
+import { formatQuantity } from '@/lib/quantity';
 
 const sources: OrderSource[] = ['WEBSITE', 'PHYSICAL_SHOP', 'FACEBOOK', 'PHONE', 'WHATSAPP', 'OTHER'];
 const statuses: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PROCESSING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'RETURNED_SELLABLE', 'RETURNED_DAMAGED'];
@@ -77,7 +78,7 @@ export default function UnifiedOrderManager() {
     }).catch(() => toast.error('ম্যানুয়াল অর্ডারের সহায়ক তথ্য লোড হয়নি'));
   }, []);
 
-  const variants = useMemo(() => products.flatMap(product => (product.variants ?? []).filter(variant => product.isActive !== false && variant.isActive).map(variant => ({ ...variant, productName: product.name }))), [products]);
+  const variants = useMemo(() => products.flatMap(product => (product.kind ?? 'PACKAGED') !== 'PACKAGED' ? [] : (product.variants ?? []).filter(variant => product.isActive !== false && variant.isActive).map(variant => ({ ...variant, productName: product.name }))), [products]);
   const manualSubtotal = useMemo(() => manualItems.reduce((total, item) => {
     const variant = variants.find(candidate => candidate.id === item.productVariantId);
     return total + (variant ? variant.sellingPrice * item.quantity : 0);
@@ -170,7 +171,7 @@ export default function UnifiedOrderManager() {
       <Button variant="outline" onClick={() => void loadOrders()}><RefreshCw size={16} className="mr-2" />রিফ্রেশ</Button>
     </section>
     {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : <div className="space-y-3">{orders.map(order => <article key={order.id} className="bg-card border rounded-lg p-4"><div className="flex flex-wrap justify-between gap-3"><div><strong>{order.orderNumber}</strong><div className="text-sm">{order.source} · {order.status} · {order.customerName ?? 'গ্রাহক নেই'} · {order.customerPhone ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground">{new Date(order.placedAt).toLocaleString('bn-BD')}</div></div><div className="text-right"><div className="font-bold">মোট ৳{order.grandTotal}</div><div className="text-sm">ক্রয়মূল্য {order.totalBuyingCost === null ? 'প্রযোজ্য নয়' : `৳${order.totalBuyingCost}`} · লাভ {order.grossProfit === null ? 'প্রযোজ্য নয়' : `৳${order.grossProfit}`} · মার্জিন {order.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${order.grossProfitMargin}%`}</div></div></div>
-        <div className="text-sm mt-3">{order.items.map(item => `${productPackLabel(item.productName, item.variantName)} × ${item.quantity}`).join(', ')}</div>
+        <div className="text-sm mt-3">{order.items.map(item => `${productPackLabel(item.productName, item.variantName)} × ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
         {order.statusReason && <div className="text-sm text-destructive mt-2">কারণ: {order.statusReason}</div>}
         <div className="flex flex-wrap gap-2 mt-3">{order.status === 'PENDING' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'CONFIRM' })}>নিশ্চিত ও স্টক সংরক্ষণ</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'CANCEL' })}>বাতিল</Button></>}{order.status === 'CONFIRMED' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'PROCESS' })}>প্রসেসিং</Button><Button size="sm" onClick={() => setPendingAction({ order, action: 'DELIVER' })}>ডেলিভারড</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'FAILED_DELIVERY' })}>ডেলিভারি ব্যর্থ</Button></>}{order.status === 'PROCESSING' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'DELIVER' })}>ডেলিভারড</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'FAILED_DELIVERY' })}>ডেলিভারি ব্যর্থ</Button></>}{(order.status === 'DELIVERED' || order.status === 'COMPLETED') && <Button size="sm" variant="outline" onClick={() => setReturnOrder(order)}>পুরো অর্ডার ফেরত</Button>}</div>
       </article>)}</div>}

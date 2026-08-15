@@ -65,6 +65,13 @@ transaction as that product's variants.
 
 Every sellable product has at least one internal variant. Products without visible choices use a hidden default; owners and customers work with the simpler `প্যাক/সাইজ` label.
 
+Product types are `PACKAGED`, `LOOSE_WEIGHT`, and `LOOSE_VOLUME`. Packaged
+products retain fixed pack/size choices and can be sold online or in the shop.
+Loose weight and loose volume are separate, physical-shop-only products with
+one hidden internal variant and independent FIFO stock. Their selling and buying
+prices are rates per kg or litre. Their exact stored stock unit is gram or
+millilitre; existing products remain packaged pieces.
+
 Historical order items permanently retain product, variant, internal SKU, quantity, selling-price, discount, buying-cost, revenue, and gross-profit snapshots.
 
 ## 5. Purchases and FIFO inventory
@@ -87,7 +94,8 @@ Each product variant also stores current available and reserved stock totals for
 
 Stock rules:
 
-- Quantities are whole units and must be positive
+- Stored quantities are positive whole pieces, grams, or millilitres
+- Owner inputs may use pieces, kg/g, or litre/ml as appropriate for the product type
 - Available and reserved quantities cannot become negative
 - Overselling is rejected
 - FIFO order is purchase date, then creation time, then batch ID
@@ -206,9 +214,10 @@ Owners can view:
 - Gross profit and margin
 - Completed/delivered order count
 - Units sold and average order value
+- Sold quantities separated into pieces, kg, and litres
 - Sales by source
 - Best-selling and most-profitable products
-- Available, reserved, low, and out-of-stock variants
+- Available, reserved, low, and out-of-stock quantities with their correct units
 - FIFO inventory value
 
 Delivery orders count on `delivered_at`; physical sales count on `completed_at`. Cancelled, failed-delivery, and pending orders do not count. Whole-order returns reverse the original financial effect on the return date.

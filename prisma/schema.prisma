@@ -73,6 +73,18 @@ enum ReturnCondition {
   DAMAGED
 }
 
+enum ProductKind {
+  PACKAGED
+  LOOSE_WEIGHT
+  LOOSE_VOLUME
+}
+
+enum QuantityUnit {
+  PIECE
+  GRAM
+  MILLILITER
+}
+
 model Profile {
   id                    String                @id @db.Uuid
   role                  Role
@@ -111,6 +123,7 @@ model Product {
   name         String
   slug         String           @unique
   description  String           @default("")
+  kind         ProductKind      @default(PACKAGED)
   featured     Boolean          @default(false)
   isActive     Boolean          @default(true) @map("is_active")
   tags         String[]         @default([])
@@ -267,6 +280,7 @@ model SalesOrderItem {
   variantNameSnapshot String            @map("variant_name_snapshot")
   skuSnapshot         String            @map("sku_snapshot")
   quantity            Int
+  quantityUnit        QuantityUnit      @default(PIECE) @map("quantity_unit")
   unitSellingPrice    Decimal           @map("unit_selling_price") @db.Decimal(14, 2)
   grossLineRevenue    Decimal           @map("gross_line_revenue") @db.Decimal(14, 2)
   allocatedDiscount   Decimal           @default(0) @map("allocated_discount") @db.Decimal(14, 2)

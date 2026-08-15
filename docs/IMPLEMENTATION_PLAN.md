@@ -37,6 +37,9 @@ Status: complete in code; real PostgreSQL concurrency acceptance remains.
 - Multi-item purchases, costed batches, cached variant totals, FIFO allocation,
   reason-required adjustments, immediate CASH/PAID physical sales, preserved
   price/cost snapshots, discount/loss confirmation, profit visibility.
+- Packaged and physical-shop-only loose products use independent FIFO pools.
+  Loose weight/volume is stored exactly as grams/millilitres while owner inputs
+  use kg/g or litre/ml and prices remain rates per kg/litre.
 
 ## Milestone 4 — Unified COD and manual delivery orders
 

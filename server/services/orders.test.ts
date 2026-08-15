@@ -20,7 +20,7 @@ function createMemoryPrisma() {
     variants: [{
       id: VARIANT, productId: PRODUCT, name: "500 g", sku: "HONEY-500",
       currentSellingPrice: "500.00", availableStock: 5, reservedStock: 0, isActive: true,
-      product: { id: PRODUCT, name: "Raw Honey", isActive: true },
+      product: { id: PRODUCT, name: "Raw Honey", isActive: true, kind: "PACKAGED" },
     }],
     rates: [{ id: RATE, code: "DHAKA", name: "Dhaka", charge: "80.00", isActive: true, updatedByProfileId: null, createdAt: new Date(), updatedAt: new Date() }],
     batches: [
@@ -213,6 +213,14 @@ describe("unified PostgreSQL orders", () => {
     expect(result.order).toMatchObject({ source: "WEBSITE", status: "PENDING", paymentMethod: "CASH_ON_DELIVERY", subtotal: 1500, grandTotal: 1580 });
     expect(state.variants[0]).toMatchObject({ availableStock: 5, reservedStock: 0 });
     expect(state.allocations).toHaveLength(0);
+  });
+
+  it("rejects loose products from website and manual delivery channels", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    state.variants[0].product.kind = "LOOSE_WEIGHT";
+    const service = createUnifiedOrderService(prisma);
+    await expect(service.createWebsiteOrder(websiteInput())).rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
+    await expect(service.createManualOrder(manualInput())).rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
   });
 
   it("replays identical idempotent checkout and rejects changed payload", async () => {

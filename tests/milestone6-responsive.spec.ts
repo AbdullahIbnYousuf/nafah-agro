@@ -100,8 +100,8 @@ test('OWNER management panel remains usable at required widths', async ({ page }
       await expect(mobileNavigation).toBeHidden();
     }
 
-    for (const tab of ['পণ্য', 'ক্যাটাগরি', 'ক্রয় ও ইনভেন্টরি', 'ফিজিক্যাল বিক্রয়', 'অর্ডার']) {
-      await page.getByRole('button', { name: tab, exact: true }).click();
+    for (const tab of ['পণ্য', 'ক্যাটাগরি', 'ক্রয় ও ইনভেন্টরি', 'দোকানের বিক্রি', 'অর্ডার']) {
+      await page.getByRole('link', { name: tab, exact: true }).click();
       await expect(page.locator('main')).toBeVisible();
       await expectNoPageOverflow(page);
       if (viewport.name === 'mobile') {

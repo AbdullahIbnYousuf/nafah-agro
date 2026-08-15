@@ -144,7 +144,7 @@ describe("recognized sales and returns", () => {
       expect(result.summary.recognizedSales.value).toBe(-500);
       expect(result.summary.productRevenue.value).toBe(-500);
       expect(result.summary.grossProfit.value).toBe(-300);
-      expect(result.summary.unitsSold.value).toBe(-2);
+      expect(result.summary.soldQuantities.pieces.value).toBe(-2);
       expect(result.trend[0]).toMatchObject({ recognizedSales: -500, grossProfit: -300 });
     },
   );
@@ -220,7 +220,7 @@ describe("analytics sections", () => {
     expect(result.salesBySource.find((item) => item.source === "WHATSAPP")).toMatchObject({ orderCount: 1, recognizedSales: 500 });
   });
 
-  it("ranks best-selling variants by net returned quantity", () => {
+  it("ranks best-selling variants by recognized product revenue", () => {
     const result = dashboard({ orders: [
       order({ id: "honey" }),
       order({ id: "rice", items: [{
@@ -252,22 +252,66 @@ describe("analytics sections", () => {
 
   it("calculates available, reserved, on-hand, valuation, and stock alerts", () => {
     const variants: AnalyticsVariantRecord[] = [
-      { id: "v1", name: "500 g", sku: "ONE", availableStock: 2, reservedStock: 1, lowStockThreshold: 3, product: { name: "Honey" } },
-      { id: "v2", name: "1 kg", sku: "TWO", availableStock: 0, reservedStock: 2, lowStockThreshold: 4, product: { name: "Rice" } },
-      { id: "v3", name: "1 L", sku: "THREE", availableStock: 10, reservedStock: 0, lowStockThreshold: 2, product: { name: "Oil" } },
+      { id: "v1", name: "500 g", sku: "ONE", availableStock: 2, reservedStock: 1, lowStockThreshold: 3, product: { name: "Honey", kind: "PACKAGED" } },
+      { id: "v2", name: "1 kg", sku: "TWO", availableStock: 0, reservedStock: 2, lowStockThreshold: 4, product: { name: "Rice", kind: "PACKAGED" } },
+      { id: "v3", name: "1 L", sku: "THREE", availableStock: 10, reservedStock: 0, lowStockThreshold: 2, product: { name: "Oil", kind: "PACKAGED" } },
     ];
     const result = dashboard({
       stockBatches: [
-        { availableQuantity: 2, reservedQuantity: 1, unitBuyingCost: "100.00" },
-        { availableQuantity: 0, reservedQuantity: 2, unitBuyingCost: "50.00" },
-        { availableQuantity: 10, reservedQuantity: 0, unitBuyingCost: "20.00" },
+        { availableQuantity: 2, reservedQuantity: 1, unitBuyingCost: "100.00", productVariant: { product: { kind: "PACKAGED" } } },
+        { availableQuantity: 0, reservedQuantity: 2, unitBuyingCost: "50.00", productVariant: { product: { kind: "PACKAGED" } } },
+        { availableQuantity: 10, reservedQuantity: 0, unitBuyingCost: "20.00", productVariant: { product: { kind: "PACKAGED" } } },
       ],
       variants,
       openCodOrders: [{ status: "PENDING" }, { status: "CONFIRMED" }, { status: "PROCESSING" }],
     });
-    expect(result.inventory).toMatchObject({ availableUnits: 12, reservedUnits: 3, onHandUnits: 15, fifoValuation: 600 });
+    expect(result.inventory).toMatchObject({
+      availableQuantities: { pieces: 12, weightKg: 0, volumeLitres: 0 },
+      reservedQuantities: { pieces: 3, weightKg: 0, volumeLitres: 0 },
+      onHandQuantities: { pieces: 15, weightKg: 0, volumeLitres: 0 },
+      fifoValuation: 600,
+    });
     expect(result.summary.lowStockVariantCount).toBe(1);
     expect(result.summary.outOfStockVariantCount).toBe(1);
     expect(result.pendingCod).toEqual({ total: 3, pending: 1, confirmed: 1, processing: 1 });
+  });
+
+  it("keeps pieces, kilograms, and litres separate and values measured stock by rate", () => {
+    const result = dashboard({
+      orders: [order({
+        id: "measured",
+        subtotal: "350.00",
+        grandTotal: "350.00",
+        items: [
+          {
+            productId: "weight-product", productVariantId: "weight-variant",
+            productNameSnapshot: "Loose Rice", variantNameSnapshot: "Default",
+            skuSnapshot: "INTERNAL-WEIGHT", quantity: 1_250, quantityUnit: "GRAM",
+            netLineRevenue: "125.00", totalBuyingCost: "75.00",
+            allocations: [{ totalBuyingCost: "75.00" }],
+          },
+          {
+            productId: "volume-product", productVariantId: "volume-variant",
+            productNameSnapshot: "Loose Oil", variantNameSnapshot: "Default",
+            skuSnapshot: "INTERNAL-VOLUME", quantity: 500, quantityUnit: "MILLILITER",
+            netLineRevenue: "225.00", totalBuyingCost: "85.00",
+            allocations: [{ totalBuyingCost: "85.00" }],
+          },
+        ],
+      })],
+      stockBatches: [
+        { availableQuantity: 10_000, reservedQuantity: 0, unitBuyingCost: "60", productVariant: { product: { kind: "LOOSE_WEIGHT" } } },
+        { availableQuantity: 2_000, reservedQuantity: 500, unitBuyingCost: "170", productVariant: { product: { kind: "LOOSE_VOLUME" } } },
+      ],
+    });
+
+    expect(result.summary.soldQuantities).toMatchObject({
+      pieces: { value: 0 }, weightKg: { value: 1.25 }, volumeLitres: { value: 0.5 },
+    });
+    expect(result.inventory).toMatchObject({
+      availableQuantities: { pieces: 0, weightKg: 10, volumeLitres: 2 },
+      reservedQuantities: { pieces: 0, weightKg: 0, volumeLitres: 0.5 },
+      fifoValuation: 1025,
+    });
   });
 });

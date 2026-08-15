@@ -20,6 +20,11 @@ is not approved for production until the external gates in this document and
   uses `প্যাক/সাইজ`, accepts an optional initial option name, hides internal
   default names, and no longer exposes or accepts manual SKU values. Express
   generates immutable internal SKUs; existing schema and historical data remain unchanged.
+- Added separate packaged, loose-weight, and loose-volume product types. Loose
+  products keep one hidden internal option, are physical-shop-only, store exact
+  gram/millilitre stock, and use per-kg/per-litre FIFO rates. Public and manual
+  delivery-order APIs reject them, while owner inventory, physical sales,
+  returns, alerts, valuation, and analytics preserve their quantity units.
 - Removed active obsolete deployment/auth references and all native
   `alert`/`prompt`/`confirm` workflows. Order transitions, returns, delivery-rate
   edits, category edits, and loss warnings now use application dialogs with
@@ -98,6 +103,24 @@ is not approved for production until the external gates in this document and
 - The production build reports a local-only Vite warning because this workspace's
   untracked `.env` sets `NODE_ENV=production`; remove it or set `development` for
   local work. Vercel sets production mode during deployment.
+
+## Loose-product verification on 2026-08-15
+
+- `npm run typecheck`: passed for frontend, backend, and Prisma scripts.
+- `npm run lint`: passed with no errors or warnings.
+- `npm test -- --run`: 222 tests passed across 32 files, including exact
+  kg/g and litre/ml conversion, measured FIFO cost/sales, incompatible-channel
+  rejection, unit snapshots, separated analytics, and migration-source checks.
+- `npm run build` and `npm run build:server`: passed. Vite retains the accepted
+  shared-chunk size warning.
+- `npm run prisma:validate` and `npm run prisma:generate`: passed.
+- `npm run inventory:check`: passed against the configured database with no
+  cached stock-total mismatches.
+- `prisma migrate status` connected successfully and reported
+  `202608080002_unused_catalog_deletion` and
+  `202608150001_loose_products` as pending. No migration was applied by this
+  implementation task; deploy both before using loose products in that database.
+- `git diff --check`: passed.
 
 ## Environment contract
 

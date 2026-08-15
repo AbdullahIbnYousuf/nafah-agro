@@ -3,6 +3,7 @@ import { z } from "zod";
 const slug = z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/).refine((value) => Number(value) >= 0);
 const uuid = z.string().uuid();
+const productKind = z.enum(["PACKAGED", "LOOSE_WEIGHT", "LOOSE_VOLUME"]);
 
 export const categoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -18,6 +19,7 @@ export const productCreateSchema = z.object({
   slug,
   description: z.string().trim().max(10_000).default(""),
   categoryId: uuid,
+  kind: productKind.default("PACKAGED"),
   featured: z.boolean().default(false),
   tags: z.array(z.string().trim().min(1).max(60)).max(30).default([]),
   images: z.array(z.string().url()).max(12).default([]),
@@ -26,7 +28,7 @@ export const productCreateSchema = z.object({
   initialVariant: z.object({
     name: z.string().trim().max(120).default(""),
     sellingPrice: money,
-    lowStockThreshold: z.number().int().min(0).max(1_000_000).default(5),
+    lowStockThreshold: z.number().int().min(0).max(2_000_000_000).default(5),
   }).strict(),
   priceReason: z.string().trim().min(3).max(300),
 }).strict();
@@ -44,17 +46,24 @@ export const productUpdateSchema = z.object({
   attributes: z.array(z.unknown()).max(20).optional(),
 }).strict().refine((value) => Object.keys(value).some((key) => value[key as keyof typeof value] !== undefined));
 
+export const productKindChangeSchema = z.object({
+  kind: productKind,
+  sellingPrice: money,
+  lowStockThreshold: z.number().int().min(0).max(2_000_000_000),
+  reason: z.string().trim().min(3).max(300),
+}).strict();
+
 export const variantCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
   sellingPrice: money,
-  lowStockThreshold: z.number().int().min(0).max(1_000_000).default(5),
+  lowStockThreshold: z.number().int().min(0).max(2_000_000_000).default(5),
   isDefault: z.boolean().default(false),
   priceReason: z.string().trim().min(3).max(300),
 }).strict();
 
 export const variantUpdateSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
-  lowStockThreshold: z.number().int().min(0).max(1_000_000).optional(),
+  lowStockThreshold: z.number().int().min(0).max(2_000_000_000).optional(),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),
 }).strict()
@@ -102,6 +111,7 @@ export type CategoryCreate = z.infer<typeof categoryCreateSchema>;
 export type CategoryUpdate = z.infer<typeof categoryUpdateSchema>;
 export type ProductCreate = z.infer<typeof productCreateSchema>;
 export type ProductUpdate = z.infer<typeof productUpdateSchema>;
+export type ProductKindChange = z.infer<typeof productKindChangeSchema>;
 export type VariantCreate = z.infer<typeof variantCreateSchema>;
 export type VariantUpdate = z.infer<typeof variantUpdateSchema>;
 export type PriceChange = z.infer<typeof priceChangeSchema>;

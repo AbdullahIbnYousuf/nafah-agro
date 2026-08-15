@@ -10,9 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Category, Product } from '@/lib/types';
-import { createProduct, updateProduct, uploadImages, getProductTags } from '@/lib/api';
+import type { Category, Product, ProductKind } from '@/lib/types';
+import { changeProductKind, createProduct, updateProduct, uploadImages, getProductTags } from '@/lib/api';
 import { getErrorMessage } from '@/lib/utils';
+import { productKindLabel, rateLabel } from '@/lib/quantity';
 import { toast } from 'sonner';
 
 interface Props {
@@ -39,7 +40,13 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const [slug, setSlug] = useState(editProduct?.slug ?? '');
   const [slugTouched, setSlugTouched] = useState(isEdit);
   const [description, setDescription] = useState(editProduct?.description ?? '');
+  const [kind, setKind] = useState<ProductKind>(editProduct?.kind ?? 'PACKAGED');
   const [price, setPrice] = useState(editProduct ? String(editProduct.price) : '');
+  const initialThreshold = editProduct?.variants?.[0]?.lowStockThreshold ?? 5;
+  const [lowStockThreshold, setLowStockThreshold] = useState(
+    String((editProduct?.kind ?? 'PACKAGED') === 'PACKAGED' ? initialThreshold : initialThreshold / 1_000),
+  );
+  const [kindChangeReason, setKindChangeReason] = useState('পণ্যের ধরন সংশোধন');
   const [variantName, setVariantName] = useState(
     editProduct?.variantName && editProduct.variantName.toLowerCase() !== 'default'
       ? editProduct.variantName
@@ -118,6 +125,13 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
     if (!name.trim()) return toast.error('পণ্যের নাম দিন');
     if (!isEdit && (!price || isNaN(Number(price)))) return toast.error('সঠিক দাম দিন');
     if (!categoryId) return toast.error('ক্যাটাগরি নির্বাচন করুন');
+    const thresholdNumber = Number(lowStockThreshold);
+    if (!Number.isFinite(thresholdNumber) || thresholdNumber < 0 || (kind !== 'PACKAGED' && thresholdNumber * 1_000 % 1 !== 0)) {
+      return toast.error('সঠিক লো-স্টক সীমা দিন');
+    }
+    const thresholdBase = kind === 'PACKAGED' ? Math.round(thresholdNumber) : Math.round(thresholdNumber * 1_000);
+    const kindChanged = isEdit && kind !== (editProduct.kind ?? 'PACKAGED');
+    if (kindChanged && kindChangeReason.trim().length < 3) return toast.error('পণ্যের ধরন পরিবর্তনের কারণ দিন');
 
     setSaving(true);
     try {
@@ -135,6 +149,8 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         price: Number(price),
         stock: editProduct?.stock ?? 0,
         variantName: variantName.trim(),
+        kind,
+        initialLowStockThreshold: thresholdBase,
         categoryId,
         featured,
         images: allImages,
@@ -143,7 +159,15 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
       };
 
       if (isEdit) {
-        const updated = await updateProduct(editProduct.id, payload);
+        let updated = await updateProduct(editProduct.id, payload);
+        if (kindChanged) {
+          updated = await changeProductKind(editProduct.id, {
+            kind,
+            sellingPrice: Number(price),
+            lowStockThreshold: thresholdBase,
+            reason: kindChangeReason.trim(),
+          });
+        }
         toast.success(`"${updated.name}" আপডেট হয়েছে`);
         onCreated(updated);
       } else {
@@ -230,21 +254,46 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               </div>
 
               <div>
-                  <Label htmlFor="price">{isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
+                <Label htmlFor="product-kind">পণ্যের ধরন *</Label>
+                <select
+                  id="product-kind"
+                  className="mt-1 h-11 w-full rounded-md border bg-card px-3 md:h-10"
+                  value={kind}
+                  onChange={(event) => {
+                    const next = event.target.value as ProductKind;
+                    setKind(next);
+                    setVariantName('');
+                    setLowStockThreshold(next === 'PACKAGED' ? '5' : '5');
+                  }}
+                >
+                  <option value="PACKAGED">প্যাকেট বা নির্দিষ্ট সাইজ</option>
+                  <option value="LOOSE_WEIGHT">খোলা পণ্য, ওজনে বিক্রি</option>
+                  <option value="LOOSE_VOLUME">খোলা পণ্য, লিটারে বিক্রি</option>
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">বর্তমান ধরন: {productKindLabel(kind)}</p>
+              </div>
+
+              <div>
+                <Label htmlFor="price">{kind === 'LOOSE_WEIGHT'
+                  ? 'প্রতি কেজি বিক্রির দাম (টাকা) *'
+                  : kind === 'LOOSE_VOLUME'
+                    ? 'প্রতি লিটার বিক্রির দাম (টাকা) *'
+                    : isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
                   <Input
                     id="price"
                     type="number"
                     min="0"
                     value={price}
                     onChange={e => setPrice(e.target.value)}
-                    disabled={isEdit}
+                    disabled={isEdit && kind === (editProduct?.kind ?? 'PACKAGED')}
                     placeholder="০"
                     className="mt-1 bg-card"
                   />
-                  {isEdit && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “প্যাক/সাইজ ও দাম” খুলুন।</p>}
+                  <p className="text-xs text-muted-foreground mt-1">{rateLabel(kind)} দাম</p>
+                  {isEdit && kind === (editProduct?.kind ?? 'PACKAGED') && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “{kind === 'PACKAGED' ? 'প্যাক/সাইজ ও দাম' : 'দাম ও স্টক সীমা'}” খুলুন।</p>}
               </div>
 
-              {!isEdit && <div>
+              {!isEdit && kind === 'PACKAGED' && <div>
                 <Label htmlFor="variant-name">প্যাক/সাইজ (ঐচ্ছিক)</Label>
                 <Input
                   id="variant-name"
@@ -254,6 +303,17 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   className="mt-1 bg-card"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">একাধিক প্যাক/সাইজ থাকলে এখানে প্রথমটির নাম দিন।</p>
+              </div>}
+
+              {(kind !== 'PACKAGED' || (isEdit && kind !== (editProduct?.kind ?? 'PACKAGED'))) && <div>
+                <Label htmlFor="low-stock-threshold">লো-স্টক সীমা ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : 'ইউনিট'})</Label>
+                <Input id="low-stock-threshold" type="number" min="0" step={kind === 'PACKAGED' ? '1' : '0.001'} value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} className="mt-1 bg-card" />
+              </div>}
+
+              {isEdit && kind !== (editProduct?.kind ?? 'PACKAGED') && <div>
+                <Label htmlFor="kind-change-reason">ধরন পরিবর্তনের কারণ *</Label>
+                <Input id="kind-change-reason" value={kindChangeReason} onChange={(event) => setKindChangeReason(event.target.value)} className="mt-1 bg-card" />
+                <p className="mt-1 text-xs text-muted-foreground">স্টক, বিক্রি বা দামের পরিবর্তন থাকলে ধরন বদলানো যাবে না।</p>
               </div>}
 
               <div>

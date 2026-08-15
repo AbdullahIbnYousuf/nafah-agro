@@ -80,6 +80,7 @@ function orderDto(order: OrderRecord) {
       productVariantId: item.productVariantId,
       productName: item.productNameSnapshot,
       variantName: item.variantNameSnapshot,
+      quantityUnit: item.quantityUnit,
       sku: item.skuSnapshot,
       quantity: item.quantity,
       unitSellingPrice: moneyNumber(item.unitSellingPrice),
@@ -177,9 +178,9 @@ async function createOrderBase(
   const sortedItems = [...input.items].sort((a, b) => a.productVariantId.localeCompare(b.productVariantId));
   const variants = await transaction.productVariant.findMany({
     where: { id: { in: sortedItems.map((item) => item.productVariantId) }, isActive: true },
-    include: { product: { select: { id: true, name: true, isActive: true } } },
+    include: { product: { select: { id: true, name: true, isActive: true, kind: true } } },
   });
-  if (variants.length !== sortedItems.length || variants.some((variant) => !variant.product.isActive)) {
+  if (variants.length !== sortedItems.length || variants.some((variant) => !variant.product.isActive || (variant.product.kind ?? "PACKAGED") !== "PACKAGED")) {
     throw orderError(404, "SELLABLE_VARIANT_NOT_FOUND", "One or more variants are inactive or missing.");
   }
   const byId = new Map(variants.map((variant) => [variant.id, variant]));
@@ -225,6 +226,7 @@ async function createOrderBase(
       variantNameSnapshot: variant.name,
       skuSnapshot: variant.sku,
       quantity: item.quantity,
+      quantityUnit: "PIECE",
       unitSellingPrice: variant.currentSellingPrice,
       grossLineRevenue: lineTotals[index],
       allocatedDiscount: discounts[index],

@@ -8,6 +8,7 @@ import type {
   StockBatchList,
 } from "../schemas/inventory.js";
 import { consumeAvailableFifo, type FifoAllocation } from "./stockAllocation.js";
+import { quantityCost, quantityUnitForKind, toBaseQuantity } from "../lib/quantity.js";
 
 interface InventoryHttpError extends Error {
   status: number;
@@ -75,6 +76,7 @@ function saleDto(sale: SaleRecord) {
       productVariantId: item.productVariantId,
       productName: item.productNameSnapshot,
       variantName: item.variantNameSnapshot,
+      quantityUnit: item.quantityUnit,
       sku: item.skuSnapshot,
       quantity: item.quantity,
       unitSellingPrice: moneyNumber(item.unitSellingPrice),
@@ -116,7 +118,7 @@ function allocateDiscount(
 
 function purchaseBatchDto(batch: Prisma.StockBatchGetPayload<{
   include: {
-    productVariant: { include: { product: { select: { name: true } } } };
+    productVariant: { include: { product: { select: { name: true; kind: true } } } };
     createdBy: { select: { fullName: true; role: true } };
   };
 }>) {
@@ -126,6 +128,8 @@ function purchaseBatchDto(batch: Prisma.StockBatchGetPayload<{
     productVariantId: batch.productVariantId,
     productName: batch.productVariant.product.name,
     variantName: batch.productVariant.name,
+    productKind: batch.productVariant.product.kind,
+    quantityUnit: quantityUnitForKind(batch.productVariant.product.kind),
     sku: batch.productVariant.sku,
     source: batch.source,
     purchasedQuantity: batch.purchasedQuantity,
@@ -144,7 +148,7 @@ function purchaseBatchDto(batch: Prisma.StockBatchGetPayload<{
 
 export function createInventoryService(prisma: PrismaClient) {
   const fullBatchInclude = {
-    productVariant: { include: { product: { select: { name: true } } } },
+    productVariant: { include: { product: { select: { name: true, kind: true } } } },
     createdBy: { select: { fullName: true, role: true } },
   } satisfies Prisma.StockBatchInclude;
 
@@ -175,19 +179,21 @@ export function createInventoryService(prisma: PrismaClient) {
         const variantIds = input.items.map((item) => item.productVariantId);
         const variants = await transaction.productVariant.findMany({
           where: { id: { in: variantIds } },
-          select: { id: true },
+          select: { id: true, product: { select: { kind: true } } },
         });
         if (variants.length !== variantIds.length) {
           throw inventoryError(404, "VARIANT_NOT_FOUND", "One or more purchase variants were not found.");
         }
+        const byId = new Map(variants.map((variant) => [variant.id, variant]));
         const ids: string[] = [];
         for (const item of input.items) {
+          const quantity = toBaseQuantity(item.amount, item.amountUnit, byId.get(item.productVariantId)!.product.kind);
           const batch = await transaction.stockBatch.create({ data: {
             purchaseGroupId,
             productVariantId: item.productVariantId,
             source: "PURCHASE",
-            purchasedQuantity: item.quantity,
-            availableQuantity: item.quantity,
+            purchasedQuantity: quantity,
+            availableQuantity: quantity,
             unitBuyingCost: item.unitBuyingCost,
             purchaseDate: asDate(input.purchaseDate),
             note: input.note,
@@ -195,7 +201,7 @@ export function createInventoryService(prisma: PrismaClient) {
           } });
           await transaction.productVariant.update({
             where: { id: item.productVariantId },
-            data: { availableStock: { increment: item.quantity } },
+            data: { availableStock: { increment: quantity } },
           });
           ids.push(batch.id);
         }
@@ -218,16 +224,17 @@ export function createInventoryService(prisma: PrismaClient) {
         await prisma.$transaction(async (transaction) => {
         const variant = await transaction.productVariant.findUnique({
           where: { id: input.productVariantId },
-          select: { id: true },
+          select: { id: true, product: { select: { kind: true } } },
         });
         if (!variant) throw inventoryError(404, "VARIANT_NOT_FOUND", "Variant not found.");
 
+        const quantity = toBaseQuantity(input.amount, input.amountUnit, variant.product.kind);
         if (input.direction === "INCREASE") {
           await transaction.stockBatch.create({ data: {
             productVariantId: input.productVariantId,
             source: "ADJUSTMENT",
-            purchasedQuantity: input.quantity,
-            availableQuantity: input.quantity,
+            purchasedQuantity: quantity,
+            availableQuantity: quantity,
             unitBuyingCost: input.unitBuyingCost,
             purchaseDate: asDate(input.purchaseDate),
             adjustmentReason: input.reason,
@@ -235,16 +242,16 @@ export function createInventoryService(prisma: PrismaClient) {
           } });
           await transaction.productVariant.update({
             where: { id: input.productVariantId },
-            data: { availableStock: { increment: input.quantity } },
+            data: { availableStock: { increment: quantity } },
           });
         } else {
-          await consumeAvailableFifo(transaction, input.productVariantId, input.quantity);
+          await consumeAvailableFifo(transaction, input.productVariantId, quantity, variant.product.kind);
         }
 
         await transaction.stockAdjustment.create({ data: {
           productVariantId: input.productVariantId,
           direction: input.direction,
-          quantity: input.quantity,
+          quantity,
           unitBuyingCost: input.direction === "INCREASE" ? input.unitBuyingCost : null,
           reason: input.reason,
           createdByProfileId: actorId,
@@ -265,14 +272,20 @@ export function createInventoryService(prisma: PrismaClient) {
           left.productVariantId.localeCompare(right.productVariantId));
         const variants = await transaction.productVariant.findMany({
           where: { id: { in: sortedItems.map((item) => item.productVariantId) }, isActive: true },
-          include: { product: { select: { id: true, name: true, isActive: true } } },
+          include: { product: { select: { id: true, name: true, isActive: true, kind: true } } },
         });
         if (variants.length !== sortedItems.length || variants.some((variant) => !variant.product.isActive)) {
           throw inventoryError(404, "SELLABLE_VARIANT_NOT_FOUND", "One or more variants are inactive or missing.");
         }
         const byId = new Map(variants.map((variant) => [variant.id, variant]));
-        const lineTotals = sortedItems.map((item) =>
-          asMoney(byId.get(item.productVariantId)!.currentSellingPrice).mul(item.quantity));
+        const quantities = sortedItems.map((item) => {
+          const variant = byId.get(item.productVariantId)!;
+          return toBaseQuantity(item.amount, item.amountUnit, variant.product.kind);
+        });
+        const lineTotals = sortedItems.map((item, index) => {
+          const variant = byId.get(item.productVariantId)!;
+          return quantityCost(variant.currentSellingPrice, quantities[index], variant.product.kind);
+        });
         const subtotal = lineTotals.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
         const discount = asMoney(input.discountTotal);
         if (discount.gt(subtotal)) {
@@ -284,10 +297,11 @@ export function createInventoryService(prisma: PrismaClient) {
         const discounts = allocateDiscount(lineTotals, subtotal, discount);
 
         const fifoByVariant = new Map<string, FifoAllocation[]>();
-        for (const item of sortedItems) {
+        for (const [index, item] of sortedItems.entries()) {
+          const variant = byId.get(item.productVariantId)!;
           fifoByVariant.set(
             item.productVariantId,
-            await consumeAvailableFifo(transaction, item.productVariantId, item.quantity),
+            await consumeAvailableFifo(transaction, item.productVariantId, quantities[index], variant.product.kind),
           );
         }
 
@@ -343,7 +357,8 @@ export function createInventoryService(prisma: PrismaClient) {
             productNameSnapshot: variant.product.name,
             variantNameSnapshot: variant.name,
             skuSnapshot: variant.sku,
-            quantity: item.quantity,
+            quantity: quantities[index],
+            quantityUnit: quantityUnitForKind(variant.product.kind),
             unitSellingPrice: variant.currentSellingPrice,
             grossLineRevenue: lineTotals[index],
             allocatedDiscount: discounts[index],

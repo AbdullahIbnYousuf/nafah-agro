@@ -38,6 +38,7 @@ workflow remains the bootstrap/recovery path for the first owner.
 | `GET` | `/api/v1/products`, `/products/:slug` | Public | Active storefront catalog |
 | `GET` | `/api/v1/admin/products`, `/admin/products/:id` | OWNER | Full catalog list and direct product lookup, including inactive records |
 | `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product |
+| `PATCH` | `/api/v1/products/:id/kind` | OWNER | Correct an entirely unused product type |
 | `DELETE` | `/api/v1/products/:id` | OWNER | Delete only a product with no stock, adjustment, order, or price-update history |
 | `POST/PATCH` | `/api/v1/products/:id/variants`, `/variants/:id` | OWNER | Create/edit a pack/size; SKU is generated internally |
 | `PATCH` | `/api/v1/variants/:id/selling-price` | OWNER | Single price change/history append |
@@ -59,6 +60,32 @@ immutable internal SKU for each new variant. Existing SKU columns and historical
 snapshots remain for compatibility but are not part of the owner or customer UI.
 The initial pack/size name may be blank; an additional pack/size requires the
 existing internal default to be given a meaningful name first.
+
+Products expose `kind`: `PACKAGED`, `LOOSE_WEIGHT`, or `LOOSE_VOLUME`.
+Loose products keep one hidden internal variant and cannot receive more
+pack/size options. Public catalog endpoints return only `PACKAGED`; owner
+catalog endpoints return every type. The kind-correction endpoint is rejected
+after stock, purchases, adjustments, sales, or a real price change exists.
+
+Purchase, adjustment, and physical-sale writes use `amount` and `amountUnit`:
+
+```json
+{
+  "items": [{
+    "productVariantId": "uuid",
+    "amount": "1.25",
+    "amountUnit": "KG",
+    "unitBuyingCost": "65.00"
+  }],
+  "purchaseDate": "2026-08-15"
+}
+```
+
+Valid units are `PIECE` for packaged products, `KG`/`G` for loose weight, and
+`LITER`/`ML` for loose volume. Kg/litre accept up to three decimal places;
+piece/gram/ml inputs must resolve to whole base units. The API stores exact
+pieces, grams, or millilitres and treats prices/costs as rates per piece, kg,
+or litre. Incompatible units and overselling are rejected transactionally.
 
 ## Unified orders
 
@@ -97,6 +124,9 @@ The strict schema rejects prices, costs, profit, totals, coupon values, and
 payment choices. Express reloads active variants and the delivery rate. A
 matching repeated key replays the original order; reuse with changed content
 returns `IDEMPOTENCY_KEY_REUSED`.
+
+Website and manual delivery-order APIs reject loose products. Loose products
+can be sold only through `/api/v1/physical-sales`.
 
 Manual delivery order additionally accepts `source`, `initialStatus` (`PENDING`
 or `CONFIRMED`), owner-set `discountTotal`, and `confirmUnprofitable`. Discount may
@@ -156,8 +186,10 @@ Financial rules:
 - delivery charge contributes to total recognized sales but not product profit
 - sellable and damaged whole returns add equal negative financial, quantity,
   and FIFO-cost events on `returned_at`; they do not rewrite the original day
-- FIFO inventory value is `(available_quantity + reserved_quantity) ×
-  unit_buying_cost` across remaining batches
+- FIFO inventory value is the remaining quantity times its buying-cost rate;
+  gram/millilitre quantities are divided by 1,000 before applying the kg/litre rate
+- quantity summaries are separate for pieces, kg, and litres and are never
+  combined into a misleading unit total
 - margin is `gross_profit / product_revenue × 100`, or `null` when product
   revenue is zero
 - authoritative BDT money uses PostgreSQL/Prisma decimal values with two decimal

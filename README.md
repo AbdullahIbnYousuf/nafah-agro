@@ -14,6 +14,9 @@ orders, returns, analytics, and Cloudinary uploads.
   with no business or audit history, and protection for the final active owner.
 - Product, pack/size, price-history, purchase, FIFO inventory, stock-adjustment,
   physical-sale, delivery-order, whole-return, and delivery-rate management.
+- Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
+  are physical-shop-only, use exact gram/millilitre stock internally, and show
+  owner inputs and balances in kg/g or litre/ml.
 - OWNER-only permanent deletion for empty categories and products with no stock,
   adjustment, order, or selling-price update history; used catalog records
   remain deactivate-only.
@@ -127,6 +130,11 @@ update. Product setup
 variants and price-history rows are removed in the same transaction. Cloudinary
 files are retained for manual orphan review. Apply all checked-in migrations
 before using this workflow.
+
+Packaged products use whole-piece stock and may have multiple pack/size
+options. A loose product has one hidden internal option, a selling/buying rate
+per kg or litre, and independent FIFO stock. Loose products never appear in the
+public storefront or delivery-order forms.
 
 Check cached stock totals against authoritative batches with:
 

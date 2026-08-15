@@ -6,14 +6,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales } from '@/lib/api';
-import type { PhysicalSale, Product, ProductVariant } from '@/lib/types';
+import type { AmountUnit, PhysicalSale, Product, ProductVariant } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
 import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
+import { amountUnitsForKind, defaultAmountUnit, formatQuantity, productKindLabel, quantityUnitForKind, rateLabel, toBaseQuantity } from '@/lib/quantity';
 
 interface SaleLine {
   product: Product;
   variant: ProductVariant;
-  quantity: number;
+  amount: string;
+  amountUnit: AmountUnit;
 }
 
 export default function PhysicalSaleScreen() {
@@ -44,22 +46,32 @@ export default function PhysicalSaleScreen() {
     return variants.filter(({ product, variant }) =>
       `${product.name} ${visiblePackSize(variant.name) ?? ''}`.toLowerCase().includes(normalized)).slice(0, 20);
   }, [query, variants]);
-  const subtotal = lines.reduce((sum, line) => sum + line.variant.sellingPrice * line.quantity, 0);
+  const subtotal = lines.reduce((sum, line) => {
+    const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0;
+    const scale = (line.product.kind ?? 'PACKAGED') === 'PACKAGED' ? 1 : 1_000;
+    return sum + line.variant.sellingPrice * base / scale;
+  }, 0);
   const discountNumber = Number(discount) || 0;
   const total = subtotal - discountNumber;
 
   function addLine(product: Product, variant: ProductVariant) {
     setLines((current) => {
       const existing = current.find((line) => line.variant.id === variant.id);
-      if (existing) return current.map((line) => line.variant.id === variant.id ? { ...line, quantity: Math.min(line.quantity + 1, variant.availableStock) } : line);
-      if (variant.availableStock <= 0) { toast.error('এই প্যাক/সাইজ স্টকে নেই'); return current; }
-      return [...current, { product, variant, quantity: 1 }];
+      if (existing) return (product.kind ?? 'PACKAGED') === 'PACKAGED'
+        ? current.map((line) => line.variant.id === variant.id ? { ...line, amount: String(Math.min(Number(line.amount) + 1, variant.availableStock)) } : line)
+        : current;
+      if (variant.availableStock <= 0) { toast.error('এই পণ্যটি স্টকে নেই'); return current; }
+      return [...current, { product, variant, amount: '1', amountUnit: defaultAmountUnit(product.kind) }];
     });
   }
 
   async function saveSale(confirmUnprofitable = false) {
     const nextErrors: typeof errors = {};
     if (lines.length === 0) nextErrors.items = 'কমপক্ষে একটি পণ্য যোগ করুন।';
+    if (lines.some((line) => {
+      const base = toBaseQuantity(line.amount, line.amountUnit);
+      return base === null || base > line.variant.availableStock;
+    })) nextErrors.items = 'প্রতিটি পণ্যের সঠিক পরিমাণ দিন এবং বর্তমান স্টকের মধ্যে রাখুন।';
     if (customerPhone.trim() && (customerPhone.trim().length < 7 || customerPhone.trim().length > 30)) nextErrors.phone = 'ফোন নম্বর ৭ থেকে ৩০ অক্ষরের মধ্যে লিখুন।';
     if (!Number.isFinite(discountNumber) || discountNumber < 0 || discountNumber > subtotal) nextErrors.discount = 'ডিসকাউন্ট শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
     if (Object.keys(nextErrors).length > 0) { setErrors(nextErrors); return; }
@@ -67,7 +79,7 @@ export default function PhysicalSaleScreen() {
     setSaving(true);
     try {
       const result = await createPhysicalSale({
-        items: lines.map((line) => ({ productVariantId: line.variant.id, quantity: line.quantity })),
+        items: lines.map((line) => ({ productVariantId: line.variant.id, amount: line.amount, amountUnit: line.amountUnit })),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         discountTotal: discountNumber,
@@ -96,12 +108,12 @@ export default function PhysicalSaleScreen() {
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য বা প্যাক/সাইজ খুঁজুন" /></div>
-        <div className="grid sm:grid-cols-2 gap-2 max-h-[430px] overflow-y-auto">{matches.map(({ product, variant }) => <button key={variant.id} type="button" onClick={() => addLine(product, variant)} disabled={variant.availableStock <= 0} className="text-left border rounded-lg p-3 hover:border-secondary disabled:opacity-50"><div className="font-medium">{productPackLabel(product.name, variant.name)}</div><div className="flex justify-between mt-2"><span>৳{variant.sellingPrice}</span><span>স্টক {variant.availableStock}</span></div></button>)}</div>
+        <div className="grid sm:grid-cols-2 gap-2 max-h-[430px] overflow-y-auto">{matches.map(({ product, variant }) => <button key={variant.id} type="button" onClick={() => addLine(product, variant)} disabled={variant.availableStock <= 0} className="text-left border rounded-lg p-3 hover:border-secondary disabled:opacity-50"><div className="font-medium">{productPackLabel(product.name, variant.name)}</div><div className="mt-1 text-xs text-muted-foreground">{productKindLabel(product.kind)}</div><div className="flex justify-between mt-2"><span>৳{variant.sellingPrice} {rateLabel(product.kind)}</span><span>স্টক {formatQuantity(variant.availableStock, quantityUnitForKind(product.kind))}</span></div></button>)}</div>
       </section>
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
-        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_90px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{line.variant.sellingPrice}</div></div><Input aria-label={`${line.product.name} পরিমাণ`} className="w-full" type="number" min="1" max={line.variant.availableStock} value={line.quantity} onChange={(event) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, quantity: Math.max(1, Math.min(Number(event.target.value) || 1, item.variant.availableStock)) } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
+        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{line.variant.sellingPrice} {rateLabel(line.product.kind)} · স্টক {formatQuantity(line.variant.availableStock, quantityUnitForKind(line.product.kind))}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
         <div className="grid sm:grid-cols-2 gap-3"><Field label="ক্রেতার নাম (ঐচ্ছিক)"><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></Field><Field label="ফোন (ঐচ্ছিক)" error={errors.phone}><Input value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field></div>
         <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
@@ -123,4 +135,9 @@ function Field({ label, children, error }: { label: string; children: React.Reac
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div><div className="text-muted-foreground">{label}</div><div className="font-bold text-lg">{value}</div></div>;
+}
+
+function SaleAmountInput({ line, onChange }: { line: SaleLine; onChange: (patch: Partial<Pick<SaleLine, 'amount' | 'amountUnit'>>) => void }) {
+  const units = amountUnitsForKind(line.product.kind);
+  return <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2"><Input aria-label={`${line.product.name} পরিমাণ`} type="number" min="0" step={line.amountUnit === 'KG' || line.amountUnit === 'LITER' ? '0.001' : '1'} value={line.amount} onChange={(event) => onChange({ amount: event.target.value })} /><select aria-label={`${line.product.name} একক`} className="h-11 rounded-md border bg-background px-2 md:h-10" value={line.amountUnit} onChange={(event) => onChange({ amountUnit: event.target.value as AmountUnit, amount: '' })}>{units.map((unit) => <option key={unit} value={unit}>{unit === 'PIECE' ? 'ইউনিট' : unit === 'KG' ? 'কেজি' : unit === 'G' ? 'গ্রাম' : unit === 'LITER' ? 'লিটার' : 'মিলি'}</option>)}</select></div>;
 }

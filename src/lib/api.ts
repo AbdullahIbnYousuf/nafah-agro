@@ -1,5 +1,6 @@
 import type {
   Category,
+  AmountUnit,
   AnalyticsDashboardData,
   AnalyticsPreset,
   DeliveryRate,
@@ -9,6 +10,7 @@ import type {
   OwnerManagementState,
   OrdersPage,
   Product,
+  ProductKind,
   ProductsPage,
   ProductVariant,
   PhysicalSale,
@@ -196,6 +198,7 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
       slug: product.slug,
       description: product.description,
       categoryId: product.categoryId,
+      kind: product.kind ?? 'PACKAGED',
       featured: product.featured,
       tags: product.tags,
       images: product.images,
@@ -203,7 +206,7 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
       initialVariant: {
         name: product.variantName?.trim() ?? '',
         sellingPrice: String(product.price),
-        lowStockThreshold: 5,
+        lowStockThreshold: product.initialLowStockThreshold ?? 5,
       },
       priceReason: 'Initial selling price',
     }),
@@ -224,6 +227,18 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
       youtubeLinks: data.youtubeLinks,
       isActive: data.isActive,
     }),
+  });
+}
+
+export function changeProductKind(id: string, input: {
+  kind: ProductKind;
+  sellingPrice: number;
+  lowStockThreshold: number;
+  reason: string;
+}): Promise<Product> {
+  return requestV1<Product>(`/products/${id}/kind`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ...input, sellingPrice: String(input.sellingPrice) }),
   });
 }
 
@@ -324,7 +339,8 @@ export function deleteUnusedCategory(id: string): Promise<{ id: string }> {
 
 export interface PurchaseItemInput {
   productVariantId: string;
-  quantity: number;
+  amount: string;
+  amountUnit: AmountUnit;
   unitBuyingCost: number;
 }
 
@@ -349,8 +365,8 @@ export function getStockBatches(productVariantId?: string): Promise<StockBatch[]
 }
 
 export function adjustStock(input:
-  | { direction: 'INCREASE'; productVariantId: string; quantity: number; unitBuyingCost: number; purchaseDate: string; reason: string }
-  | { direction: 'DECREASE'; productVariantId: string; quantity: number; reason: string }
+  | { direction: 'INCREASE'; productVariantId: string; amount: string; amountUnit: AmountUnit; unitBuyingCost: number; purchaseDate: string; reason: string }
+  | { direction: 'DECREASE'; productVariantId: string; amount: string; amountUnit: AmountUnit; reason: string }
 ): Promise<StockBatch[]> {
   return requestV1<StockBatch[]>('/stock-adjustments', {
     method: 'POST',
@@ -361,7 +377,7 @@ export function adjustStock(input:
 }
 
 export function createPhysicalSale(input: {
-  items: Array<{ productVariantId: string; quantity: number }>;
+  items: Array<{ productVariantId: string; amount: string; amountUnit: AmountUnit }>;
   customerName?: string;
   customerPhone?: string;
   discountTotal: number;

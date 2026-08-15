@@ -71,7 +71,11 @@ WEEK_END = Saturday
 
 PostgreSQL stores timestamps in UTC. The API applies `Asia/Dhaka` boundaries for business reports.
 
-Money uses PostgreSQL `numeric(14,2)` and Prisma `Decimal`. JavaScript floating-point values are not used for authoritative money calculations. V1 quantities are positive whole units.
+Money uses PostgreSQL `numeric(14,2)` and Prisma `Decimal`. JavaScript
+floating-point values are not used for authoritative money calculations. Stock
+quantities are exact integers: pieces for packaged products, grams for loose
+weight, and millilitres for loose volume. Kg/litre rate calculations use
+`Prisma.Decimal` and round persisted monetary totals to two decimal places.
 
 ## 4. Authentication and roles
 
@@ -134,6 +138,7 @@ products
 - name
 - slug: unique
 - description
+- kind: PACKAGED | LOOSE_WEIGHT | LOOSE_VOLUME
 - featured
 - is_active
 - created_at
@@ -162,7 +167,10 @@ product_variants
 - updated_at
 ```
 
-Every sellable product has at least one variant. Variant stock totals are maintained transactionally for fast reads but must equal the totals derived from open stock batches.
+Every product has at least one internal variant. Packaged products may have
+multiple visible pack/size options. Loose products have exactly one hidden
+internal variant. Variant stock totals are maintained transactionally for fast
+reads but must equal the totals derived from open stock batches.
 
 ### Selling-price history
 
@@ -269,6 +277,7 @@ order_items
 - variant_name_snapshot
 - sku_snapshot
 - quantity
+- quantity_unit: PIECE | GRAM | MILLILITER
 - unit_selling_price
 - gross_line_revenue
 - allocated_discount
@@ -344,11 +353,12 @@ logs rather than this V1 table.
 
 ### Purchase or stock increase
 
-1. Validate quantity, buying cost, date, and reason when required.
-2. Create a new stock batch.
-3. Increase variant available stock.
-4. Write an audit record.
-5. Commit as one transaction.
+1. Validate product-compatible amount/unit, buying-cost rate, date, and reason when required.
+2. Convert pieces directly, kg/g to grams, or litre/ml to millilitres.
+3. Create a new stock batch.
+4. Increase variant available stock.
+5. Write an audit record.
+6. Commit as one transaction.
 
 ### Stock decrease adjustment
 
@@ -386,13 +396,15 @@ No separate movement table is used in V1.
 
 ### Physical-shop sale
 
-1. Validate server-calculated prices and discount.
-2. Lock and consume available batches in FIFO order.
-3. Reduce batch and variant available quantities.
-4. Create `CONSUMED` allocations.
-5. Mark order `COMPLETED` and `PAID`.
-6. Store cost/profit snapshots and audit.
-7. Commit.
+1. Validate product-compatible amount/unit, server-calculated prices, and discount.
+2. Convert the amount to exact base units and calculate revenue/cost from the
+   per-piece, per-kg, or per-litre rate using `Prisma.Decimal`.
+3. Lock and consume available batches in FIFO order.
+4. Reduce batch and variant available quantities.
+5. Create `CONSUMED` allocations.
+6. Mark order `COMPLETED` and `PAID`.
+7. Store quantity-unit, cost, price, and profit snapshots and audit.
+8. Commit.
 
 ### Cancellation or failed delivery
 
@@ -561,7 +573,8 @@ The Express API is exported through `api/index.ts` instead of relying on a perma
 - Pending, confirmed, processing, cancelled, and failed-delivery orders do not count as revenue
 - Whole returns create reversing financial effects on `returned_at`
 - Product gross profit excludes delivery charge
-- Inventory value is the sum of `(available_quantity + reserved_quantity) × unit_buying_cost`
+- Inventory value applies the buying-cost rate to remaining pieces, kg, or litres
+- Quantity analytics remain separate for pieces, kg, and litres
 - Date boundaries use `Asia/Dhaka`
 - Weeks run Sunday through Saturday
 - Owners can access all V1 financial and inventory analytics

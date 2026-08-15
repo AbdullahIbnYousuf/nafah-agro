@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { productPackLabel } from '@/lib/productOptions';
+import { formatQuantity } from '@/lib/quantity';
 
 export type ReturnCondition = 'SELLABLE' | 'DAMAGED';
 
@@ -89,7 +90,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
         <div className="space-y-2">
           {order?.items.map(item => <div key={item.id} className="flex justify-between gap-4 text-sm">
             <span>{productPackLabel(item.productName, item.variantName)}</span>
-            <span className="font-medium whitespace-nowrap">× {item.quantity}</span>
+            <span className="font-medium whitespace-nowrap">× {formatQuantity(item.quantity, item.quantityUnit)}</span>
           </div>)}
         </div>
       </section>

@@ -24,7 +24,7 @@ interface VariantRow {
   availableStock: number;
   reservedStock: number;
   isActive: boolean;
-  product: { id: string; name: string; isActive: boolean };
+  product: { id: string; name: string; isActive: boolean; kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME" };
 }
 
 interface BatchRow {
@@ -89,6 +89,7 @@ interface SaleItemRow {
   variantNameSnapshot: string;
   skuSnapshot: string;
   quantity: number;
+  quantityUnit: "PIECE" | "GRAM" | "MILLILITER";
   unitSellingPrice: string;
   grossLineRevenue: string;
   allocatedDiscount: string;
@@ -130,12 +131,12 @@ function createInMemoryPrisma() {
       {
         id: VARIANT_A, productId: PRODUCT_A, name: "500 g", sku: "HONEY-500",
         currentSellingPrice: "500.00", availableStock: 0, reservedStock: 0, isActive: true,
-        product: { id: PRODUCT_A, name: "Raw Honey", isActive: true },
+        product: { id: PRODUCT_A, name: "Raw Honey", isActive: true, kind: "PACKAGED" },
       },
       {
         id: VARIANT_B, productId: PRODUCT_B, name: "1 kg", sku: "RICE-1KG",
         currentSellingPrice: "300.00", availableStock: 0, reservedStock: 0, isActive: true,
-        product: { id: PRODUCT_B, name: "Red Rice", isActive: true },
+        product: { id: PRODUCT_B, name: "Red Rice", isActive: true, kind: "PACKAGED" },
       },
     ],
     batches: [], adjustments: [], sales: [], saleItems: [], allocations: [], audits: [],
@@ -272,6 +273,7 @@ function createInMemoryPrisma() {
           productVariantId: String(data.productVariantId), productNameSnapshot: String(data.productNameSnapshot),
           variantNameSnapshot: String(data.variantNameSnapshot), skuSnapshot: String(data.skuSnapshot),
           quantity: Number(data.quantity), unitSellingPrice: money(data.unitSellingPrice as MoneyValue),
+          quantityUnit: (data.quantityUnit as SaleItemRow["quantityUnit"] | undefined) ?? "PIECE",
           grossLineRevenue: money(data.grossLineRevenue as MoneyValue),
           allocatedDiscount: money(data.allocatedDiscount as MoneyValue), netLineRevenue: money(data.netLineRevenue as MoneyValue),
           totalBuyingCost: money(data.totalBuyingCost as MoneyValue), grossProfit: money(data.grossProfit as MoneyValue),
@@ -334,11 +336,11 @@ function createInMemoryPrisma() {
 }
 
 function purchase(items: Array<{ productVariantId: string; quantity: number; unitBuyingCost: string }>, date = "2026-07-01") {
-  return purchaseCreateSchema.parse({ purchaseDate: date, note: "Supplier invoice", items });
+  return purchaseCreateSchema.parse({ purchaseDate: date, note: "Supplier invoice", items: items.map(({ quantity, ...item }) => ({ ...item, amount: String(quantity), amountUnit: "PIECE" })) });
 }
 
 function sale(items: Array<{ productVariantId: string; quantity: number }>, discountTotal = "0", confirmUnprofitable = false) {
-  return physicalSaleCreateSchema.parse({ items, discountTotal, confirmUnprofitable });
+  return physicalSaleCreateSchema.parse({ items: items.map(({ quantity, ...item }) => ({ ...item, amount: String(quantity), amountUnit: "PIECE" })), discountTotal, confirmUnprofitable });
 }
 
 describe("Milestone 3 inventory and physical sales", () => {
@@ -421,11 +423,11 @@ describe("Milestone 3 inventory and physical sales", () => {
     const { prisma, state } = createInMemoryPrisma();
     const service = createInventoryService(prisma);
     await service.adjustStock(stockAdjustmentSchema.parse({
-      direction: "INCREASE", productVariantId: VARIANT_A, quantity: 4,
+      direction: "INCREASE", productVariantId: VARIANT_A, amount: "4", amountUnit: "PIECE",
       unitBuyingCost: "275", purchaseDate: "2026-07-10", reason: "Opening stock correction",
     }), OWNER_ID);
     await service.adjustStock(stockAdjustmentSchema.parse({
-      direction: "DECREASE", productVariantId: VARIANT_A, quantity: 1, reason: "Damaged during handling",
+      direction: "DECREASE", productVariantId: VARIANT_A, amount: "1", amountUnit: "PIECE", reason: "Damaged during handling",
     }), OWNER_ID);
     expect(state.adjustments.map((adjustment) => adjustment.reason)).toEqual([
       "Opening stock correction", "Damaged during handling",
@@ -482,5 +484,23 @@ describe("Milestone 3 inventory and physical sales", () => {
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { source: "PHYSICAL_SHOP", status: "COMPLETED" },
     }));
+  });
+
+  it("purchases and sells loose weight in exact grams with per-kilogram FIFO costs", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    state.variants[1].product.kind = "LOOSE_WEIGHT";
+    state.variants[1].currentSellingPrice = "100.00";
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchaseCreateSchema.parse({
+      purchaseDate: "2026-08-15",
+      items: [{ productVariantId: VARIANT_B, amount: "100", amountUnit: "KG", unitBuyingCost: "60.00" }],
+    }), OWNER_ID);
+    const saleResult = await service.createPhysicalSale(physicalSaleCreateSchema.parse({
+      items: [{ productVariantId: VARIANT_B, amount: "1.25", amountUnit: "KG" }],
+      discountTotal: "0",
+    }), OWNER_ID);
+    expect(saleResult.items[0]).toMatchObject({ quantity: 1_250, quantityUnit: "GRAM", grossLineRevenue: 125, totalBuyingCost: 75 });
+    expect(state.batches[0].availableQuantity).toBe(98_750);
+    expect(state.variants[1].availableStock).toBe(98_750);
   });
 });

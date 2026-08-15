@@ -1,4 +1,5 @@
 import { Prisma } from "../generated/prisma/client.js";
+import { quantityCost, type ProductKindValue } from "../lib/quantity.js";
 
 interface LockedBatch {
   id: string;
@@ -44,6 +45,7 @@ async function allocateAvailableFifo(
   productVariantId: string,
   requestedQuantity: number,
   reserve: boolean,
+  kind: ProductKindValue,
 ): Promise<FifoAllocation[]> {
   const batches = await lockAvailableBatches(transaction, productVariantId);
   const available = batches.reduce((sum, batch) => sum + batch.availableQuantity, 0);
@@ -71,7 +73,7 @@ async function allocateAvailableFifo(
       stockBatchId: batch.id,
       quantity,
       unitBuyingCost: batch.unitBuyingCost,
-      totalBuyingCost: batch.unitBuyingCost.mul(quantity),
+      totalBuyingCost: quantityCost(batch.unitBuyingCost, quantity, kind),
     });
     remaining -= quantity;
   }
@@ -92,14 +94,16 @@ export function consumeAvailableFifo(
   transaction: Prisma.TransactionClient,
   productVariantId: string,
   quantity: number,
+  kind: ProductKindValue = "PACKAGED",
 ) {
-  return allocateAvailableFifo(transaction, productVariantId, quantity, false);
+  return allocateAvailableFifo(transaction, productVariantId, quantity, false, kind);
 }
 
 export function reserveAvailableFifo(
   transaction: Prisma.TransactionClient,
   productVariantId: string,
   quantity: number,
+  kind: ProductKindValue = "PACKAGED",
 ) {
-  return allocateAvailableFifo(transaction, productVariantId, quantity, true);
+  return allocateAvailableFifo(transaction, productVariantId, quantity, true, kind);
 }

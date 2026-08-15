@@ -1,0 +1,8 @@
+CREATE TYPE "ProductKind" AS ENUM ('PACKAGED', 'LOOSE_WEIGHT', 'LOOSE_VOLUME');
+CREATE TYPE "QuantityUnit" AS ENUM ('PIECE', 'GRAM', 'MILLILITER');
+
+ALTER TABLE "products"
+ADD COLUMN "kind" "ProductKind" NOT NULL DEFAULT 'PACKAGED';
+
+ALTER TABLE "sales_order_items"
+ADD COLUMN "quantity_unit" "QuantityUnit" NOT NULL DEFAULT 'PIECE';

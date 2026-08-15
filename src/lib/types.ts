@@ -7,6 +7,9 @@ export interface Category {
 }
 
 export type Role = 'OWNER' | 'CUSTOMER';
+export type ProductKind = 'PACKAGED' | 'LOOSE_WEIGHT' | 'LOOSE_VOLUME';
+export type QuantityUnit = 'PIECE' | 'GRAM' | 'MILLILITER';
+export type AmountUnit = 'PIECE' | 'KG' | 'G' | 'LITER' | 'ML';
 
 export interface ProductVariant {
   id: string;
@@ -39,6 +42,8 @@ export interface StockBatch {
   productVariantId: string;
   productName: string;
   variantName: string;
+  productKind: ProductKind;
+  quantityUnit?: QuantityUnit;
   sku: string;
   source: 'PURCHASE' | 'ADJUSTMENT' | 'SELLABLE_RETURN';
   purchasedQuantity: number;
@@ -70,6 +75,7 @@ export interface PhysicalSaleItem {
   productVariantId: string;
   productName: string;
   variantName: string;
+  quantityUnit?: QuantityUnit;
   sku: string;
   quantity: number;
   unitSellingPrice: number;
@@ -107,6 +113,7 @@ export interface Product {
   name: string;
   slug: string;
   description: string;
+  kind?: ProductKind;
   price: number;
   categoryId: string;
   images: string[];
@@ -120,6 +127,7 @@ export interface Product {
   defaultVariantId?: string;
   sku?: string;
   variantName?: string;
+  initialLowStockThreshold?: number;
 }
 
 export interface ProductsPage {
@@ -156,6 +164,7 @@ export interface UnifiedOrderItem {
   productVariantId: string;
   productName: string;
   variantName: string;
+  quantityUnit?: QuantityUnit;
   sku: string;
   quantity: number;
   unitSellingPrice: number;
@@ -259,6 +268,7 @@ export interface AnalyticsProductRow {
   variantName: string;
   sku: string;
   quantity: number;
+  quantityUnit: 'PIECE' | 'KG' | 'LITER';
   productRevenue: number;
   fifoCost: number;
   grossProfit: number;
@@ -274,6 +284,8 @@ export interface AnalyticsStockVariant {
   reservedStock: number;
   onHandStock: number;
   lowStockThreshold: number;
+  productKind: ProductKind;
+  quantityUnit: 'PIECE' | 'KG' | 'LITER';
 }
 
 export interface AnalyticsDashboardData {
@@ -293,7 +305,11 @@ export interface AnalyticsDashboardData {
     grossProfit: ComparedAnalyticsMetric;
     grossMargin: ComparedAnalyticsMetric;
     recognizedOrderCount: ComparedAnalyticsMetric;
-    unitsSold: ComparedAnalyticsMetric;
+    soldQuantities: {
+      pieces: ComparedAnalyticsMetric;
+      weightKg: ComparedAnalyticsMetric;
+      volumeLitres: ComparedAnalyticsMetric;
+    };
     averageOrderValue: ComparedAnalyticsMetric;
     pendingCodOrderCount: number;
     lowStockVariantCount: number;
@@ -304,9 +320,9 @@ export interface AnalyticsDashboardData {
   bestSelling: AnalyticsProductRow[];
   mostProfitable: AnalyticsProductRow[];
   inventory: {
-    availableUnits: number;
-    reservedUnits: number;
-    onHandUnits: number;
+    availableQuantities: { pieces: number; weightKg: number; volumeLitres: number };
+    reservedQuantities: { pieces: number; weightKg: number; volumeLitres: number };
+    onHandQuantities: { pieces: number; weightKg: number; volumeLitres: number };
     fifoValuation: number;
     lowStock: AnalyticsStockVariant[];
     outOfStock: AnalyticsStockVariant[];

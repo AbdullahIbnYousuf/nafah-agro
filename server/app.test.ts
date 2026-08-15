@@ -689,7 +689,8 @@ describe("GET /api/v1/foundation", () => {
           purchaseDate: "2026-08-01",
           items: [{
             productVariantId: "10000000-0000-4000-8000-000000000001",
-            quantity: 5,
+            amount: "5",
+            amountUnit: "PIECE",
             unitBuyingCost: "250.00",
           }],
         });

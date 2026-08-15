@@ -1,0 +1,59 @@
+import type { AmountUnit, ProductKind, QuantityUnit } from './types';
+
+const numberFormat = new Intl.NumberFormat('bn-BD', { maximumFractionDigits: 3 });
+
+export function resolvedProductKind(kind?: ProductKind): ProductKind {
+  return kind ?? 'PACKAGED';
+}
+
+export function quantityUnitForKind(kind?: ProductKind): QuantityUnit {
+  if (kind === 'LOOSE_WEIGHT') return 'GRAM';
+  if (kind === 'LOOSE_VOLUME') return 'MILLILITER';
+  return 'PIECE';
+}
+
+export function amountUnitsForKind(kind?: ProductKind): AmountUnit[] {
+  if (kind === 'LOOSE_WEIGHT') return ['KG', 'G'];
+  if (kind === 'LOOSE_VOLUME') return ['LITER', 'ML'];
+  return ['PIECE'];
+}
+
+export function defaultAmountUnit(kind?: ProductKind): AmountUnit {
+  if (kind === 'LOOSE_WEIGHT') return 'KG';
+  if (kind === 'LOOSE_VOLUME') return 'LITER';
+  return 'PIECE';
+}
+
+export function toBaseQuantity(amount: string | number, unit: AmountUnit): number | null {
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  const base = numeric * (unit === 'KG' || unit === 'LITER' ? 1_000 : 1);
+  return Number.isInteger(base) ? base : null;
+}
+
+export function majorQuantity(baseQuantity: number, unit: QuantityUnit = 'PIECE'): number {
+  return unit === 'PIECE' ? baseQuantity : baseQuantity / 1_000;
+}
+
+export function formatQuantity(baseQuantity: number, unit: QuantityUnit = 'PIECE'): string {
+  const amount = majorQuantity(baseQuantity, unit);
+  const label = unit === 'GRAM' ? 'কেজি' : unit === 'MILLILITER' ? 'লিটার' : 'ইউনিট';
+  return `${numberFormat.format(amount)} ${label}`;
+}
+
+export function formatMajorQuantity(amount: number, unit: 'PIECE' | 'KG' | 'LITER'): string {
+  const label = unit === 'KG' ? 'কেজি' : unit === 'LITER' ? 'লিটার' : 'ইউনিট';
+  return `${numberFormat.format(amount)} ${label}`;
+}
+
+export function rateLabel(kind?: ProductKind): string {
+  if (kind === 'LOOSE_WEIGHT') return 'প্রতি কেজি';
+  if (kind === 'LOOSE_VOLUME') return 'প্রতি লিটার';
+  return 'প্রতি ইউনিট';
+}
+
+export function productKindLabel(kind?: ProductKind): string {
+  if (kind === 'LOOSE_WEIGHT') return 'খোলা ওজন';
+  if (kind === 'LOOSE_VOLUME') return 'খোলা তরল';
+  return 'প্যাকেট';
+}

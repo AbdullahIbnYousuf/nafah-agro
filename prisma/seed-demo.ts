@@ -26,6 +26,7 @@ const image = (id: string) =>
 const products = [
   {
     category: "rice-grains",
+    kind: "PACKAGED",
     name: "Premium Miniket Rice",
     slug: "premium-miniket-rice",
     description:
@@ -41,6 +42,7 @@ const products = [
   },
   {
     category: "rice-grains",
+    kind: "PACKAGED",
     name: "Aromatic Chinigura Rice",
     slug: "aromatic-chinigura-rice",
     description:
@@ -55,6 +57,7 @@ const products = [
   },
   {
     category: "oils-essentials",
+    kind: "PACKAGED",
     name: "Cold-Pressed Mustard Oil",
     slug: "cold-pressed-mustard-oil",
     description:
@@ -70,6 +73,7 @@ const products = [
   },
   {
     category: "natural-foods",
+    kind: "PACKAGED",
     name: "Sundarbans Raw Honey",
     slug: "sundarbans-raw-honey",
     description:
@@ -85,6 +89,7 @@ const products = [
   },
   {
     category: "natural-foods",
+    kind: "PACKAGED",
     name: "Pure Cow Ghee",
     slug: "pure-cow-ghee",
     description:
@@ -99,6 +104,7 @@ const products = [
   },
   {
     category: "rice-grains",
+    kind: "PACKAGED",
     name: "Premium Red Lentils",
     slug: "premium-red-lentils",
     description:
@@ -113,6 +119,7 @@ const products = [
   },
   {
     category: "spices-pantry",
+    kind: "PACKAGED",
     name: "Stone-Ground Turmeric",
     slug: "stone-ground-turmeric",
     description:
@@ -127,6 +134,7 @@ const products = [
   },
   {
     category: "natural-foods",
+    kind: "PACKAGED",
     name: "Premium Mabroom Dates",
     slug: "premium-mabroom-dates",
     description:
@@ -137,6 +145,34 @@ const products = [
     attributes: [],
     variants: [
       { name: "Default", sku: "NA-DATES-MABROOM-500G", price: 340, cost: 230, quantity: 25, isDefault: true },
+    ],
+  },
+  {
+    category: "rice-grains",
+    kind: "LOOSE_WEIGHT",
+    name: "Loose Miniket Rice",
+    slug: "loose-miniket-rice",
+    description: "Unbranded Miniket rice sold by weight at the physical shop.",
+    featured: false,
+    tags: ["rice", "loose", "physical-shop"],
+    images: [image("photo-1586201375761-83865001e31c")],
+    attributes: [],
+    variants: [
+      { name: "Default", sku: "NA-LOOSE-RICE", price: 82, cost: 65, quantity: 100_000, isDefault: true },
+    ],
+  },
+  {
+    category: "oils-essentials",
+    kind: "LOOSE_VOLUME",
+    name: "Loose Mustard Oil",
+    slug: "loose-mustard-oil",
+    description: "Unbranded mustard oil sold by volume at the physical shop.",
+    featured: false,
+    tags: ["oil", "loose", "physical-shop"],
+    images: [image("photo-1474979266404-7eaacbcd87c5")],
+    attributes: [],
+    variants: [
+      { name: "Default", sku: "NA-LOOSE-OIL", price: 210, cost: 170, quantity: 50_000, isDefault: true },
     ],
   },
 ] as const;
@@ -150,6 +186,8 @@ type DemoVariant = {
   price: number;
   cost: number;
   batchId: string;
+  kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME";
+  quantityUnit: "PIECE" | "GRAM" | "MILLILITER";
 };
 
 type DemoOrderItem = {
@@ -178,6 +216,16 @@ function margin(profit: number, revenue: number) {
     .div(revenue)
     .mul(100)
     .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+function quantityScale(kind: DemoVariant["kind"]) {
+  return kind === "PACKAGED" ? 1 : 1_000;
+}
+
+function quantityUnit(kind: DemoVariant["kind"]): DemoVariant["quantityUnit"] {
+  if (kind === "LOOSE_WEIGHT") return "GRAM";
+  if (kind === "LOOSE_VOLUME") return "MILLILITER";
+  return "PIECE";
 }
 
 async function main() {
@@ -250,6 +298,7 @@ async function main() {
         const product = await transaction.product.create({
           data: {
             categoryId,
+            kind: productInput.kind,
             name: productInput.name,
             slug: productInput.slug,
             description: productInput.description,
@@ -268,7 +317,9 @@ async function main() {
               sku: variantInput.sku,
               currentSellingPrice: variantInput.price,
               availableStock: variantInput.quantity,
-              lowStockThreshold: Math.min(5, Math.floor(variantInput.quantity / 4)),
+              lowStockThreshold: productInput.kind === "PACKAGED"
+                ? Math.min(5, Math.floor(variantInput.quantity / 4))
+                : Math.min(5_000, Math.floor(variantInput.quantity / 4)),
               isDefault: "isDefault" in variantInput && variantInput.isDefault === true,
             },
           });
@@ -304,6 +355,8 @@ async function main() {
             price: variantInput.price,
             cost: variantInput.cost,
             batchId: batch.id,
+            kind: productInput.kind,
+            quantityUnit: quantityUnit(productInput.kind),
           });
         }
       }
@@ -327,7 +380,11 @@ async function main() {
           placedAt: new Date("2026-07-28T11:40:00.000Z"),
           customerName: "Rahim Uddin",
           customerPhone: "01711000001",
-          items: [{ sku: "NA-RICE-MINI-5KG", quantity: 2 }],
+          items: [
+            { sku: "NA-RICE-MINI-5KG", quantity: 2 },
+            { sku: "NA-LOOSE-RICE", quantity: 1_250 },
+            { sku: "NA-LOOSE-OIL", quantity: 500 },
+          ],
         },
         {
           orderNumber: "WEB-DEMO-1003",
@@ -391,7 +448,7 @@ async function main() {
         const itemDetails = orderInput.items.map((item) => {
           const variant = variants.get(item.sku);
           if (!variant) throw new Error(`Missing demo variant ${item.sku}`);
-          const grossRevenue = variant.price * item.quantity;
+          const grossRevenue = variant.price * item.quantity / quantityScale(variant.kind);
           const discount = item.discount ?? 0;
           return { ...item, ...variant, grossRevenue, discount, netRevenue: grossRevenue - discount };
         });
@@ -401,7 +458,7 @@ async function main() {
         const discountTotal = itemDetails.reduce((sum, item) => sum + item.discount, 0);
         const productRevenue = subtotal - discountTotal;
         const buyingCost = allocatesStock
-          ? itemDetails.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+          ? itemDetails.reduce((sum, item) => sum + item.cost * item.quantity / quantityScale(item.kind), 0)
           : null;
         const grossProfit = buyingCost === null ? null : productRevenue - buyingCost;
         const deliveryRateId = orderInput.deliveryRateCode
@@ -453,7 +510,9 @@ async function main() {
         });
 
         for (const item of itemDetails) {
-          const lineCost = allocatesStock ? item.cost * item.quantity : null;
+          const lineCost = allocatesStock
+            ? item.cost * item.quantity / quantityScale(item.kind)
+            : null;
           const orderItem = await transaction.salesOrderItem.create({
             data: {
               salesOrderId: order.id,
@@ -463,6 +522,7 @@ async function main() {
               variantNameSnapshot: item.variantName,
               skuSnapshot: item.sku,
               quantity: item.quantity,
+              quantityUnit: item.quantityUnit,
               unitSellingPrice: item.price,
               grossLineRevenue: item.grossRevenue,
               allocatedDiscount: item.discount,
@@ -493,7 +553,7 @@ async function main() {
                 stockBatchId: item.batchId,
                 quantity: item.quantity,
                 unitBuyingCost: item.cost,
-                totalBuyingCost: item.cost * item.quantity,
+                totalBuyingCost: item.cost * item.quantity / quantityScale(item.kind),
                 state: reservesStock ? "RESERVED" : "CONSUMED",
                 reservedAt: orderInput.source === "PHYSICAL_SHOP" ? null : orderInput.placedAt,
                 consumedAt: reservesStock ? null : orderInput.placedAt,

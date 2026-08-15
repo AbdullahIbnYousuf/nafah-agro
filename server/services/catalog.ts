@@ -6,6 +6,7 @@ import type {
   CategoryUpdate,
   PriceChange,
   ProductCreate,
+  ProductKindChange,
   ProductList,
   ProductUpdate,
   VariantCreate,
@@ -73,6 +74,7 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
     name: product.name,
     slug: product.slug,
     description: product.description,
+    kind: product.kind ?? "PACKAGED",
     categoryId: product.categoryId,
     category: product.category,
     featured: product.featured,
@@ -171,7 +173,7 @@ export function createCatalogService(prisma: PrismaClient) {
     },
     async listProducts(input: ProductList, includeInactive = false) {
       const where: Prisma.ProductWhereInput = {
-        ...(includeInactive ? {} : { isActive: true, category: {
+        ...(includeInactive ? {} : { kind: "PACKAGED", isActive: true, category: {
           isActive: true,
           ...(input.category ? { slug: input.category } : {}),
         } }),
@@ -213,7 +215,7 @@ export function createCatalogService(prisma: PrismaClient) {
     },
     async getProductBySlug(slug: string) {
       const product = await prisma.product.findFirst({
-        where: { slug, isActive: true, category: { isActive: true } },
+        where: { slug, kind: "PACKAGED", isActive: true, category: { isActive: true } },
         include: productInclude,
       });
       if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
@@ -231,6 +233,7 @@ export function createCatalogService(prisma: PrismaClient) {
               name: input.name,
               slug: input.slug,
               description: input.description,
+              kind: input.kind ?? "PACKAGED",
               categoryId: input.categoryId,
               featured: input.featured,
               tags: input.tags,
@@ -239,7 +242,7 @@ export function createCatalogService(prisma: PrismaClient) {
               attributes: input.attributes as Prisma.InputJsonValue,
               variants: { create: {
                 id: variantId,
-                name: input.initialVariant.name || "Default",
+                name: (input.kind ?? "PACKAGED") === "PACKAGED" ? input.initialVariant.name || "Default" : "Default",
                 sku: internalSku(variantId),
                 currentSellingPrice: input.initialVariant.sellingPrice,
                 lowStockThreshold: input.initialVariant.lowStockThreshold,
@@ -267,6 +270,74 @@ export function createCatalogService(prisma: PrismaClient) {
         await prisma.product.update({
           where: { id },
           data: { ...input, attributes: input.attributes as Prisma.InputJsonValue | undefined },
+        });
+        return readProduct(id);
+      } catch (error) {
+        rethrowCatalogWriteError(error);
+      }
+    },
+    async changeProductKind(id: string, input: ProductKindChange, actorId: string) {
+      try {
+        await prisma.$transaction(async (transaction) => {
+          const product = await transaction.product.findUnique({
+            where: { id },
+            select: {
+              id: true,
+              kind: true,
+              variants: {
+                select: {
+                  id: true,
+                  currentSellingPrice: true,
+                  availableStock: true,
+                  reservedStock: true,
+                  _count: { select: { stockBatches: true, stockAdjustments: true, salesOrderItems: true, priceHistory: true } },
+                },
+              },
+            },
+          });
+          if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
+          if (product.kind === input.kind) throw catalogError(400, "PRODUCT_KIND_UNCHANGED", "Choose a different product type.");
+          if (product.variants.length !== 1) {
+            throw catalogError(409, "PRODUCT_KIND_LOCKED", "A product with multiple pack/size options cannot change type.");
+          }
+          const variant = product.variants[0];
+          const used = variant.availableStock !== 0
+            || variant.reservedStock !== 0
+            || variant._count.stockBatches > 0
+            || variant._count.stockAdjustments > 0
+            || variant._count.salesOrderItems > 0
+            || variant._count.priceHistory > 1;
+          if (used) {
+            throw catalogError(409, "PRODUCT_KIND_LOCKED", "Product type cannot change after stock, price updates, or sales exist.");
+          }
+          await transaction.product.update({ where: { id }, data: { kind: input.kind } });
+          const priceChanged = Number(variant.currentSellingPrice) !== Number(input.sellingPrice);
+          await transaction.productVariant.update({
+            where: { id: variant.id },
+            data: {
+              name: "Default",
+              currentSellingPrice: input.sellingPrice,
+              lowStockThreshold: input.lowStockThreshold,
+            },
+          });
+          if (priceChanged) {
+            await transaction.sellingPriceHistory.create({ data: {
+              variantId: variant.id,
+              previousPrice: variant.currentSellingPrice,
+              newPrice: input.sellingPrice,
+              reason: input.reason,
+              changedByProfileId: actorId,
+            } });
+          }
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "UNUSED_PRODUCT_KIND_CHANGED",
+            entityType: "PRODUCT",
+            entityId: id,
+            previousData: { kind: product.kind },
+            newData: { kind: input.kind, sellingPrice: input.sellingPrice, lowStockThreshold: input.lowStockThreshold },
+            reason: input.reason,
+          } });
         });
         return readProduct(id);
       } catch (error) {
@@ -353,9 +424,12 @@ export function createCatalogService(prisma: PrismaClient) {
         await prisma.$transaction(async (transaction) => {
           const product = await transaction.product.findUnique({
             where: { id: productId },
-            select: { id: true, variants: { select: { name: true } } },
+            select: { id: true, kind: true, variants: { select: { name: true } } },
           });
           if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
+          if ((product.kind ?? "PACKAGED") !== "PACKAGED") {
+            throw catalogError(409, "LOOSE_PRODUCT_SINGLE_OPTION", "Loose products use one measured stock and price option.");
+          }
           if (product.variants.some((variant) => isUnnamedPackSize(variant.name))) {
             throw catalogError(
               409,
