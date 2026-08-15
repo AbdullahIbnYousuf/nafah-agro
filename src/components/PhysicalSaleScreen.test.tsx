@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PhysicalSale } from '@/lib/types';
 import PhysicalSaleScreen from './PhysicalSaleScreen';
@@ -60,17 +60,24 @@ describe('physical sale history', () => {
     mocks.getPhysicalSales.mockResolvedValue([sale]);
   });
 
-  it('shows detailed, mobile-friendly sale cards with items and financial totals', async () => {
+  it('keeps sale cards concise and reveals financial details when clicked', async () => {
     render(<PhysicalSaleScreen />);
 
     expect(await screen.findByText('PS-20260815-TEST')).toBeInTheDocument();
     expect(screen.getByText('খোলা মিনিকেট চাল')).toBeInTheDocument();
-    expect(screen.getByText(/২ কেজি × ৳100\.00 প্রতি কেজি/)).toBeInTheDocument();
+    expect(screen.getByText('২ কেজি')).toBeInTheDocument();
     expect(screen.getByText('রহিম · 01300000000')).toBeInTheDocument();
-    expect(screen.getByText('বিক্রি করেছেন: দোকান মালিক')).toBeInTheDocument();
     expect(screen.getAllByText('৳180.00')).not.toHaveLength(0);
+    expect(screen.queryByText(/২ কেজি × ৳100\.00 প্রতি কেজি/)).not.toBeInTheDocument();
+    expect(screen.queryByText('বিক্রি করেছেন: দোকান মালিক')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'PS-20260815-TEST বিস্তারিত দেখুন' }));
+
+    expect(screen.getByText(/২ কেজি × ৳100\.00 প্রতি কেজি/)).toBeInTheDocument();
+    expect(screen.getByText('বিক্রি করেছেন: দোকান মালিক')).toBeInTheDocument();
     expect(screen.getAllByText('৳120.00')).not.toHaveLength(0);
     expect(screen.getAllByText('৳60.00')).not.toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'PS-20260815-TEST বিস্তারিত বন্ধ করুন' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
   });

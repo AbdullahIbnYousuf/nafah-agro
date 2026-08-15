@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, ShoppingCart, Trash2 } from 'lucide-react';
+import { ChevronDown, Clock3, Plus, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
@@ -153,47 +154,79 @@ function saleRateLabel(unit: PhysicalSale['items'][number]['quantityUnit']) {
 }
 
 function PhysicalSaleHistoryCard({ sale }: { sale: PhysicalSale }) {
+  const [open, setOpen] = useState(false);
   const customer = [sale.customerName, sale.customerPhone].filter(Boolean).join(' · ');
-  return <article className="rounded-lg border bg-card p-4 sm:p-5">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <strong className="break-words text-base">{sale.orderNumber}</strong>
-        <div className="mt-1 text-xs text-muted-foreground">{new Date(sale.completedAt).toLocaleString('bn-BD')}</div>
-        <div className="mt-1 text-sm">{customer || 'ক্রেতার তথ্য নেই'}</div>
-        <div className="text-xs text-muted-foreground">বিক্রি করেছেন: {sale.createdBy.fullName}</div>
-      </div>
-      <div className="rounded-md bg-muted/60 px-3 py-2 sm:text-right">
-        <div className="text-xs text-muted-foreground">মোট দাম</div>
-        <div className="text-lg font-bold">{money(sale.grandTotal)}</div>
-      </div>
-    </div>
-
-    <div className="mt-4 divide-y rounded-md border">
-      {sale.items.map((item) => <div key={item.id} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+  const firstItem = sale.items[0];
+  const remainingItems = sale.items.length - 1;
+  return <Collapsible open={open} onOpenChange={setOpen} className="overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
+    <CollapsibleTrigger asChild>
+      <button
+        type="button"
+        className="group grid w-full gap-3 p-4 text-left transition-colors hover:bg-muted/30 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
+        aria-label={`${sale.orderNumber} ${open ? 'বিস্তারিত বন্ধ করুন' : 'বিস্তারিত দেখুন'}`}
+      >
         <div className="min-w-0">
-          <div className="break-words font-medium">{productPackLabel(item.productName, item.variantName)}</div>
-          <div className="text-sm text-muted-foreground">
-            {formatQuantity(item.quantity, item.quantityUnit)} × {money(item.unitSellingPrice)} {saleRateLabel(item.quantityUnit)}
+          <div className="flex min-w-0 items-center gap-2">
+            <strong className="truncate text-base">{firstItem ? productPackLabel(firstItem.productName, firstItem.variantName) : sale.orderNumber}</strong>
+            {remainingItems > 0 && <span className="shrink-0 rounded-full bg-secondary/15 px-2 py-0.5 text-xs font-medium text-secondary">আরও {remainingItems}টি</span>}
+          </div>
+          {firstItem && <div className="mt-0.5 text-sm text-muted-foreground">{formatQuantity(firstItem.quantity, firstItem.quantityUnit)}{remainingItems > 0 ? ' এবং অন্যান্য পণ্য' : ''}</div>}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><Clock3 size={13} />{new Date(sale.completedAt).toLocaleString('bn-BD')}</span>
+            <span className="inline-flex min-w-0 items-center gap-1"><UserRound size={13} /><span className="truncate">{customer || 'ক্রেতার তথ্য নেই'}</span></span>
+            <span className="truncate">{sale.orderNumber}</span>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:text-right">
-          <span className="text-muted-foreground">পণ্যের দাম</span><strong>{money(item.grossLineRevenue)}</strong>
-          {item.allocatedDiscount > 0 && <><span className="text-muted-foreground">ডিসকাউন্ট</span><span>-{money(item.allocatedDiscount)}</span></>}
-          <span className="text-muted-foreground">ক্রয়মূল্য</span><span>{money(item.totalBuyingCost)}</span>
-          <span className="text-muted-foreground">লাভ</span><span className={item.grossProfit < 0 ? 'text-destructive' : ''}>{money(item.grossProfit)}</span>
+        <div className="flex items-center justify-between gap-4 sm:block sm:min-w-28 sm:text-right">
+          <span className="text-xs text-muted-foreground">মোট দাম</span>
+          <strong className="block text-lg text-primary">{money(sale.grandTotal)}</strong>
         </div>
-      </div>)}
-    </div>
+        <div className="flex items-center justify-end gap-1 text-xs font-medium text-secondary">
+          <span>{open ? 'বন্ধ করুন' : 'বিস্তারিত'}</span>
+          <ChevronDown size={18} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+    </CollapsibleTrigger>
 
-    <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-2 border-t pt-4 text-sm sm:ml-auto sm:max-w-md">
-      <span className="text-muted-foreground">সাবটোটাল</span><span className="text-right">{money(sale.subtotal)}</span>
-      <span className="text-muted-foreground">ডিসকাউন্ট</span><span className="text-right">-{money(sale.discountTotal)}</span>
-      <span className="font-medium">মোট দাম</span><strong className="text-right">{money(sale.grandTotal)}</strong>
-      <span className="text-muted-foreground">ক্রয়মূল্য</span><span className="text-right">{money(sale.totalBuyingCost)}</span>
-      <span className="font-medium">মোট লাভ</span><strong className={`text-right ${sale.grossProfit < 0 ? 'text-destructive' : ''}`}>{money(sale.grossProfit)}</strong>
-      <span className="text-muted-foreground">লাভের মার্জিন</span><span className="text-right">{sale.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${sale.grossProfitMargin.toFixed(2)}%`}</span>
-    </div>
-  </article>;
+    <CollapsibleContent>
+      <div className="border-t bg-muted/15 p-4 sm:p-5">
+        <div className="divide-y overflow-hidden rounded-lg border bg-background">
+          {sale.items.map((item) => <div key={item.id} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-4">
+            <div className="min-w-0">
+              <div className="break-words font-medium">{productPackLabel(item.productName, item.variantName)}</div>
+              <div className="mt-0.5 text-sm text-muted-foreground">
+                {formatQuantity(item.quantity, item.quantityUnit)} × {money(item.unitSellingPrice)} {saleRateLabel(item.quantityUnit)}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm sm:min-w-64 sm:text-right">
+              <span className="text-muted-foreground">পণ্যের দাম</span><strong>{money(item.grossLineRevenue)}</strong>
+              {item.allocatedDiscount > 0 && <><span className="text-muted-foreground">ডিসকাউন্ট</span><span>-{money(item.allocatedDiscount)}</span></>}
+              <span className="text-muted-foreground">ক্রয়মূল্য</span><span>{money(item.totalBuyingCost)}</span>
+              <span className="text-muted-foreground">লাভ</span><span className={item.grossProfit < 0 ? 'text-destructive' : ''}>{money(item.grossProfit)}</span>
+            </div>
+          </div>)}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <SaleSummaryMetric label="সাবটোটাল" value={money(sale.subtotal)} />
+          <SaleSummaryMetric label="ডিসকাউন্ট" value={`-${money(sale.discountTotal)}`} />
+          <SaleSummaryMetric label="ক্রয়মূল্য" value={money(sale.totalBuyingCost)} />
+          <SaleSummaryMetric label="মোট লাভ" value={money(sale.grossProfit)} negative={sale.grossProfit < 0} />
+        </div>
+        <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+          <span>বিক্রি করেছেন: {sale.createdBy.fullName}</span>
+          <span>লাভের মার্জিন: {sale.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${sale.grossProfitMargin.toFixed(2)}%`}</span>
+        </div>
+      </div>
+    </CollapsibleContent>
+  </Collapsible>;
+}
+
+function SaleSummaryMetric({ label, value, negative = false }: { label: string; value: string; negative?: boolean }) {
+  return <div className="rounded-lg border bg-card px-3 py-2">
+    <div className="text-xs text-muted-foreground">{label}</div>
+    <div className={`mt-0.5 font-semibold ${negative ? 'text-destructive' : ''}`}>{value}</div>
+  </div>;
 }
 
 function SaleAmountInput({ line, onChange }: { line: SaleLine; onChange: (patch: Partial<Pick<SaleLine, 'amount' | 'amountUnit'>>) => void }) {
