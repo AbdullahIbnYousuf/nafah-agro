@@ -89,11 +89,75 @@ const product: Product = {
   }],
 };
 
+const packagedProduct: Product = {
+  ...product,
+  id: '30000000-0000-4000-8000-000000000002',
+  name: 'প্যাকেট আটা',
+  slug: 'packaged-flour',
+  kind: 'PACKAGED',
+  price: 80,
+  stock: 12,
+  variants: [{
+    ...product.variants![0],
+    id: '40000000-0000-4000-8000-000000000002',
+    name: '১ কেজি',
+    sellingPrice: 80,
+    availableStock: 12,
+    lowStockThreshold: 2,
+  }],
+};
+
 describe('physical sale history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getAdminProducts.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
     mocks.getPhysicalSales.mockResolvedValue([sale]);
+  });
+
+  it('uses the same explicit expand-and-add flow for packaged and loose products', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct, product], total: 2, page: 1, limit: 100, totalPages: 1 });
+    render(<PhysicalSaleScreen />);
+    await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' }));
+    expect(screen.getByRole('spinbutton', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ' })).toHaveValue(1);
+    expect(screen.getByLabelText('প্যাকেট আটা · ১ কেজি একক')).toHaveTextContent('ইউনিট');
+    expect(screen.getByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' }));
+    expect(screen.queryByRole('spinbutton', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ' })).not.toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' })).toHaveValue(1);
+    expect(screen.getByRole('combobox', { name: 'খোলা মিনিকেট চাল একক' })).toHaveValue('KG');
+  });
+
+  it('adds the chosen loose amount and validates it against available stock', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    render(<PhysicalSaleScreen />);
+    await screen.findByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' }), { target: { value: '11' } });
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('স্টকে সর্বোচ্চ ১০ কেজি আছে।');
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' }), { target: { value: '2.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' }));
+
+    expect(screen.queryByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' })).not.toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' })).toHaveValue(2.5);
+    expect(screen.getByText('তালিকায় আছে')).toBeInTheDocument();
+  });
+
+  it('closes an expanded product without adding when the owner clicks elsewhere', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    render(<PhysicalSaleScreen />);
+    await screen.findByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' }));
+    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'বিক্রির পণ্য খুঁজুন' }));
+
+    expect(screen.queryByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' })).not.toBeInTheDocument();
+    expect(screen.getByText('বাম পাশ থেকে পণ্য যোগ করুন')).toBeInTheDocument();
   });
 
   it('keeps sale cards concise and reveals financial details when clicked', async () => {
@@ -163,6 +227,6 @@ describe('physical sale history', () => {
       target: { value: 'সরিষার তেল' },
     });
 
-    expect(screen.getByRole('status')).toHaveTextContent('মিলে এমন কোনো পণ্য পাওয়া যায়নি।');
+    expect(screen.getByRole('status')).toHaveTextContent('এমন কোনো পণ্য পাওয়া যায়নি।');
   });
 });
