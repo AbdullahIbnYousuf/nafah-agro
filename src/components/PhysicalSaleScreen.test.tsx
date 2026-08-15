@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PhysicalSale } from '@/lib/types';
+import type { PhysicalSale, Product } from '@/lib/types';
 import PhysicalSaleScreen from './PhysicalSaleScreen';
 
 const mocks = vi.hoisted(() => ({
@@ -62,6 +62,33 @@ const sale: PhysicalSale = {
   returns: [],
 };
 
+const product: Product = {
+  id: '30000000-0000-4000-8000-000000000001',
+  name: 'খোলা মিনিকেট চাল',
+  slug: 'khola-miniket-rice',
+  description: '',
+  kind: 'LOOSE_WEIGHT',
+  price: 100,
+  categoryId: '50000000-0000-4000-8000-000000000001',
+  images: [],
+  youtubeLinks: [],
+  stock: 10_000,
+  featured: false,
+  tags: [],
+  isActive: true,
+  variants: [{
+    id: '40000000-0000-4000-8000-000000000001',
+    name: 'Default',
+    sku: 'INTERNAL-TEST',
+    sellingPrice: 100,
+    availableStock: 10_000,
+    reservedStock: 0,
+    lowStockThreshold: 1_000,
+    isDefault: true,
+    isActive: true,
+  }],
+};
+
 describe('physical sale history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -89,5 +116,33 @@ describe('physical sale history', () => {
     expect(screen.getByRole('button', { name: 'PS-20260815-TEST বিস্তারিত বন্ধ করুন' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
+  });
+
+  it('suggests catalog products and searches immediately after selection', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    render(<PhysicalSaleScreen />);
+    await screen.findByText('PS-20260815-TEST');
+
+    const search = screen.getByRole('combobox', { name: 'বিক্রি খুঁজুন' });
+    fireEvent.focus(search);
+    fireEvent.click(await screen.findByRole('option', { name: /খোলা মিনিকেট চাল/ }));
+
+    expect(search).toHaveValue('খোলা মিনিকেট চাল');
+    await waitFor(() => expect(mocks.getPhysicalSales).toHaveBeenCalledWith({
+      limit: 50,
+      query: 'খোলা মিনিকেট চাল',
+    }));
+  });
+
+  it('clearly reports when the sale product search has no match', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    render(<PhysicalSaleScreen />);
+    await screen.findByRole('button', { name: /খোলা মিনিকেট চাল/ });
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'বিক্রির পণ্য খুঁজুন' }), {
+      target: { value: 'সরিষার তেল' },
+    });
+
+    expect(screen.getByRole('status')).toHaveTextContent('মিলে এমন কোনো পণ্য পাওয়া যায়নি।');
   });
 });

@@ -22,6 +22,7 @@ interface SaleLine {
 
 export default function PhysicalSaleScreen() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [recentSales, setRecentSales] = useState<PhysicalSale[]>([]);
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [query, setQuery] = useState('');
@@ -39,6 +40,7 @@ export default function PhysicalSaleScreen() {
   const [errors, setErrors] = useState<{ items?: string; phone?: string; discount?: string; submit?: string }>({});
 
   const load = useCallback(() => {
+    setLoadingProducts(true);
     Promise.all([getAdminProducts({ limit: 100 }), getPhysicalSales({
       limit: 50,
       ...(historyFilters.query ? { query: historyFilters.query } : {}),
@@ -46,7 +48,8 @@ export default function PhysicalSaleScreen() {
       ...(historyFilters.dateTo ? { dateTo: historyFilters.dateTo } : {}),
     })])
       .then(([page, sales]) => { setProducts(page.data); setRecentSales(sales); })
-      .catch((error) => toast.error(getErrorMessage(error, 'বিক্রয় স্ক্রিন লোড হয়নি')));
+      .catch((error) => toast.error(getErrorMessage(error, 'বিক্রয় স্ক্রিন লোড হয়নি')))
+      .finally(() => setLoadingProducts(false));
   }, [historyFilters]);
   useEffect(load, [load]);
 
@@ -140,8 +143,13 @@ export default function PhysicalSaleScreen() {
     <div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">পেমেন্ট CASH। বিক্রি সম্পন্ন হলে আগে কেনা স্টক আগে কমবে।</p></div>
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
       <section className="bg-card border rounded-lg p-5 space-y-4">
-        <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য বা প্যাক/সাইজ খুঁজুন" /></div>
-        <div className="grid sm:grid-cols-2 gap-2 max-h-[430px] overflow-y-auto">{matches.map(({ product, variant }) => <button key={variant.id} type="button" onClick={() => addLine(product, variant)} disabled={variant.availableStock <= 0} className="text-left border rounded-lg p-3 hover:border-secondary disabled:opacity-50"><div className="font-medium">{productPackLabel(product.name, variant.name)}</div><div className="mt-1 text-xs text-muted-foreground">{productKindLabel(product.kind)}</div><div className="flex justify-between mt-2"><span>৳{variant.sellingPrice} {rateLabel(product.kind)}</span><span>স্টক {formatQuantity(variant.availableStock, quantityUnitForKind(product.kind))}</span></div></button>)}</div>
+        <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="বিক্রির পণ্য খুঁজুন" className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য বা প্যাক/সাইজ খুঁজুন" /></div>
+        <div className="grid sm:grid-cols-2 gap-2 max-h-[430px] overflow-y-auto">
+          {matches.map(({ product, variant }) => <button key={variant.id} type="button" onClick={() => addLine(product, variant)} disabled={variant.availableStock <= 0} className="text-left border rounded-lg p-3 hover:border-secondary disabled:opacity-50"><div className="font-medium">{productPackLabel(product.name, variant.name)}</div><div className="mt-1 text-xs text-muted-foreground">{productKindLabel(product.kind)}</div><div className="flex justify-between mt-2"><span>৳{variant.sellingPrice} {rateLabel(product.kind)}</span><span>স্টক {formatQuantity(variant.availableStock, quantityUnitForKind(product.kind))}</span></div></button>)}
+          {matches.length === 0 && <div role="status" className="col-span-full rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+            {loadingProducts ? 'পণ্য লোড হচ্ছে…' : query.trim() ? 'মিলে এমন কোনো পণ্য পাওয়া যায়নি।' : 'বিক্রির জন্য কোনো পণ্য নেই।'}
+          </div>}
+        </div>
       </section>
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
@@ -160,7 +168,15 @@ export default function PhysicalSaleScreen() {
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
       <form onSubmit={applyHistoryFilters} className="mb-4 grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_170px_170px_auto_auto] md:items-end">
-        <Field label="বিক্রি খুঁজুন"><Input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="পণ্য, ফোন, বিক্রয় নম্বর বা মোট দাম" /></Field>
+        <Field label="বিক্রি খুঁজুন"><ProductHistorySearch
+          value={historyQuery}
+          products={products}
+          onChange={setHistoryQuery}
+          onSelect={(value) => {
+            setHistoryQuery(value);
+            setHistoryFilters({ query: value, dateFrom: historyDateFrom, dateTo: historyDateTo });
+          }}
+        /></Field>
         <Field label="তারিখ থেকে"><Input type="date" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></Field>
         <Field label="তারিখ পর্যন্ত"><Input type="date" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></Field>
         <Button type="submit" variant="outline"><Search size={16} className="mr-2" />খুঁজুন</Button>
@@ -181,6 +197,67 @@ function Field({ label, children, error }: { label: string; children: React.Reac
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div><div className="text-muted-foreground">{label}</div><div className="font-bold text-lg">{value}</div></div>;
+}
+
+function ProductHistorySearch({
+  value,
+  products,
+  onChange,
+  onSelect,
+}: {
+  value: string;
+  products: Product[];
+  onChange: (value: string) => void;
+  onSelect: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const normalized = value.trim().toLocaleLowerCase('bn-BD');
+  const suggestions = useMemo(() => products
+    .filter((product) => !normalized || product.name.toLocaleLowerCase('bn-BD').includes(normalized))
+    .sort((left, right) => left.name.localeCompare(right.name, 'bn-BD'))
+    .slice(0, 8), [normalized, products]);
+
+  return <div
+    className="relative"
+    onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    }}
+  >
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} />
+      <Input
+        role="combobox"
+        aria-label="বিক্রি খুঁজুন"
+        aria-expanded={open}
+        aria-controls="physical-sale-product-suggestions"
+        aria-autocomplete="list"
+        className="pl-10"
+        value={value}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => { onChange(event.target.value); setOpen(true); }}
+        onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }}
+        placeholder="পণ্য বেছে নিন বা ফোন, বিক্রয় নম্বর, মোট দাম লিখুন"
+      />
+    </div>
+    {open && <div id="physical-sale-product-suggestions" role="listbox" aria-label="পণ্যের পরামর্শ" className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
+      {suggestions.length === 0
+        ? <p className="px-3 py-4 text-center text-sm text-muted-foreground">মিলে এমন পণ্য নেই। অন্য তথ্য লিখে খুঁজতে পারেন।</p>
+        : suggestions.map((product) => <button
+          key={product.id}
+          type="button"
+          role="option"
+          aria-selected={value === product.name}
+          className="flex min-h-12 w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted focus:bg-muted focus:outline-none"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => { onSelect(product.name); setOpen(false); }}
+        >
+          {product.images[0]
+            ? <img src={product.images[0]} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
+            : <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-muted text-sm font-semibold">{product.name.charAt(0)}</span>}
+          <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{product.name}</strong><span className="block text-xs text-muted-foreground">{productKindLabel(product.kind)}{product.isActive === false ? ' · নিষ্ক্রিয়' : ''}</span></span>
+        </button>)}
+    </div>}
+  </div>;
 }
 
 function money(value: number) {
