@@ -71,6 +71,7 @@ export const physicalSaleCreateSchema = z.object({
 }).strict().superRefine(uniqueVariantIds);
 
 export const physicalSaleListSchema = z.object({
+  product: z.string().trim().max(120).optional(),
   query: z.string().trim().max(120).optional(),
   dateFrom: dateOnly.optional(),
   dateTo: dateOnly.optional(),

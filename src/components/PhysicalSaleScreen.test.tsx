@@ -123,14 +123,34 @@ describe('physical sale history', () => {
     render(<PhysicalSaleScreen />);
     await screen.findByText('PS-20260815-TEST');
 
-    const search = screen.getByRole('combobox', { name: 'বিক্রি খুঁজুন' });
+    const search = screen.getByRole('combobox', { name: 'পণ্য বেছে নিন' });
     fireEvent.focus(search);
     fireEvent.click(await screen.findByRole('option', { name: /খোলা মিনিকেট চাল/ }));
 
     expect(search).toHaveValue('খোলা মিনিকেট চাল');
     await waitFor(() => expect(mocks.getPhysicalSales).toHaveBeenCalledWith({
       limit: 50,
-      query: 'খোলা মিনিকেট চাল',
+      product: 'খোলা মিনিকেট চাল',
+    }));
+  });
+
+  it('combines the product filter with customer or sale information', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    render(<PhysicalSaleScreen />);
+    await screen.findByText('PS-20260815-TEST');
+
+    const productSearch = screen.getByRole('combobox', { name: 'পণ্য বেছে নিন' });
+    fireEvent.focus(productSearch);
+    fireEvent.click(await screen.findByRole('option', { name: /খোলা মিনিকেট চাল/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'ক্রেতা বা বিক্রির তথ্য' }), {
+      target: { value: '01300000000' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'খুঁজুন' }));
+
+    await waitFor(() => expect(mocks.getPhysicalSales).toHaveBeenLastCalledWith({
+      limit: 50,
+      product: 'খোলা মিনিকেট চাল',
+      query: '01300000000',
     }));
   });
 

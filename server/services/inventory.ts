@@ -681,6 +681,7 @@ export function createInventoryService(prisma: PrismaClient) {
     },
 
     async listPhysicalSales(input: PhysicalSaleList) {
+      const product = input.product?.trim();
       const query = input.query?.trim();
       const exactTotal = query && /^\d+(?:\.\d{1,2})?$/.test(query)
         ? new Prisma.Decimal(query)
@@ -693,17 +694,17 @@ export function createInventoryService(prisma: PrismaClient) {
             ...(input.dateFrom ? { gte: new Date(`${input.dateFrom}T00:00:00+06:00`) } : {}),
             ...(input.dateTo ? { lt: new Date(`${nextDate(input.dateTo)}T00:00:00+06:00`) } : {}),
           } } : {}),
+          ...(product ? { items: { some: {
+            OR: [
+              { productNameSnapshot: { contains: product, mode: "insensitive" } },
+              { variantNameSnapshot: { contains: product, mode: "insensitive" } },
+            ],
+          } } } : {}),
           ...(query ? { OR: [
             { orderNumber: { contains: query, mode: "insensitive" } },
             { customerName: { contains: query, mode: "insensitive" } },
             { customerPhone: { contains: query } },
             ...(exactTotal ? [{ grandTotal: exactTotal }] : []),
-            { items: { some: {
-              OR: [
-                { productNameSnapshot: { contains: query, mode: "insensitive" } },
-                { variantNameSnapshot: { contains: query, mode: "insensitive" } },
-              ],
-            } } },
           ] } : {}),
         },
         include: saleInclude,

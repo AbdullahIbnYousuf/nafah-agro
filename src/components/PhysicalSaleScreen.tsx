@@ -33,16 +33,18 @@ export default function PhysicalSaleScreen() {
   const [completed, setCompleted] = useState<PhysicalSale | null>(null);
   const [projectedLoss, setProjectedLoss] = useState<unknown>(null);
   const [returnSale, setReturnSale] = useState<PhysicalSale | null>(null);
+  const [historyProduct, setHistoryProduct] = useState('');
   const [historyQuery, setHistoryQuery] = useState('');
   const [historyDateFrom, setHistoryDateFrom] = useState('');
   const [historyDateTo, setHistoryDateTo] = useState('');
-  const [historyFilters, setHistoryFilters] = useState({ query: '', dateFrom: '', dateTo: '' });
+  const [historyFilters, setHistoryFilters] = useState({ product: '', query: '', dateFrom: '', dateTo: '' });
   const [errors, setErrors] = useState<{ items?: string; phone?: string; discount?: string; submit?: string }>({});
 
   const load = useCallback(() => {
     setLoadingProducts(true);
     Promise.all([getAdminProducts({ limit: 100 }), getPhysicalSales({
       limit: 50,
+      ...(historyFilters.product ? { product: historyFilters.product } : {}),
       ...(historyFilters.query ? { query: historyFilters.query } : {}),
       ...(historyFilters.dateFrom ? { dateFrom: historyFilters.dateFrom } : {}),
       ...(historyFilters.dateTo ? { dateTo: historyFilters.dateTo } : {}),
@@ -129,14 +131,15 @@ export default function PhysicalSaleScreen() {
 
   function applyHistoryFilters(event: React.FormEvent) {
     event.preventDefault();
-    setHistoryFilters({ query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo });
+    setHistoryFilters({ product: historyProduct.trim(), query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo });
   }
 
   function clearHistoryFilters() {
+    setHistoryProduct('');
     setHistoryQuery('');
     setHistoryDateFrom('');
     setHistoryDateTo('');
-    setHistoryFilters({ query: '', dateFrom: '', dateTo: '' });
+    setHistoryFilters({ product: '', query: '', dateFrom: '', dateTo: '' });
   }
 
   return <div className="space-y-8">
@@ -167,20 +170,26 @@ export default function PhysicalSaleScreen() {
 
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
-      <form onSubmit={applyHistoryFilters} className="mb-4 grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-[minmax(0,1fr)_170px_170px_auto_auto] md:items-end">
-        <Field label="বিক্রি খুঁজুন"><ProductHistorySearch
-          value={historyQuery}
+      <form onSubmit={applyHistoryFilters} className="mb-4 grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-2 md:items-end xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_170px_170px_auto_auto]">
+        <Field label="পণ্য"><ProductHistorySearch
+          value={historyProduct}
           products={products}
-          onChange={setHistoryQuery}
+          onChange={setHistoryProduct}
           onSelect={(value) => {
-            setHistoryQuery(value);
-            setHistoryFilters({ query: value, dateFrom: historyDateFrom, dateTo: historyDateTo });
+            setHistoryProduct(value);
+            setHistoryFilters({ product: value, query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo });
           }}
+        /></Field>
+        <Field label="অন্য তথ্য"><Input
+          aria-label="ক্রেতা বা বিক্রির তথ্য"
+          value={historyQuery}
+          onChange={(event) => setHistoryQuery(event.target.value)}
+          placeholder="নাম, ফোন, বিক্রয় নম্বর বা মোট দাম"
         /></Field>
         <Field label="তারিখ থেকে"><Input type="date" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></Field>
         <Field label="তারিখ পর্যন্ত"><Input type="date" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></Field>
         <Button type="submit" variant="outline"><Search size={16} className="mr-2" />খুঁজুন</Button>
-        <Button type="button" variant="ghost" onClick={clearHistoryFilters} disabled={!historyQuery && !historyDateFrom && !historyDateTo && !historyFilters.query && !historyFilters.dateFrom && !historyFilters.dateTo}>ফিল্টার মুছুন</Button>
+        <Button type="button" variant="ghost" onClick={clearHistoryFilters} disabled={!historyProduct && !historyQuery && !historyDateFrom && !historyDateTo && !historyFilters.product && !historyFilters.query && !historyFilters.dateFrom && !historyFilters.dateTo}>ফিল্টার মুছুন</Button>
       </form>
       {recentSales.length === 0
         ? <div className="rounded-lg border bg-card px-4 py-10 text-center text-sm text-muted-foreground">এই খোঁজে কোনো বিক্রি পাওয়া যায়নি</div>
@@ -227,7 +236,7 @@ function ProductHistorySearch({
       <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} />
       <Input
         role="combobox"
-        aria-label="বিক্রি খুঁজুন"
+        aria-label="পণ্য বেছে নিন"
         aria-expanded={open}
         aria-controls="physical-sale-product-suggestions"
         aria-autocomplete="list"
@@ -236,12 +245,12 @@ function ProductHistorySearch({
         onFocus={() => setOpen(true)}
         onChange={(event) => { onChange(event.target.value); setOpen(true); }}
         onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }}
-        placeholder="পণ্য বেছে নিন বা ফোন, বিক্রয় নম্বর, মোট দাম লিখুন"
+        placeholder="পণ্য বেছে নিন বা নাম লিখুন"
       />
     </div>
     {open && <div id="physical-sale-product-suggestions" role="listbox" aria-label="পণ্যের পরামর্শ" className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
       {suggestions.length === 0
-        ? <p className="px-3 py-4 text-center text-sm text-muted-foreground">মিলে এমন পণ্য নেই। অন্য তথ্য লিখে খুঁজতে পারেন।</p>
+        ? <p className="px-3 py-4 text-center text-sm text-muted-foreground">মিলে এমন কোনো পণ্য নেই।</p>
         : suggestions.map((product) => <button
           key={product.id}
           type="button"

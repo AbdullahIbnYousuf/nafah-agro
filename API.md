@@ -103,7 +103,7 @@ All order sources use `sales_orders`, `sales_order_items`, and
 | `POST` | `/api/v1/orders/manual` | OWNER | Facebook/phone/WhatsApp/other delivery order |
 | `GET` | `/api/v1/orders` | OWNER | Unified paginated/filterable order list |
 | `PATCH` | `/api/v1/orders/:id/status` | OWNER | Confirm/process/deliver/cancel/fail/return |
-| `GET` | `/api/v1/physical-sales` | OWNER | Find physical sales by product, phone, sale number, exact total, or Dhaka date range |
+| `GET` | `/api/v1/physical-sales` | OWNER | Find physical sales using combinable `product`, general `query` (customer, phone, sale number, exact total), or Dhaka date range filters |
 | `POST` | `/api/v1/physical-sales/:id/returns` | OWNER | Return selected items/quantities from an identified physical sale |
 
 Website checkout accepts only variant IDs, quantities, customer delivery data,

@@ -662,6 +662,29 @@ describe("Milestone 3 inventory and physical sales", () => {
     }));
   });
 
+  it("combines separate product and general physical-sale filters", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const findMany = vi.spyOn(prisma.salesOrder, "findMany");
+
+    await createInventoryService(prisma).listPhysicalSales({
+      limit: 10,
+      product: "Miniket",
+      query: "01300000000",
+    });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        items: { some: { OR: [
+          { productNameSnapshot: { contains: "Miniket", mode: "insensitive" } },
+          { variantNameSnapshot: { contains: "Miniket", mode: "insensitive" } },
+        ] } },
+        OR: expect.arrayContaining([
+          { customerPhone: { contains: "01300000000" } },
+        ]),
+      }),
+    }));
+  });
+
   it("returns selected physical-sale quantities and restores only SELLABLE stock", async () => {
     const { prisma, state } = createInMemoryPrisma();
     const service = createInventoryService(prisma);

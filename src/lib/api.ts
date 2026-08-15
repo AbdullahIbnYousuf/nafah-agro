@@ -390,6 +390,7 @@ export function createPhysicalSale(input: {
 }
 
 export function getPhysicalSales(input: {
+  product?: string;
   query?: string;
   dateFrom?: string;
   dateTo?: string;
