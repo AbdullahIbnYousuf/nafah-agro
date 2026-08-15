@@ -39,7 +39,7 @@ workflow remains the bootstrap/recovery path for the first owner.
 | `GET` | `/api/v1/admin/products`, `/admin/products/:id` | OWNER | Full catalog list and direct product lookup, including inactive records |
 | `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product |
 | `DELETE` | `/api/v1/products/:id` | OWNER | Delete only a product with no stock, adjustment, order, or price-update history |
-| `POST/PATCH` | `/api/v1/products/:id/variants`, `/variants/:id` | OWNER | Create/edit variant and unique SKU |
+| `POST/PATCH` | `/api/v1/products/:id/variants`, `/variants/:id` | OWNER | Create/edit a pack/size; SKU is generated internally |
 | `PATCH` | `/api/v1/variants/:id/selling-price` | OWNER | Single price change/history append |
 | `POST` | `/api/v1/variants/selling-prices/bulk` | OWNER | Atomic bulk price change |
 | `GET` | `/api/v1/variants/:id/price-history` | OWNER | Immutable price history |
@@ -53,6 +53,12 @@ Deletion is transactional and rechecks eligibility server-side. A deleted
 unused product also removes its setup variants and price-history rows; normal
 price history remains immutable. Cloudinary image URLs are recorded in the
 audit event, but remote image files are not deleted automatically.
+
+Catalog write clients do not submit or edit SKU values. Express generates an
+immutable internal SKU for each new variant. Existing SKU columns and historical
+snapshots remain for compatibility but are not part of the owner or customer UI.
+The initial pack/size name may be blank; an additional pack/size requires the
+existing internal default to be given a meaningful name first.
 
 ## Unified orders
 

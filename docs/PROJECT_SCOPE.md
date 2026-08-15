@@ -54,8 +54,8 @@ Owners can:
 - Permanently delete only empty categories and never-used products with zero
   stock and no adjustment, order, or selling-price update history
 - Add Cloudinary images, descriptions, tags, and featured status
-- Create sellable variants
-- Set a unique SKU, selling price, stock total, and low-stock threshold per variant
+- Create sellable pack/size options
+- Set selling price, stock total, and low-stock threshold per option; SKU is generated internally
 - Change individual or multiple selling prices
 - View immutable price history showing old price, new price, actor, reason, and time
 
@@ -63,9 +63,9 @@ Normal selling-price history is append-only. Permanent deletion removes only
 the initial setup price record belonging to a never-used product, in the same
 transaction as that product's variants.
 
-Every sellable product has at least one variant. Products without visible choices use an internal default variant.
+Every sellable product has at least one internal variant. Products without visible choices use a hidden default; owners and customers work with the simpler `প্যাক/সাইজ` label.
 
-Historical order items permanently retain product, variant, SKU, quantity, selling-price, discount, buying-cost, revenue, and gross-profit snapshots.
+Historical order items permanently retain product, variant, internal SKU, quantity, selling-price, discount, buying-cost, revenue, and gross-profit snapshots.
 
 ## 5. Purchases and FIFO inventory
 

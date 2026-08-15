@@ -135,7 +135,6 @@ export interface CartItem {
   productVariantId: string;
   productName: string;
   variantName: string;
-  sku: string;
   quantity: number;
   unitPrice: number;
 }

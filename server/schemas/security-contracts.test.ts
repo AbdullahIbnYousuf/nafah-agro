@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest';
-import { categoryCreateSchema, productCreateSchema } from './catalog.js';
+import { categoryCreateSchema, productCreateSchema, variantUpdateSchema } from './catalog.js';
 import { physicalSaleCreateSchema } from './inventory.js';
 import { manualDeliveryOrderSchema, websiteCheckoutSchema } from './orders.js';
 
@@ -16,9 +16,18 @@ describe('strict API input contracts', () => {
     expect(categoryCreateSchema.safeParse({ name: 'Rice', slug: 'rice', role: 'OWNER' }).success).toBe(false);
     expect(productCreateSchema.safeParse({
       name: 'Rice', slug: 'rice', categoryId,
-      initialVariant: { name: '1 kg', sku: 'RICE-1', sellingPrice: '100', unitBuyingCost: '1' },
+      initialVariant: { name: '1 kg', sellingPrice: '100', unitBuyingCost: '1' },
       priceReason: 'Initial price',
     }).success).toBe(false);
+  });
+
+  it('rejects client-supplied SKU values', () => {
+    expect(productCreateSchema.safeParse({
+      name: 'Rice', slug: 'rice', categoryId,
+      initialVariant: { name: '1 kg', sku: 'RICE-1', sellingPrice: '100' },
+      priceReason: 'Initial price',
+    }).success).toBe(false);
+    expect(variantUpdateSchema.safeParse({ sku: 'CHANGED-SKU' }).success).toBe(false);
   });
 
   it('rejects client-supplied totals, costs, discounts, and roles', () => {

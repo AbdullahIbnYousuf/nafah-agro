@@ -8,6 +8,7 @@ import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales } from '@/lib/api';
 import type { PhysicalSale, Product, ProductVariant } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
+import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
 
 interface SaleLine {
   product: Product;
@@ -41,7 +42,7 @@ export default function PhysicalSaleScreen() {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return variants.slice(0, 12);
     return variants.filter(({ product, variant }) =>
-      `${product.name} ${variant.name} ${variant.sku}`.toLowerCase().includes(normalized)).slice(0, 20);
+      `${product.name} ${visiblePackSize(variant.name) ?? ''}`.toLowerCase().includes(normalized)).slice(0, 20);
   }, [query, variants]);
   const subtotal = lines.reduce((sum, line) => sum + line.variant.sellingPrice * line.quantity, 0);
   const discountNumber = Number(discount) || 0;
@@ -51,7 +52,7 @@ export default function PhysicalSaleScreen() {
     setLines((current) => {
       const existing = current.find((line) => line.variant.id === variant.id);
       if (existing) return current.map((line) => line.variant.id === variant.id ? { ...line, quantity: Math.min(line.quantity + 1, variant.availableStock) } : line);
-      if (variant.availableStock <= 0) { toast.error('এই ভ্যারিয়েন্ট স্টকে নেই'); return current; }
+      if (variant.availableStock <= 0) { toast.error('এই প্যাক/সাইজ স্টকে নেই'); return current; }
       return [...current, { product, variant, quantity: 1 }];
     });
   }
@@ -94,13 +95,13 @@ export default function PhysicalSaleScreen() {
     <div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">পেমেন্ট CASH। বিক্রি সম্পন্ন হলে আগে কেনা স্টক আগে কমবে।</p></div>
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
       <section className="bg-card border rounded-lg p-5 space-y-4">
-        <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য, ভ্যারিয়েন্ট বা SKU খুঁজুন" /></div>
-        <div className="grid sm:grid-cols-2 gap-2 max-h-[430px] overflow-y-auto">{matches.map(({ product, variant }) => <button key={variant.id} type="button" onClick={() => addLine(product, variant)} disabled={variant.availableStock <= 0} className="text-left border rounded-lg p-3 hover:border-secondary disabled:opacity-50"><div className="font-medium">{product.name}</div><div className="text-xs text-muted-foreground">{variant.name} · {variant.sku}</div><div className="flex justify-between mt-2"><span>৳{variant.sellingPrice}</span><span>স্টক {variant.availableStock}</span></div></button>)}</div>
+        <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য বা প্যাক/সাইজ খুঁজুন" /></div>
+        <div className="grid sm:grid-cols-2 gap-2 max-h-[430px] overflow-y-auto">{matches.map(({ product, variant }) => <button key={variant.id} type="button" onClick={() => addLine(product, variant)} disabled={variant.availableStock <= 0} className="text-left border rounded-lg p-3 hover:border-secondary disabled:opacity-50"><div className="font-medium">{productPackLabel(product.name, variant.name)}</div><div className="flex justify-between mt-2"><span>৳{variant.sellingPrice}</span><span>স্টক {variant.availableStock}</span></div></button>)}</div>
       </section>
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
-        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_90px_auto]"><div className="min-w-0"><strong className="break-words">{line.product.name}</strong><div className="text-xs text-muted-foreground">{line.variant.name} · ৳{line.variant.sellingPrice}</div></div><Input aria-label={`${line.product.name} পরিমাণ`} className="w-full" type="number" min="1" max={line.variant.availableStock} value={line.quantity} onChange={(event) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, quantity: Math.max(1, Math.min(Number(event.target.value) || 1, item.variant.availableStock)) } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
+        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_90px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{line.variant.sellingPrice}</div></div><Input aria-label={`${line.product.name} পরিমাণ`} className="w-full" type="number" min="1" max={line.variant.availableStock} value={line.quantity} onChange={(event) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, quantity: Math.max(1, Math.min(Number(event.target.value) || 1, item.variant.availableStock)) } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
         <div className="grid sm:grid-cols-2 gap-3"><Field label="ক্রেতার নাম (ঐচ্ছিক)"><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></Field><Field label="ফোন (ঐচ্ছিক)" error={errors.phone}><Input value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field></div>
         <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>

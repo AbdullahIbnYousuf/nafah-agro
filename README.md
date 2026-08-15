@@ -7,12 +7,12 @@ orders, returns, analytics, and Cloudinary uploads.
 
 ## V1 capabilities
 
-- Public catalog with categories, products, sellable variants, search/filtering,
+- Public catalog with categories, products, sellable pack/size options, search/filtering,
   a local cart, and guest cash-on-delivery checkout.
 - Optional CUSTOMER registration, profile maintenance, and website-order history.
 - Controlled multiple-OWNER access, owner invitations, deletion of accounts
   with no business or audit history, and protection for the final active owner.
-- Product, unique-SKU, price-history, purchase, FIFO inventory, stock-adjustment,
+- Product, pack/size, price-history, purchase, FIFO inventory, stock-adjustment,
   physical-sale, delivery-order, whole-return, and delivery-rate management.
 - OWNER-only permanent deletion for empty categories and products with no stock,
   adjustment, order, or selling-price update history; used catalog records
@@ -55,7 +55,7 @@ Public pages use `/`, `/shop`, `/products/:slug`, `/cart`, `/login`,
 Owner pages are directly addressable under `/admin`: `/admin/dashboard`,
 `/admin/products`, `/admin/categories`, `/admin/inventory`,
 `/admin/physical-sales`, and `/admin/orders`. Product creation, editing, and
-variant management use `/admin/products/new`,
+pack/size management use `/admin/products/new`,
 `/admin/products/:productId/edit`, and
 `/admin/products/:productId/variants`. `/admin` redirects to the dashboard.
 

@@ -118,6 +118,8 @@ describe('safe catalog deletion controls', () => {
 
     expect(await screen.findByRole('img', { name: 'Unused Product পণ্যের ছবি' })).toHaveAttribute('src', product.images[0]);
     expect(screen.getByRole('link', { name: /গ্রাহক পেজ/ })).toHaveAttribute('href', '/products/unused-product');
+    expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'প্যাক/সাইজ ও দাম' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' }));
     expect(screen.getByRole('dialog', { name: 'পণ্য নিষ্ক্রিয় করুন' })).toHaveTextContent('স্টক, দাম, অর্ডার ও ইতিহাস মুছে যাবে না');

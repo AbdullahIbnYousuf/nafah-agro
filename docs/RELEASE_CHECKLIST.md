@@ -10,11 +10,11 @@ the tester, date, deployment URL, commit, and evidence for every checked item.
    sign in, and verify OWNER access. Confirm CUSTOMER access to `/admin` is denied.
 3. Register a CUSTOMER with required phone metadata, sign out/in, update the
    profile, and open customer order history.
-4. As a guest, browse `/`, filter `/shop`, open a product/variant, adjust the
+4. As a guest, browse `/`, filter `/shop`, open a product and pack/size, adjust the
    cart, and submit COD checkout. Repeat the same request key to demonstrate one
    order only.
-5. Create/edit/activate/deactivate a category, product, and variants; upload an
-   image; demonstrate duplicate slug/SKU rejection, a single price update, a
+5. Create/edit/activate/deactivate a category, product, and pack/size options; upload an
+   image; confirm no SKU input or display is exposed, demonstrate duplicate slug rejection, a single price update, a
    bulk price update, and immutable price history.
    Separately delete one empty category and one never-used product. Confirm the
    delete action disappears after stock, an order, or a real price update exists.

@@ -33,6 +33,7 @@ import type {
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { productPackLabel } from '@/lib/productOptions';
 
 type QuickPreset = Exclude<AnalyticsPreset, 'custom'>;
 
@@ -179,11 +180,10 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
   if (rows.length === 0) return <p className="py-10 text-center text-sm text-muted-foreground">এই সময়ে কোনো সম্পন্ন বিক্রি নেই।</p>;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] text-sm">
+      <table className="w-full min-w-[600px] text-sm">
         <thead className="bg-muted/70">
           <tr>
-            <th className="p-3 text-left">পণ্য ও ভ্যারিয়েন্ট</th>
-            <th className="p-3 text-left">SKU</th>
+            <th className="p-3 text-left">পণ্য ও প্যাক/সাইজ</th>
             <th className="p-3 text-right">নিট পরিমাণ</th>
             <th className="p-3 text-right">পণ্য আয়</th>
             {mode === 'profit' && <><th className="p-3 text-right">বিক্রি হওয়া পণ্যের ক্রয়মূল্য</th><th className="p-3 text-right">মোট লাভ</th><th className="p-3 text-right">মার্জিন</th></>}
@@ -192,8 +192,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
         <tbody>
           {rows.map((row) => (
             <tr key={row.productVariantId} className="border-t">
-              <td className="p-3"><strong>{row.productName}</strong><div className="text-xs text-muted-foreground">{row.variantName}</div></td>
-              <td className="p-3 font-mono text-xs">{row.sku}</td>
+              <td className="p-3"><strong>{productPackLabel(row.productName, row.variantName)}</strong></td>
               <td className="p-3 text-right">{count(row.quantity)}</td>
               <td className="p-3 text-right">{money(row.productRevenue)}</td>
               {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(row.grossMargin)}%`}</td></>}
@@ -225,8 +224,8 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
 
     <div className="grid gap-3 sm:grid-cols-3">
       <OperationalCard label="চলমান COD অর্ডার" value={data.summary.pendingCodOrderCount} detail={`পেন্ডিং ${count(data.pendingCod.pending)} · নিশ্চিত ${count(data.pendingCod.confirmed)} · প্রসেসিং ${count(data.pendingCod.processing)}`} icon={Truck} />
-      <OperationalCard label="কম স্টকের ভ্যারিয়েন্ট" value={data.summary.lowStockVariantCount} detail="স্টক নির্ধারিত সীমায় নেমে এসেছে" icon={AlertTriangle} />
-      <OperationalCard label="স্টক নেই এমন ভ্যারিয়েন্ট" value={data.summary.outOfStockVariantCount} detail="বিক্রির জন্য স্টক নেই" icon={Boxes} />
+      <OperationalCard label="কম স্টকের প্যাক/সাইজ" value={data.summary.lowStockVariantCount} detail="স্টক নির্ধারিত সীমায় নেমে এসেছে" icon={AlertTriangle} />
+      <OperationalCard label="স্টক নেই এমন প্যাক/সাইজ" value={data.summary.outOfStockVariantCount} detail="বিক্রির জন্য স্টক নেই" icon={Boxes} />
     </div>
 
     {showTrend ? <section className="rounded-xl border bg-card p-4 sm:p-5">
@@ -267,15 +266,15 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
         <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">বর্তমান স্টকের ক্রয়মূল্য</span><div className="text-xl font-bold">{money(data.inventory.fifoValuation)}</div></div>
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <StockAlertList title="কম স্টক" rows={data.inventory.lowStock} empty="কোনো কম-স্টক ভ্যারিয়েন্ট নেই।" />
-        <StockAlertList title="স্টক শেষ" rows={data.inventory.outOfStock} empty="কোনো স্টক-শেষ ভ্যারিয়েন্ট নেই।" />
+        <StockAlertList title="কম স্টক" rows={data.inventory.lowStock} empty="কম স্টক থাকা কোনো প্যাক/সাইজ নেই।" />
+        <StockAlertList title="স্টক শেষ" rows={data.inventory.outOfStock} empty="স্টক শেষ এমন কোনো প্যাক/সাইজ নেই।" />
       </div>
     </section>
   </div>;
 }
 
 function StockAlertList({ title, rows, empty }: { title: string; rows: AnalyticsDashboardData['inventory']['lowStock']; empty: string }) {
-  return <div className="rounded-lg border"><h3 className="border-b px-3 py-2 font-semibold">{title}</h3>{rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{empty}</p> : <div className="divide-y">{rows.slice(0, 10).map((row) => <div key={row.productVariantId} className="flex items-center justify-between gap-3 p-3 text-sm"><div className="min-w-0"><strong className="block truncate">{row.productName} · {row.variantName}</strong><span className="text-xs text-muted-foreground">{row.sku} · সীমা {count(row.lowStockThreshold)}</span></div><span className="shrink-0 font-bold">{count(row.availableStock)}</span></div>)}</div>}</div>;
+  return <div className="rounded-lg border"><h3 className="border-b px-3 py-2 font-semibold">{title}</h3>{rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{empty}</p> : <div className="divide-y">{rows.slice(0, 10).map((row) => <div key={row.productVariantId} className="flex items-center justify-between gap-3 p-3 text-sm"><div className="min-w-0"><strong className="block truncate">{productPackLabel(row.productName, row.variantName)}</strong><span className="text-xs text-muted-foreground">সীমা {count(row.lowStockThreshold)}</span></div><span className="shrink-0 font-bold">{count(row.availableStock)}</span></div>)}</div>}</div>;
 }
 
 function AnalyticsDashboardContent() {

@@ -11,7 +11,7 @@ export function titleForPath(pathname: string) {
   if (pathname === '/admin/dashboard' || pathname === '/admin') return `ড্যাশবোর্ড | ${SITE_NAME}`;
   if (pathname.startsWith('/admin/products/')) {
     if (pathname.endsWith('/edit')) return `পণ্য সম্পাদনা | ${SITE_NAME}`;
-    if (pathname.endsWith('/variants')) return `ভ্যারিয়েন্ট ও দাম | ${SITE_NAME}`;
+    if (pathname.endsWith('/variants')) return `প্যাক/সাইজ ও দাম | ${SITE_NAME}`;
     if (pathname.endsWith('/new')) return `নতুন পণ্য | ${SITE_NAME}`;
   }
   if (pathname === '/admin/products') return `পণ্য | ${SITE_NAME}`;

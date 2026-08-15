@@ -201,8 +201,7 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
       images: product.images,
       youtubeLinks: product.youtubeLinks,
       initialVariant: {
-        name: product.variantName || 'Default',
-        sku: product.sku,
+        name: product.variantName?.trim() ?? '',
         sellingPrice: String(product.price),
         lowStockThreshold: 5,
       },
@@ -245,7 +244,6 @@ export function deleteUnusedProduct(id: string): Promise<{ id: string }> {
 
 export interface VariantCreateInput {
   name: string;
-  sku: string;
   sellingPrice: number;
   lowStockThreshold: number;
   isDefault: boolean;
@@ -261,7 +259,7 @@ export function createVariant(productId: string, input: VariantCreateInput): Pro
 
 export function updateVariant(
   variantId: string,
-  input: Partial<Pick<ProductVariant, 'name' | 'sku' | 'lowStockThreshold' | 'isDefault' | 'isActive'>>,
+  input: Partial<Pick<ProductVariant, 'name' | 'lowStockThreshold' | 'isDefault' | 'isActive'>>,
 ): Promise<Product> {
   return requestV1<Product>(`/variants/${variantId}`, {
     method: 'PATCH',

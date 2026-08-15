@@ -40,8 +40,11 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const [slugTouched, setSlugTouched] = useState(isEdit);
   const [description, setDescription] = useState(editProduct?.description ?? '');
   const [price, setPrice] = useState(editProduct ? String(editProduct.price) : '');
-  const [sku, setSku] = useState(editProduct?.sku ?? '');
-  const [variantName, setVariantName] = useState(editProduct?.variantName ?? 'Default');
+  const [variantName, setVariantName] = useState(
+    editProduct?.variantName && editProduct.variantName.toLowerCase() !== 'default'
+      ? editProduct.variantName
+      : '',
+  );
   const [categoryId, setCategoryId] = useState(editProduct?.categoryId ?? '');
   const [featured, setFeatured] = useState(editProduct?.featured ?? false);
 
@@ -115,7 +118,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
     if (!name.trim()) return toast.error('পণ্যের নাম দিন');
     if (!isEdit && (!price || isNaN(Number(price)))) return toast.error('সঠিক দাম দিন');
     if (!categoryId) return toast.error('ক্যাটাগরি নির্বাচন করুন');
-    if (!isEdit && !sku.trim()) return toast.error('SKU দিন');
 
     setSaving(true);
     try {
@@ -132,8 +134,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         description: description.trim(),
         price: Number(price),
         stock: editProduct?.stock ?? 0,
-        sku: sku.trim(),
-        variantName: variantName.trim() || 'Default',
+        variantName: variantName.trim(),
         categoryId,
         featured,
         images: allImages,
@@ -228,9 +229,8 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="price">{isEdit ? 'ডিফল্ট ভ্যারিয়েন্টের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
+              <div>
+                  <Label htmlFor="price">{isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
                   <Input
                     id="price"
                     type="number"
@@ -241,32 +241,20 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                     placeholder="০"
                     className="mt-1 bg-card"
                   />
-                  {isEdit && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “ভ্যারিয়েন্ট ও দাম” খুলুন।</p>}
-                </div>
-                <div>
-                  <Label htmlFor="sku">SKU *</Label>
-                  <Input
-                    id="sku"
-                    value={sku}
-                    onChange={e => setSku(e.target.value.toUpperCase())}
-                    placeholder="NAFAH-001"
-                    disabled={isEdit}
-                    className="mt-1 bg-card"
-                  />
-                </div>
+                  {isEdit && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “প্যাক/সাইজ ও দাম” খুলুন।</p>}
               </div>
 
-              <div>
-                <Label htmlFor="variant-name">ভ্যারিয়েন্টের নাম *</Label>
+              {!isEdit && <div>
+                <Label htmlFor="variant-name">প্যাক/সাইজ (ঐচ্ছিক)</Label>
                 <Input
                   id="variant-name"
                   value={variantName}
                   onChange={e => setVariantName(e.target.value)}
                   placeholder="যেমন: ১ কেজি"
-                  disabled={isEdit}
                   className="mt-1 bg-card"
                 />
-              </div>
+                <p className="mt-1 text-xs text-muted-foreground">একাধিক প্যাক/সাইজ থাকলে এখানে প্রথমটির নাম দিন।</p>
+              </div>}
 
               <div>
                 <Label>ক্যাটাগরি *</Label>

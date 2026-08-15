@@ -3,7 +3,6 @@ import { z } from "zod";
 const slug = z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/).refine((value) => Number(value) >= 0);
 const uuid = z.string().uuid();
-const sku = z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9._-]+$/).transform((value) => value.toUpperCase());
 
 export const categoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -25,8 +24,7 @@ export const productCreateSchema = z.object({
   youtubeLinks: z.array(z.string().url()).max(8).default([]),
   attributes: z.array(z.unknown()).max(20).default([]),
   initialVariant: z.object({
-    name: z.string().trim().min(1).max(120),
-    sku,
+    name: z.string().trim().max(120).default(""),
     sellingPrice: money,
     lowStockThreshold: z.number().int().min(0).max(1_000_000).default(5),
   }).strict(),
@@ -48,7 +46,6 @@ export const productUpdateSchema = z.object({
 
 export const variantCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  sku,
   sellingPrice: money,
   lowStockThreshold: z.number().int().min(0).max(1_000_000).default(5),
   isDefault: z.boolean().default(false),
@@ -57,7 +54,6 @@ export const variantCreateSchema = z.object({
 
 export const variantUpdateSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
-  sku: sku.optional(),
   lowStockThreshold: z.number().int().min(0).max(1_000_000).optional(),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),

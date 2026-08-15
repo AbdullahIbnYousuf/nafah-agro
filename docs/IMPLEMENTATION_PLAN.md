@@ -23,7 +23,7 @@ Status: complete in code; live Supabase/Vercel proof remains.
 
 Status: complete in code; real Supabase/Cloudinary acceptance remains.
 
-- Category → product → required default variant → unique SKU → selling price →
+- Category → product → optional visible pack/size → internally generated SKU → selling price →
   immutable history → PostgreSQL storefront/admin UI.
 - Empty categories and products with no inventory, adjustment, order, or
   selling-price update history have an OWNER-only, audited permanent-delete

@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, CreditCard, Leaf, ArrowLeft, Loader2, Plus, Minus } from 'lucide-react';
 import { toast } from 'sonner';
+import { packSizeCustomerLabel, visiblePackSize } from '@/lib/productOptions';
 
 const ProductDetails = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -87,7 +88,7 @@ const ProductDetails = () => {
   const quantityInCart = cartItem?.quantity ?? 0;
 
   const handleAddToCart = () => {
-    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় ভ্যারিয়েন্ট নেই');
+    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় প্যাক/সাইজ নেই');
     if (quantityInCart > 0) {
       // Already in cart; increase quantity
       updateQuantity(selectedVariant.id, quantityInCart + 1);
@@ -98,7 +99,6 @@ const ProductDetails = () => {
         productVariantId: selectedVariant.id,
         productName: product.name,
         variantName: selectedVariant.name,
-        sku: selectedVariant.sku,
         quantity: 1,
         unitPrice: currentPrice,
       });
@@ -118,14 +118,13 @@ const ProductDetails = () => {
   };
 
   const handleBuyNow = () => {
-    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় ভ্যারিয়েন্ট নেই');
+    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় প্যাক/সাইজ নেই');
     if (quantityInCart === 0) {
       addItem({
         productId: product.id,
         productVariantId: selectedVariant.id,
         productName: product.name,
         variantName: selectedVariant.name,
-        sku: selectedVariant.sku,
         quantity: 1,
         unitPrice: currentPrice,
       });
@@ -217,7 +216,7 @@ const ProductDetails = () => {
                       onClick={() => setSelectedVariantId(variant.id)}
                       className={`min-h-11 rounded-lg border px-4 py-2 text-sm font-medium ${selectedVariant?.id === variant.id ? 'border-secondary bg-secondary text-secondary-foreground' : 'border-border'}`}
                     >
-                      {variant.name} · ৳{variant.sellingPrice}
+                      {packSizeCustomerLabel(variant.name)} · ৳{variant.sellingPrice}
                     </button>
                   ))}
                 </div>
@@ -225,7 +224,9 @@ const ProductDetails = () => {
             )}
 
             <div className="mb-6 text-sm text-muted-foreground">
-              {selectedVariant ? `${selectedVariant.name} · SKU ${selectedVariant.sku}` : 'কোনো সক্রিয় ভ্যারিয়েন্ট নেই'}। স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।
+              {selectedVariant
+                ? `${visiblePackSize(selectedVariant.name) ? `${visiblePackSize(selectedVariant.name)}। ` : ''}স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।`
+                : 'কোনো সক্রিয় প্যাক/সাইজ নেই।'}
             </div>
 
             {/* Quantity controls + Add to Cart */}

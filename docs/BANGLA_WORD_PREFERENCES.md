@@ -20,8 +20,7 @@ These words are clear and should normally remain:
 - স্টক
 - স্টক ব্যাচ
 - সমন্বয়
-- ভ্যারিয়েন্ট
-- SKU
+- প্যাক/সাইজ
 - ক্যাটাগরি
 - ডেলিভারি
 - ডিসকাউন্ট
@@ -188,4 +187,3 @@ Before changing Bengali copy:
 10. Keep status and source enum values unchanged.
 11. Check that the new sentence is at least as precise as the old one.
 12. Do not introduce an em dash.
-

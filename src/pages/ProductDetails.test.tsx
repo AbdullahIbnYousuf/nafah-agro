@@ -52,8 +52,8 @@ vi.mock('@/contexts/CartContext', () => ({
 vi.mock('@/components/Navbar', () => ({ default: () => <nav>Navbar</nav> }));
 vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }));
 
-describe('product variant selection', () => {
-  it('uses one variant selector for package, price, SKU, and cart identity', async () => {
+describe('product pack/size selection', () => {
+  it('uses one pack/size selector for package, price, and cart identity without exposing SKU', async () => {
     render(
       <MemoryRouter initialEntries={[{ pathname: '/products/premium-miniket-rice', state: { from: '/shop?category=rice&page=2' } }]}>
         <Routes>
@@ -71,7 +71,8 @@ describe('product variant selection', () => {
     expect(screen.getByRole('button', { name: 'কার্টে যোগ করুন' })).toHaveClass('min-h-12');
 
     fireEvent.click(screen.getByRole('button', { name: '10 kg · ৳1180' }));
-    expect(screen.getByText(/10 kg · SKU NA-RICE-MINI-10KG/)).toBeInTheDocument();
+    expect(screen.getByText(/10 kg। স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে/)).toBeInTheDocument();
+    expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'কার্টে যোগ করুন' }));
     await waitFor(() => expect(mocks.addItem).toHaveBeenCalledWith({
@@ -79,7 +80,6 @@ describe('product variant selection', () => {
       productVariantId: 'variant-10',
       productName: 'Premium Miniket Rice',
       variantName: '10 kg',
-      sku: 'NA-RICE-MINI-10KG',
       quantity: 1,
       unitPrice: 1180,
     }));

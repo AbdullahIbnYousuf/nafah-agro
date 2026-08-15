@@ -223,7 +223,7 @@ function createInMemoryPrisma() {
         };
         const variantData = data.variants.create;
         const variant: VariantRow = {
-          id: id(),
+          id: String(variantData.id ?? id()),
           productId: product.id,
           name: String(variantData.name),
           sku: String(variantData.sku),
@@ -270,7 +270,7 @@ function createInMemoryPrisma() {
       create: async ({ data }: { data: Partial<VariantRow> & Pick<VariantRow, "productId" | "name" | "sku"> }) => {
         if (state.variants.some((variant) => variant.sku === data.sku)) throw duplicate("sku");
         const row: VariantRow = {
-          id: id(),
+          id: data.id ?? id(),
           productId: data.productId,
           name: data.name,
           sku: data.sku,
@@ -344,12 +344,12 @@ function createInMemoryPrisma() {
   return { prisma: api as unknown as PrismaClient, state };
 }
 
-function productInput(slug = "raw-honey", sku = "HONEY-500") {
+function productInput(slug = "raw-honey", packSize = "") {
   return productCreateSchema.parse({
     name: "Raw Honey",
     slug,
     categoryId: CATEGORY_ID,
-    initialVariant: { name: "Default", sku, sellingPrice: "500.00" },
+    initialVariant: { name: packSize, sellingPrice: "500.00" },
     priceReason: "Initial selling price",
   });
 }
@@ -368,7 +368,8 @@ describe("PostgreSQL catalog service", () => {
     const service = createCatalogService(prisma);
     const product = await service.createProduct(productInput(), ACTOR_ID);
     expect(product.variants).toHaveLength(1);
-    expect(product.variants[0]).toMatchObject({ name: "Default", sku: "HONEY-500", isDefault: true, isActive: true });
+    expect(product.variants[0]).toMatchObject({ name: "Default", isDefault: true, isActive: true });
+    expect(product.variants[0].sku).toMatch(/^NAF-[0-9A-F-]{36}$/);
     expect(state.histories).toHaveLength(1);
     expect(state.histories[0].previousPrice).toBeNull();
   });
@@ -376,28 +377,36 @@ describe("PostgreSQL catalog service", () => {
   it("supports multiple unique variants", async () => {
     const { prisma } = createInMemoryPrisma();
     const service = createCatalogService(prisma);
-    const product = await service.createProduct(productInput(), ACTOR_ID);
+    const product = await service.createProduct(productInput("raw-honey", "500 g"), ACTOR_ID);
     const updated = await service.createVariant(product.id, variantCreateSchema.parse({
-      name: "1 kg", sku: "HONEY-1KG", sellingPrice: "900", priceReason: "Add larger pack",
+      name: "1 kg", sellingPrice: "900", priceReason: "Add larger pack",
     }), ACTOR_ID);
-    expect(updated.variants.map((variant) => variant.sku)).toEqual(["HONEY-500", "HONEY-1KG"]);
+    expect(updated.variants.map((variant) => variant.name)).toEqual(["500 g", "1 kg"]);
+    expect(new Set(updated.variants.map((variant) => variant.sku)).size).toBe(2);
   });
 
   it("rejects duplicate product slugs", async () => {
     const { prisma } = createInMemoryPrisma();
     const service = createCatalogService(prisma);
     await service.createProduct(productInput(), ACTOR_ID);
-    await expect(service.createProduct(productInput("raw-honey", "OTHER-SKU"), ACTOR_ID))
+    await expect(service.createProduct(productInput("raw-honey", "500 g"), ACTOR_ID))
       .rejects.toMatchObject({ code: "DUPLICATE_SLUG", status: 409 });
   });
 
-  it("rejects duplicate SKUs across products and variants", async () => {
+  it("requires an unnamed default pack/size to be named before adding another", async () => {
     const { prisma } = createInMemoryPrisma();
     const service = createCatalogService(prisma);
     const product = await service.createProduct(productInput(), ACTOR_ID);
     await expect(service.createVariant(product.id, variantCreateSchema.parse({
-      name: "Duplicate", sku: "honey-500", sellingPrice: "700", priceReason: "Duplicate test",
-    }), ACTOR_ID)).rejects.toMatchObject({ code: "DUPLICATE_SKU", status: 409 });
+      name: "1 kg", sellingPrice: "700", priceReason: "Add named pack",
+    }), ACTOR_ID)).rejects.toMatchObject({ code: "UNNAMED_DEFAULT_PACK_SIZE", status: 409 });
+    await service.updateVariant(product.variants[0].id, { name: "500 g" });
+    const updated = await service.createVariant(product.id, variantCreateSchema.parse({
+      name: "1 kg", sellingPrice: "700", priceReason: "Add named pack",
+    }), ACTOR_ID);
+    expect(updated.variants.map((variant) => variant.name)).toEqual(["500 g", "1 kg"]);
+    await expect(service.updateVariant(updated.variants[0].id, { name: "Default" }))
+      .rejects.toMatchObject({ code: "PACK_SIZE_NAME_REQUIRED", status: 409 });
   });
 
   it("updates one selling price and appends immutable history", async () => {
@@ -414,9 +423,9 @@ describe("PostgreSQL catalog service", () => {
   it("rolls back every bulk price change when a later update fails", async () => {
     const { prisma, state } = createInMemoryPrisma();
     const service = createCatalogService(prisma);
-    const product = await service.createProduct(productInput(), ACTOR_ID);
+    const product = await service.createProduct(productInput("raw-honey", "500 g"), ACTOR_ID);
     const withSecond = await service.createVariant(product.id, variantCreateSchema.parse({
-      name: "1 kg", sku: "HONEY-1KG", sellingPrice: "900", priceReason: "Add larger pack",
+      name: "1 kg", sellingPrice: "900", priceReason: "Add larger pack",
     }), ACTOR_ID);
     const [first, second] = withSecond.variants;
     const bulk = bulkPriceChangeSchema.parse({

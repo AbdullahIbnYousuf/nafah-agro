@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { adjustStock, createPurchase, getAdminProducts, getStockBatches } from '@/lib/api';
 import type { Product, ProductVariant, StockBatch } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
+import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
 
 interface PurchaseRow {
   productVariantId: string;
@@ -62,11 +63,11 @@ export default function InventoryManager() {
       unitBuyingCost: Number(row.unitBuyingCost),
     }));
     if (items.some((item) => !item.productVariantId || !Number.isInteger(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.unitBuyingCost) || item.unitBuyingCost <= 0)) {
-      toast.error('প্রতিটি পণ্যের ভ্যারিয়েন্ট, ধনাত্মক পরিমাণ ও ক্রয়মূল্য দিন');
+      toast.error('প্রতিটি পণ্যের প্যাক/সাইজ, ধনাত্মক পরিমাণ ও ক্রয়মূল্য দিন');
       return;
     }
     if (new Set(items.map((item) => item.productVariantId)).size !== items.length) {
-      toast.error('একই ভ্যারিয়েন্ট একবারের বেশি যোগ করবেন না');
+      toast.error('একই প্যাক/সাইজ একবারের বেশি যোগ করবেন না');
       return;
     }
     setSavingPurchase(true);
@@ -87,7 +88,7 @@ export default function InventoryManager() {
     event.preventDefault();
     const quantity = Number(adjustQuantity);
     if (!adjustVariantId || !Number.isInteger(quantity) || quantity <= 0 || adjustReason.trim().length < 3) {
-      toast.error('ভ্যারিয়েন্ট, ধনাত্মক পরিমাণ ও কারণ দিন');
+      toast.error('প্যাক/সাইজ, ধনাত্মক পরিমাণ ও কারণ দিন');
       return;
     }
     if (direction === 'DECREASE' && quantity > (availableByVariant.get(adjustVariantId) ?? 0)) {
@@ -125,7 +126,7 @@ export default function InventoryManager() {
       <h2 className="font-semibold text-lg">নতুন ক্রয়</h2>
       <div className="grid sm:grid-cols-2 gap-4"><Field label="ক্রয়ের তারিখ"><Input type="date" value={purchaseDate} onChange={(event) => setPurchaseDate(event.target.value)} required /></Field><Field label="নোট (ঐচ্ছিক)"><Input value={note} onChange={(event) => setNote(event.target.value)} /></Field></div>
       <div className="space-y-3">{rows.map((row, index) => <div key={index} className="grid lg:grid-cols-[2fr_1fr_1fr_auto] gap-3 items-end border rounded p-3">
-        <Field label="পণ্য / ভ্যারিয়েন্ট"><VariantSelect variants={variants} value={row.productVariantId} onChange={(value) => setRow(index, { productVariantId: value })} /></Field>
+        <Field label="পণ্য / প্যাক/সাইজ"><VariantSelect variants={variants} value={row.productVariantId} onChange={(value) => setRow(index, { productVariantId: value })} /></Field>
         <Field label="পরিমাণ"><Input type="number" min="1" step="1" value={row.quantity} onChange={(event) => setRow(index, { quantity: event.target.value })} /></Field>
         <Field label="একক ক্রয়মূল্য (৳)"><Input type="number" min="0.01" step="0.01" value={row.unitBuyingCost} onChange={(event) => setRow(index, { unitBuyingCost: event.target.value })} /></Field>
         <Button type="button" variant="ghost" aria-label="আইটেম বাদ দিন" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}><Trash2 size={16} /></Button>
@@ -136,7 +137,7 @@ export default function InventoryManager() {
     <form onSubmit={submitAdjustment} className="bg-card border rounded-lg p-5 space-y-4">
       <h2 className="font-semibold text-lg">স্টক সমন্বয়</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Field label="ভ্যারিয়েন্ট"><VariantSelect variants={variants} value={adjustVariantId} onChange={setAdjustVariantId} /></Field>
+        <Field label="প্যাক/সাইজ"><VariantSelect variants={variants} value={adjustVariantId} onChange={setAdjustVariantId} /></Field>
         <Field label="ধরন"><select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={direction} onChange={(event) => setDirection(event.target.value as 'INCREASE' | 'DECREASE')}><option value="DECREASE">স্টক কমান, আগের স্টক আগে</option><option value="INCREASE">স্টক বাড়ান, নতুন ব্যাচ</option></select></Field>
         <Field label="পরিমাণ"><Input type="number" min="1" step="1" value={adjustQuantity} onChange={(event) => setAdjustQuantity(event.target.value)} /></Field>
         {direction === 'INCREASE' && <Field label="একক ক্রয়মূল্য (৳)"><Input type="number" min="0.01" step="0.01" value={adjustCost} onChange={(event) => setAdjustCost(event.target.value)} /></Field>}
@@ -146,12 +147,12 @@ export default function InventoryManager() {
       <div className="text-right"><Button type="submit" disabled={savingAdjustment}>{direction === 'INCREASE' ? <Plus size={15} className="mr-2" /> : <Minus size={15} className="mr-2" />}{savingAdjustment ? 'সংরক্ষণ হচ্ছে…' : 'সমন্বয় সংরক্ষণ'}</Button></div>
     </form>
 
-    <section><h2 className="font-semibold text-lg mb-3">স্টকের বিস্তারিত ও ক্রয়মূল্য</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">পণ্য / SKU</th><th className="text-left p-3">উৎস ও তারিখ</th><th className="text-right p-3">ক্রয়</th><th className="text-right p-3">অবশিষ্ট</th><th className="text-right p-3">রিজার্ভ</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-left p-3">কারণ/নোট</th></tr></thead><tbody>{batches.map((batch) => <tr key={batch.id} className="border-t"><td className="p-3"><strong>{batch.productName}</strong><div className="text-xs text-muted-foreground">{batch.variantName} · {batch.sku}</div></td><td className="p-3">{batch.source === 'PURCHASE' ? 'ক্রয়' : 'সমন্বয়'}<div className="text-xs">{new Date(batch.purchaseDate).toLocaleDateString('bn-BD')}</div></td><td className="p-3 text-right">{batch.purchasedQuantity}</td><td className="p-3 text-right font-medium">{batch.availableQuantity}</td><td className="p-3 text-right">{batch.reservedQuantity}</td><td className="p-3 text-right">৳{batch.unitBuyingCost.toFixed(2)}</td><td className="p-3 text-xs">{batch.adjustmentReason ?? batch.note ?? 'নোট নেই'}</td></tr>)}</tbody></table>{batches.length === 0 && <p className="p-6 text-center text-muted-foreground">এখনো কোনো স্টক ব্যাচ নেই</p>}</div></section>
+    <section><h2 className="font-semibold text-lg mb-3">স্টকের বিস্তারিত ও ক্রয়মূল্য</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">পণ্য / প্যাক/সাইজ</th><th className="text-left p-3">উৎস ও তারিখ</th><th className="text-right p-3">ক্রয়</th><th className="text-right p-3">অবশিষ্ট</th><th className="text-right p-3">রিজার্ভ</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-left p-3">কারণ/নোট</th></tr></thead><tbody>{batches.map((batch) => <tr key={batch.id} className="border-t"><td className="p-3"><strong>{batch.productName}</strong>{visiblePackSize(batch.variantName) && <div className="text-xs text-muted-foreground">{visiblePackSize(batch.variantName)}</div>}</td><td className="p-3">{batch.source === 'PURCHASE' ? 'ক্রয়' : 'সমন্বয়'}<div className="text-xs">{new Date(batch.purchaseDate).toLocaleDateString('bn-BD')}</div></td><td className="p-3 text-right">{batch.purchasedQuantity}</td><td className="p-3 text-right font-medium">{batch.availableQuantity}</td><td className="p-3 text-right">{batch.reservedQuantity}</td><td className="p-3 text-right">৳{batch.unitBuyingCost.toFixed(2)}</td><td className="p-3 text-xs">{batch.adjustmentReason ?? batch.note ?? 'নোট নেই'}</td></tr>)}</tbody></table>{batches.length === 0 && <p className="p-6 text-center text-muted-foreground">এখনো কোনো স্টক ব্যাচ নেই</p>}</div></section>
   </div>;
 }
 
 function VariantSelect({ variants, value, onChange }: { variants: Array<{ product: Product; variant: ProductVariant }>; value: string; onChange: (value: string) => void }) {
-  return <select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={value} onChange={(event) => onChange(event.target.value)}><option value="">নির্বাচন করুন</option>{variants.map(({ product, variant }) => <option key={variant.id} value={variant.id}>{product.name} · {variant.name} ({variant.sku}) · স্টক {variant.availableStock}</option>)}</select>;
+  return <select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={value} onChange={(event) => onChange(event.target.value)}><option value="">নির্বাচন করুন</option>{variants.map(({ product, variant }) => <option key={variant.id} value={variant.id}>{productPackLabel(product.name, variant.name)} · স্টক {variant.availableStock}</option>)}</select>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

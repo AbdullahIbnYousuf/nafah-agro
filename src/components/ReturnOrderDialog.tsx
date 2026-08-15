@@ -15,6 +15,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
+import { productPackLabel } from '@/lib/productOptions';
 
 export type ReturnCondition = 'SELLABLE' | 'DAMAGED';
 
@@ -87,7 +88,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
         <h3 className="font-semibold mb-2">ফেরত পণ্যসমূহ</h3>
         <div className="space-y-2">
           {order?.items.map(item => <div key={item.id} className="flex justify-between gap-4 text-sm">
-            <span>{item.productName} · {item.variantName}</span>
+            <span>{productPackLabel(item.productName, item.variantName)}</span>
             <span className="font-medium whitespace-nowrap">× {item.quantity}</span>
           </div>)}
         </div>

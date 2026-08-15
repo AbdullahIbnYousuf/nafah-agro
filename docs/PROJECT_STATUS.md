@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Summary
 
@@ -16,6 +16,10 @@ is not approved for production until the external gates in this document and
 
 ## Milestone 6 completed in code
 
+- Simplified catalog option management for the small-business workflow: the UI
+  uses `প্যাক/সাইজ`, accepts an optional initial option name, hides internal
+  default names, and no longer exposes or accepts manual SKU values. Express
+  generates immutable internal SKUs; existing schema and historical data remain unchanged.
 - Removed active obsolete deployment/auth references and all native
   `alert`/`prompt`/`confirm` workflows. Order transitions, returns, delivery-rate
   edits, category edits, and loss warnings now use application dialogs with

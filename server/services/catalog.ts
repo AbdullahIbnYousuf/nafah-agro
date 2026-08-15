@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type {
   BulkPriceChange,
@@ -32,6 +33,14 @@ type ProductRecord = Prisma.ProductGetPayload<{ include: typeof productInclude }
 
 function catalogError(status: number, code: string, message: string) {
   return Object.assign(new Error(message), { status, code });
+}
+
+function internalSku(variantId: string) {
+  return `NAF-${variantId.toUpperCase()}`;
+}
+
+function isUnnamedPackSize(name: string) {
+  return name.trim().toLowerCase() === "default";
 }
 
 function constraintTarget(error: unknown): string {
@@ -216,6 +225,7 @@ export function createCatalogService(prisma: PrismaClient) {
     async createProduct(input: ProductCreate, actorId: string) {
       try {
         const productId = await prisma.$transaction(async (transaction) => {
+          const variantId = randomUUID();
           const product = await transaction.product.create({
             data: {
               name: input.name,
@@ -228,8 +238,9 @@ export function createCatalogService(prisma: PrismaClient) {
               youtubeLinks: input.youtubeLinks,
               attributes: input.attributes as Prisma.InputJsonValue,
               variants: { create: {
+                id: variantId,
                 name: input.initialVariant.name || "Default",
-                sku: input.initialVariant.sku,
+                sku: internalSku(variantId),
                 currentSellingPrice: input.initialVariant.sellingPrice,
                 lowStockThreshold: input.initialVariant.lowStockThreshold,
                 isDefault: true,
@@ -340,18 +351,30 @@ export function createCatalogService(prisma: PrismaClient) {
     async createVariant(productId: string, input: VariantCreate, actorId: string) {
       try {
         await prisma.$transaction(async (transaction) => {
-          const product = await transaction.product.findUnique({ where: { id: productId }, select: { id: true } });
+          const product = await transaction.product.findUnique({
+            where: { id: productId },
+            select: { id: true, variants: { select: { name: true } } },
+          });
           if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
+          if (product.variants.some((variant) => isUnnamedPackSize(variant.name))) {
+            throw catalogError(
+              409,
+              "UNNAMED_DEFAULT_PACK_SIZE",
+              "Name the existing default pack/size before adding another one.",
+            );
+          }
           if (input.isDefault) {
             await transaction.productVariant.updateMany({
               where: { productId, isDefault: true },
               data: { isDefault: false },
             });
           }
+          const variantId = randomUUID();
           const variant = await transaction.productVariant.create({ data: {
+            id: variantId,
             productId,
             name: input.name,
-            sku: input.sku,
+            sku: internalSku(variantId),
             currentSellingPrice: input.sellingPrice,
             lowStockThreshold: input.lowStockThreshold,
             isDefault: input.isDefault,
@@ -374,6 +397,15 @@ export function createCatalogService(prisma: PrismaClient) {
         const productId = await prisma.$transaction(async (transaction) => {
           const variant = await transaction.productVariant.findUnique({ where: { id: variantId } });
           if (!variant) throw catalogError(404, "VARIANT_NOT_FOUND", "Variant not found");
+
+          if (input.name && isUnnamedPackSize(input.name)) {
+            const packSizeCount = await transaction.productVariant.count({
+              where: { productId: variant.productId },
+            });
+            if (packSizeCount > 1) {
+              throw catalogError(409, "PACK_SIZE_NAME_REQUIRED", "Every option needs a pack/size name when a product has multiple options.");
+            }
+          }
 
           if (input.isActive === false && variant.isActive) {
             const activeCount = await transaction.productVariant.count({
@@ -452,7 +484,7 @@ export function createCatalogService(prisma: PrismaClient) {
         for (const update of input.updates) {
           const variant = byId.get(update.variantId)!;
           if (Number(variant.currentSellingPrice) === Number(update.sellingPrice)) {
-            throw catalogError(400, "PRICE_UNCHANGED", `The selling price for SKU ${variant.sku} is unchanged; no prices were changed.`);
+            throw catalogError(400, "PRICE_UNCHANGED", `The selling price for ${variant.name} is unchanged; no prices were changed.`);
           }
           await transaction.productVariant.update({
             where: { id: update.variantId },
