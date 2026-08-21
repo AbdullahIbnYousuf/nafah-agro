@@ -4,12 +4,14 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/contexts/CartContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PwaProvider } from "@/contexts/PwaContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import GuestRoute from "@/components/GuestRoute";
 import RouteEffects from "@/components/RouteEffects";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductGridSkeleton from "@/components/ProductGridSkeleton";
+import { OfflineNotice, PwaUpdatePrompt } from "@/components/PwaStatus";
 import { useAuth } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 
@@ -68,10 +70,13 @@ export function InvitePasswordRedirect() {
 }
 
 const App = () => (
-  <TooltipProvider>
+  <PwaProvider>
+    <TooltipProvider>
       <AuthProvider>
         <CartProvider>
           <Sonner />
+          <OfflineNotice />
+          <PwaUpdatePrompt />
           <BrowserRouter>
             <RouteEffects />
             <InvitePasswordRedirect />
@@ -117,7 +122,8 @@ const App = () => (
           </BrowserRouter>
         </CartProvider>
       </AuthProvider>
-  </TooltipProvider>
+    </TooltipProvider>
+  </PwaProvider>
 );
 
 export default App;

@@ -17,6 +17,7 @@ import { Product } from "@/lib/types";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductGridSkeleton from "@/components/ProductGridSkeleton";
+import InstallAppCard from "@/components/InstallAppCard";
 import {
   BUSINESS_ADDRESS,
   BUSINESS_PHONES,
@@ -128,6 +129,8 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      <InstallAppCard />
 
       {/* Features */}
       <section className="py-16 bg-card">

@@ -10,6 +10,9 @@ vi.mock('@/lib/api', async (importOriginal) => ({
 vi.mock('@/components/Navbar', () => ({ default: () => <nav>Navbar</nav> }));
 vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }));
 vi.mock('@/components/ProductCard', () => ({ default: () => <div>Product card</div> }));
+vi.mock('@/contexts/PwaContext', () => ({
+  usePwa: () => ({ canInstall: false, isInstalled: false, isOffline: false, install: vi.fn() }),
+}));
 
 describe('homepage critical loading', () => {
   it('prioritizes the hero and reserves the featured-product layout', () => {

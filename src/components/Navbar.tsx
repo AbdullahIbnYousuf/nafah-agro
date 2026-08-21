@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { ChevronDown, Settings, ShoppingCart, Menu, X, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { ChevronDown, Settings, ShoppingCart, Menu, X, LogOut, ShieldCheck, User as UserIcon, Download } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
+import { usePwa } from '@/contexts/PwaContext';
 import logo from '@/assets/logo.avif';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -17,6 +18,7 @@ const roleBadge: Record<string, { label: string; className: string }> = {
 const Navbar = () => {
   const { totalItems } = useCart();
   const { user, isAuthenticated, logout, isOwner, needsPasswordSetup } = useAuth();
+  const { canInstall, install } = usePwa();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [
@@ -123,6 +125,16 @@ const Navbar = () => {
               {l.label}
             </Link>
           ))}
+
+          {canInstall && (
+            <button
+              type="button"
+              onClick={() => { void install(); setMobileOpen(false); }}
+              className="flex min-h-11 w-full items-center gap-2 rounded-md font-medium transition-colors hover:bg-primary-foreground/10 hover:text-accent"
+            >
+              <Download size={16} />অ্যাপ ইনস্টল করুন
+            </button>
+          )}
 
           {isAuthenticated && user ? (
             <div className="pt-2 border-t border-secondary/30 mt-2">

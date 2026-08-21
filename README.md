@@ -168,6 +168,26 @@ Check cached stock totals against authoritative batches with:
 npm run inventory:check
 ```
 
+## Installable web app
+
+The production site is an installable Progressive Web App in supported Chrome
+and Chromium browsers. When Chrome reports that installation is available, the
+homepage and mobile menu show `অ্যাপ ইনস্টল করুন`; Chrome then owns the native
+confirmation dialog. The action stays hidden when the app is already installed,
+running in standalone mode, or the browser has not made installation available.
+
+The service worker precaches only the application shell, versioned frontend
+assets, fonts, and icons. `/api/*`, Supabase, Cloudinary, prices, stock, orders,
+authentication, and business mutations are never cached for offline use. The
+installed shell can open without a connection, but it displays an offline notice
+and requires internet before live data or business work can continue.
+
+Chrome may require HTTPS, a supported device, user interaction, and sufficient
+engagement before exposing its install prompt. Test the production build in
+DevTools under Application > Manifest and Application > Service Workers. A new
+service-worker version shows an explicit update action instead of reloading an
+unfinished sale or order automatically.
+
 ## Verification and release
 
 ```bash
