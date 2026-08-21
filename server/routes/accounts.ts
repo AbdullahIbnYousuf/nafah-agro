@@ -18,6 +18,15 @@ const ownerStatusSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 }).strict();
 
+const ownerPromotionSchema = z.object({
+  customerProfileId: z.string().uuid(),
+  reason: z.string().trim().min(3).max(500),
+}).strict();
+
+const ownerDemotionSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+}).strict();
+
 const idSchema = z.string().uuid();
 
 function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S> {
@@ -80,6 +89,27 @@ export function createAccountRouter(
         validate(ownerInviteSchema, req.body),
       );
       res.status(201).json({ success: true, data: owner });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/owners/promotions", ownerInviteLimiter, ...ownerRoute, async (req, res, next) => {
+    try {
+      const owner = await service.promoteCustomer(
+        req.authenticatedUser!.profile.id,
+        validate(ownerPromotionSchema, req.body),
+      );
+      res.status(201).json({ success: true, data: owner });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/owners/:id/demotion", ownerInviteLimiter, ...ownerRoute, async (req, res, next) => {
+    try {
+      const profile = await service.demotePromotedOwner(
+        req.authenticatedUser!.profile.id,
+        validate(idSchema, req.params.id),
+        validate(ownerDemotionSchema, req.body),
+      );
+      res.json({ success: true, data: profile });
     } catch (error) { next(error); }
   });
 

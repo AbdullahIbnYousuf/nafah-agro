@@ -16,13 +16,13 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  ApiError, deleteUnusedOwner, getMyOrders, getOwners, inviteOwner,
-  setOwnerActive,
+  ApiError, customerPromotionCandidate, deleteUnusedOwner, demoteOwnerToCustomer,
+  getMyOrders, getOwners, inviteOwner, promoteCustomerToOwner, setOwnerActive,
 } from '@/lib/api';
 import { formatBanglaNumber, getErrorMessage } from '@/lib/utils';
 import { productPackLabel } from '@/lib/productOptions';
 import { formatQuantity } from '@/lib/quantity';
-import type { OrderStatus, OwnerAccount, UnifiedOrder } from '@/lib/types';
+import type { CustomerPromotionCandidate, OrderStatus, OwnerAccount, UnifiedOrder } from '@/lib/types';
 
 const statusLabels: Record<OrderStatus, string> = {
   PENDING: 'অপেক্ষমান', CONFIRMED: 'নিশ্চিত', PROCESSING: 'প্রক্রিয়াধীন',
@@ -174,12 +174,28 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
   const [email, setEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
+  const [promotionTarget, setPromotionTarget] = useState<CustomerPromotionCandidate | null>(null);
+  const [promotionReason, setPromotionReason] = useState('');
+  const [promoting, setPromoting] = useState(false);
+  const [promotionError, setPromotionError] = useState('');
+  const [demotionTarget, setDemotionTarget] = useState<OwnerAccount | null>(null);
+  const [demotionReason, setDemotionReason] = useState('');
+  const [demoting, setDemoting] = useState(false);
+  const [demotionError, setDemotionError] = useState('');
   const [statusTarget, setStatusTarget] = useState<OwnerAccount | null>(null);
   const [statusReason, setStatusReason] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<OwnerAccount | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+
+  function demotionBlockedMessage(owner: OwnerAccount) {
+    if (!owner.promotedFromCustomer || !owner.demotionBlockedReason) return null;
+    if (owner.demotionBlockedReason === 'SELF') return 'নিজের অ্যাকাউন্ট নিজে কাস্টমার করা যাবে না।';
+    if (owner.demotionBlockedReason === 'INACTIVE') return 'কাস্টমার করতে আগে অ্যাকাউন্টটি সক্রিয় করুন।';
+    if (owner.demotionBlockedReason === 'LAST_ACTIVE_OWNER') return 'শেষ সক্রিয় ওনারকে কাস্টমার করা যাবে না।';
+    return 'পরিচালনার কাজ করেছেন, তাই এখন আর কাস্টমার করা যাবে না।';
+  }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -196,12 +212,61 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
       setFullName(''); setPhoneNumber(''); setEmail(''); load();
       toast.success('নতুন ওনারকে আমন্ত্রণ পাঠানো হয়েছে');
     } catch (error) {
+      const candidate = error instanceof ApiError ? customerPromotionCandidate(error) : null;
+      if (candidate) {
+        setPromotionTarget(candidate);
+        setPromotionReason('');
+        setPromotionError('');
+        return;
+      }
       const message = error instanceof ApiError && error.code === 'OWNER_INVITATIONS_NOT_CONFIGURED'
         ? 'ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।'
+        : error instanceof ApiError && error.code === 'OWNER_EMAIL_EXISTS'
+          ? 'এই ইমেইলে আগে থেকেই একটি ওনার অ্যাকাউন্ট আছে।'
+          : error instanceof ApiError && error.code === 'AUTH_IDENTITY_PROFILE_MISSING'
+            ? 'এই ইমেইলের লগইন আছে, কিন্তু প্রোফাইল পাওয়া যায়নি। সহায়তার জন্য ডেভেলপারের সাথে যোগাযোগ করুন।'
         : getErrorMessage(error, 'ওনার আমন্ত্রণ পাঠানো যায়নি');
       setInviteError(message);
       toast.error(message);
     } finally { setInviting(false); }
+  }
+
+  async function confirmPromotion() {
+    if (!promotionTarget || promotionReason.trim().length < 3) return;
+    setPromoting(true);
+    setPromotionError('');
+    try {
+      await promoteCustomerToOwner({
+        customerProfileId: promotionTarget.customerProfileId,
+        reason: promotionReason.trim(),
+      });
+      setPromotionTarget(null);
+      setPromotionReason('');
+      setFullName(''); setPhoneNumber(''); setEmail('');
+      load();
+      toast.success('কাস্টমারকে ওনার করা হয়েছে। তিনি সাইট রিফ্রেশ করে বা আগের পাসওয়ার্ড দিয়ে লগইন করতে পারবেন।');
+    } catch (error) {
+      setPromotionError(getErrorMessage(error, 'কাস্টমারকে ওনার করা যায়নি'));
+    } finally {
+      setPromoting(false);
+    }
+  }
+
+  async function confirmDemotion() {
+    if (!demotionTarget || demotionReason.trim().length < 3) return;
+    setDemoting(true);
+    setDemotionError('');
+    try {
+      await demoteOwnerToCustomer(demotionTarget.id, { reason: demotionReason.trim() });
+      setDemotionTarget(null);
+      setDemotionReason('');
+      load();
+      toast.success('অ্যাকাউন্টটি আবার কাস্টমার করা হয়েছে। আগের লগইন ও অর্ডার ঠিক থাকবে।');
+    } catch (error) {
+      setDemotionError(getErrorMessage(error, 'ওনারকে কাস্টমার করা যায়নি'));
+    } finally {
+      setDemoting(false);
+    }
   }
 
   async function confirmStatus() {
@@ -236,7 +301,26 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
     <div className="flex items-center gap-2 mb-6"><Users size={22} /><h2 className="text-xl font-bold">ওনার অ্যাকাউন্ট</h2></div>
     <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.7fr)] gap-6">
       <div className="space-y-3">
-        {loading ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : owners.map(owner => <article key={owner.id} className={`border rounded-xl p-4 ${owner.isActive ? '' : 'opacity-60'}`}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><strong>{owner.fullName}</strong>{owner.id === currentOwnerId && <Badge variant="outline">আপনি</Badge>}<Badge variant={owner.isActive ? 'default' : 'secondary'}>{owner.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</Badge></div><div className="text-sm text-muted-foreground mt-1">{owner.email ?? 'ইমেইল পাওয়া যায়নি'} · {owner.phoneNumber ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground mt-1">{owner.lastSignInAt ? `শেষ লগইন: ${new Date(owner.lastSignInAt).toLocaleString('bn-BD')}` : owner.invitedAt ? 'আমন্ত্রণ গ্রহণের অপেক্ষায়' : 'সরাসরি তৈরি করা'}</div></div>{owner.id !== currentOwnerId && <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { setStatusTarget(owner); setStatusReason(''); }}>{owner.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</Button>{owner.canDelete && <Button size="sm" variant="destructive" onClick={() => { setDeleteError(''); setDeleteTarget(owner); }}><Trash2 size={15} className="mr-1" />অ্যাকাউন্ট মুছুন</Button>}</div>}</div></article>)}
+        {loading ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : owners.map(owner => <article key={owner.id} className={`border rounded-xl p-4 ${owner.isActive ? '' : 'opacity-60'}`}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <strong>{owner.fullName}</strong>
+                {owner.id === currentOwnerId && <Badge variant="outline">আপনি</Badge>}
+                <Badge variant={owner.isActive ? 'default' : 'secondary'}>{owner.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</Badge>
+                {owner.promotedFromCustomer && <Badge variant="outline">কাস্টমার থেকে ওনার</Badge>}
+              </div>
+              <div className="text-sm text-muted-foreground mt-1">{owner.email ?? 'ইমেইল পাওয়া যায়নি'} · {owner.phoneNumber ?? 'ফোন নেই'}</div>
+              <div className="text-xs text-muted-foreground mt-1">{owner.lastSignInAt ? `শেষ লগইন: ${new Date(owner.lastSignInAt).toLocaleString('bn-BD')}` : owner.invitedAt ? 'আমন্ত্রণ গ্রহণের অপেক্ষায়' : 'সরাসরি তৈরি করা'}</div>
+              {demotionBlockedMessage(owner) && <p className="mt-1 text-xs text-muted-foreground">{demotionBlockedMessage(owner)}</p>}
+            </div>
+            {owner.id !== currentOwnerId && <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => { setStatusTarget(owner); setStatusReason(''); }}>{owner.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</Button>
+              {owner.canDemote && <Button size="sm" variant="outline" onClick={() => { setDemotionTarget(owner); setDemotionReason(''); setDemotionError(''); }}>কাস্টমার করুন</Button>}
+              {owner.canDelete && <Button size="sm" variant="destructive" onClick={() => { setDeleteError(''); setDeleteTarget(owner); }}><Trash2 size={15} className="mr-1" />অ্যাকাউন্ট মুছুন</Button>}
+            </div>}
+          </div>
+        </article>)}
       </div>
       <form className="border rounded-xl p-4 space-y-4 h-fit" onSubmit={submitInvite}><div className="flex items-center gap-2"><UserPlus size={19} /><h3 className="font-semibold">নতুন ওনার আমন্ত্রণ</h3></div><p className="text-xs text-muted-foreground">আমন্ত্রণ গ্রহণ করে নতুন ওনার নিজের পাসওয়ার্ড সেট করবেন।</p>{!loading && !invitationsConfigured && <p className="text-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3">ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।</p>}{inviteError && <p role="alert" className="text-sm rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">{inviteError}</p>}<div><Label htmlFor="owner-name">পুরো নাম</Label><Input id="owner-name" className="mt-1" value={fullName} onChange={event => setFullName(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-phone">ফোন নম্বর</Label><Input id="owner-phone" className="mt-1" type="tel" value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-email">ইমেইল</Label><Input id="owner-email" className="mt-1" type="email" value={email} onChange={event => setEmail(event.target.value)} required disabled={!invitationsConfigured} /></div><Button type="submit" className="w-full" disabled={inviting || !invitationsConfigured}>{inviting ? 'আমন্ত্রণ যাচ্ছে…' : 'আমন্ত্রণ পাঠান'}</Button></form>
     </div>
@@ -244,6 +328,10 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
     <Dialog open={Boolean(statusTarget)} onOpenChange={open => { if (!open && !savingStatus) setStatusTarget(null); }}><DialogContent><DialogHeader><DialogTitle>{statusTarget?.isActive ? 'ওনার নিষ্ক্রিয় করুন' : 'ওনার সক্রিয় করুন'}</DialogTitle><DialogDescription>{statusTarget?.fullName}-এর অ্যাকাউন্টের অবস্থা পরিবর্তনের কারণ লিখুন। নিজের অ্যাকাউন্ট বা শেষ সক্রিয় ওনার নিষ্ক্রিয় করা যায় না।</DialogDescription></DialogHeader><div><Label htmlFor="owner-status-reason">কারণ</Label><Input id="owner-status-reason" className="mt-1" value={statusReason} onChange={event => setStatusReason(event.target.value)} placeholder="কমপক্ষে ৩ অক্ষর" /></div><DialogFooter><Button variant="outline" onClick={() => setStatusTarget(null)} disabled={savingStatus}>বাতিল</Button><Button onClick={() => void confirmStatus()} disabled={savingStatus || statusReason.trim().length < 3}>{savingStatus ? 'সংরক্ষণ হচ্ছে…' : 'নিশ্চিত করুন'}</Button></DialogFooter></DialogContent></Dialog>
 
     <Dialog open={Boolean(deleteTarget)} onOpenChange={open => { if (!open && !deleting) { setDeleteTarget(null); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>অব্যবহৃত ওনার অ্যাকাউন্ট মুছুন</DialogTitle><DialogDescription>{deleteTarget?.fullName} ({deleteTarget?.email})-এর লগইন ও ওনার প্রোফাইল স্থায়ীভাবে মুছে যাবে। কোনো ব্যবসায়িক বা অডিট ইতিহাস থাকলে অ্যাকাউন্ট মুছবে না, শুধু নিষ্ক্রিয় করা যাবে।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog>
+
+    <Dialog open={Boolean(promotionTarget)} onOpenChange={open => { if (!open && !promoting) { setPromotionTarget(null); setPromotionReason(''); setPromotionError(''); } }}><DialogContent><DialogHeader><DialogTitle>এই কাস্টমারকে ওনার করবেন?</DialogTitle><DialogDescription>নতুন অ্যাকাউন্ট তৈরি হবে না। বর্তমান পাসওয়ার্ড, কাস্টমার অর্ডার এবং প্রোফাইল ঠিক থাকবে।</DialogDescription></DialogHeader>{promotionTarget && <div className="rounded-lg border bg-muted/20 p-4 text-sm"><p className="font-semibold">{promotionTarget.fullName}</p><p className="mt-1 break-all text-muted-foreground">{promotionTarget.email}</p><p className="text-muted-foreground">{promotionTarget.phoneNumber ?? 'ফোন নম্বর নেই'}</p>{!promotionTarget.isActive && <p className="mt-2 text-amber-700">অ্যাকাউন্টটি বর্তমানে নিষ্ক্রিয়। ওনার করার পরও নিষ্ক্রিয় থাকবে।</p>}</div>}<div><Label htmlFor="owner-promotion-reason">ওনার করার কারণ</Label><Input id="owner-promotion-reason" className="mt-1" value={promotionReason} onChange={event => setPromotionReason(event.target.value)} placeholder="কমপক্ষে ৩ অক্ষর" /></div>{promotionError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{promotionError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setPromotionTarget(null); setPromotionReason(''); setPromotionError(''); }} disabled={promoting}>বাতিল</Button><Button onClick={() => void confirmPromotion()} disabled={promoting || promotionReason.trim().length < 3}>{promoting ? 'ওনার করা হচ্ছে…' : 'ওনার করুন'}</Button></DialogFooter></DialogContent></Dialog>
+
+    <Dialog open={Boolean(demotionTarget)} onOpenChange={open => { if (!open && !demoting) { setDemotionTarget(null); setDemotionReason(''); setDemotionError(''); } }}><DialogContent><DialogHeader><DialogTitle>আবার কাস্টমার করবেন?</DialogTitle><DialogDescription>{demotionTarget?.fullName}-এর একই অ্যাকাউন্ট, পাসওয়ার্ড এবং আগের কাস্টমার অর্ডার থাকবে। শুধু পরিচালনা প্যানেলের অনুমতি চলে যাবে।</DialogDescription></DialogHeader><div><Label htmlFor="owner-demotion-reason">কাস্টমার করার কারণ</Label><Input id="owner-demotion-reason" className="mt-1" value={demotionReason} onChange={event => setDemotionReason(event.target.value)} placeholder="কমপক্ষে ৩ অক্ষর" /></div>{demotionError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{demotionError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDemotionTarget(null); setDemotionReason(''); setDemotionError(''); }} disabled={demoting}>বাতিল</Button><Button onClick={() => void confirmDemotion()} disabled={demoting || demotionReason.trim().length < 3}>{demoting ? 'পরিবর্তন হচ্ছে…' : 'কাস্টমার করুন'}</Button></DialogFooter></DialogContent></Dialog>
   </section>;
 }
 

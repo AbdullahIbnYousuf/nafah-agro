@@ -17,7 +17,8 @@ Status: complete in code; live Supabase/Vercel proof remains.
   controlled repeatable owner command. Active roles are OWNER and CUSTOMER;
   multiple owners are allowed and the final active owner is database-protected.
 - Role-aware self-service profile, reauthenticated password change, and audited
-  OWNER-only invitation, status, and unused-account deletion are complete in code.
+  OWNER-only invitation, existing-CUSTOMER promotion, safe pre-use demotion,
+  status changes, and ordinary unused-account deletion are complete in code.
 
 ## Milestone 2 — Catalog and price history
 

@@ -361,6 +361,8 @@ describe("GET /api/v1/foundation", () => {
         updateOwnProfile: vi.fn(),
         listOwners: vi.fn(async () => []),
         inviteOwner: vi.fn(async () => ({ id: "owner-2", role: "OWNER", fullName: "Second Owner" })),
+        promoteCustomer: vi.fn(async () => ({ id: "owner-2", role: "OWNER", fullName: "Second Owner" })),
+        demotePromotedOwner: vi.fn(async () => ({ id: "owner-2", role: "CUSTOMER", fullName: "Second Owner" })),
         setOwnerActive: vi.fn(async () => ({ id: "owner-2", role: "OWNER", isActive: false })),
         deleteUnusedOwner: vi.fn(async () => ({ id: "owner-2" })),
       } as unknown as AccountService;
@@ -407,6 +409,34 @@ describe("GET /api/v1/foundation", () => {
       );
     });
 
+    it("allows an OWNER to promote and demote with required reasons", async () => {
+      const accountService = accountStub();
+      const app = createProtectedApp(ownerProfile, 60, undefined, undefined, undefined, accountService);
+      const promotion = await request(app)
+        .post("/api/v1/owners/promotions")
+        .set("Authorization", "Bearer valid-token")
+        .send({
+          customerProfileId: "10000000-0000-4000-8000-000000000002",
+          reason: "Will manage the shop",
+        });
+      const demotion = await request(app)
+        .post("/api/v1/owners/10000000-0000-4000-8000-000000000002/demotion")
+        .set("Authorization", "Bearer valid-token")
+        .send({ reason: "Access no longer needed" });
+
+      expect(promotion.status).toBe(201);
+      expect(demotion.status).toBe(200);
+      expect(accountService.promoteCustomer).toHaveBeenCalledWith(ownerProfile.id, {
+        customerProfileId: "10000000-0000-4000-8000-000000000002",
+        reason: "Will manage the shop",
+      });
+      expect(accountService.demotePromotedOwner).toHaveBeenCalledWith(
+        ownerProfile.id,
+        "10000000-0000-4000-8000-000000000002",
+        { reason: "Access no longer needed" },
+      );
+    });
+
     it("denies CUSTOMER access before owner services run", async () => {
       const accountService = accountStub();
       const response = await request(createProtectedApp(
@@ -424,6 +454,24 @@ describe("GET /api/v1/foundation", () => {
         .set("Authorization", "Bearer valid-token");
       expect(deleteResponse.status).toBe(403);
       expect(accountService.deleteUnusedOwner).not.toHaveBeenCalled();
+
+      const promotionResponse = await request(createProtectedApp(
+        { ...ownerProfile, role: "CUSTOMER" }, 60, undefined, undefined, undefined, accountService,
+      ))
+        .post("/api/v1/owners/promotions")
+        .set("Authorization", "Bearer valid-token")
+        .send({ customerProfileId: "10000000-0000-4000-8000-000000000002", reason: "Access needed" });
+      expect(promotionResponse.status).toBe(403);
+      expect(accountService.promoteCustomer).not.toHaveBeenCalled();
+
+      const demotionResponse = await request(createProtectedApp(
+        { ...ownerProfile, role: "CUSTOMER" }, 60, undefined, undefined, undefined, accountService,
+      ))
+        .post("/api/v1/owners/10000000-0000-4000-8000-000000000002/demotion")
+        .set("Authorization", "Bearer valid-token")
+        .send({ reason: "Access no longer needed" });
+      expect(demotionResponse.status).toBe(403);
+      expect(accountService.demotePromotedOwner).not.toHaveBeenCalled();
     });
 
     it("validates owner invitations and status reasons", async () => {
@@ -437,10 +485,16 @@ describe("GET /api/v1/foundation", () => {
         .patch("/api/v1/owners/10000000-0000-4000-8000-000000000002/status")
         .set("Authorization", "Bearer valid-token")
         .send({ isActive: false, reason: "x" });
+      const promotionResponse = await request(app)
+        .post("/api/v1/owners/promotions")
+        .set("Authorization", "Bearer valid-token")
+        .send({ customerProfileId: "not-a-uuid", reason: "x" });
       expect(inviteResponse.status).toBe(400);
       expect(statusResponse.status).toBe(400);
+      expect(promotionResponse.status).toBe(400);
       expect(accountService.inviteOwner).not.toHaveBeenCalled();
       expect(accountService.setOwnerActive).not.toHaveBeenCalled();
+      expect(accountService.promoteCustomer).not.toHaveBeenCalled();
     });
 
     it("rejects a malformed owner deletion ID before calling the service", async () => {

@@ -274,6 +274,17 @@ export interface OwnerAccount {
   lastSignInAt: string | null;
   createdAt: string;
   canDelete: boolean;
+  promotedFromCustomer: boolean;
+  canDemote: boolean;
+  demotionBlockedReason: 'SELF' | 'INACTIVE' | 'LAST_ACTIVE_OWNER' | 'OWNER_HISTORY' | null;
+}
+
+export interface CustomerPromotionCandidate {
+  customerProfileId: string;
+  fullName: string;
+  phoneNumber: string | null;
+  email: string;
+  isActive: boolean;
 }
 
 export interface OwnerManagementState {

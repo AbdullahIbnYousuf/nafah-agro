@@ -19,6 +19,10 @@ is not approved for production until the external gates in this document and
 ## Milestone 6 completed in code
 
 - Added shared OWNER/CUSTOMER password recovery through Supabase email links.
+- Added OWNER-controlled promotion for an email already registered as CUSTOMER.
+  It preserves the Auth identity, password, profile, active state, customer
+  orders, and audit history. Safe demotion is available only before owner-side
+  activity; promoted identities cannot be deleted as unused invitations.
   Recovery sessions bypass application-profile loading without bypassing profile
   activation rules, clear pending owner-invite password metadata, sign out after
   success, and cannot be opened from an ordinary signed-in application session.
@@ -88,17 +92,17 @@ is not approved for production until the external gates in this document and
   release documentation. Cloudinary records still store secure URLs rather than
   public IDs, so orphaned remote uploads require manual review.
 
-## Verification on 2026-08-08
+## Verification on 2026-08-22
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 185 tests passed across 23 files. This includes analytics
+- `npm test -- --run`: 281 tests passed across 38 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
   database-integrity source checks, unused owner/catalog deletion safeguards,
-  and dialog request behavior.
-- `npm run build`: passed. The public entry chunk remains 552.33 kB
-  (160.20 kB gzip). OWNER analytics remains lazy at 434.35 kB (120.78 kB gzip).
+  customer-to-owner role transitions, and dialog request behavior.
+- `npm run build`: passed. The public entry chunk is 561.14 kB
+  (162.60 kB gzip). OWNER analytics remains lazy at 435.36 kB (121.29 kB gzip).
 - `npm run build:server`: passed.
 - `npm run prisma:validate`: passed.
 - `npm run prisma:generate`: passed.

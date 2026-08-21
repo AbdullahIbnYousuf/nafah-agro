@@ -119,6 +119,21 @@ or actor-audit references. The service blocks self-deletion, preserves the Auth
 identity details in audit snapshots, and relies on the `auth.users` foreign-key
 cascade plus the final-active-owner database trigger as the last safety layer.
 
+Before invitation, the backend normalizes the email and checks Supabase Auth. A
+new identity follows the invitation flow. An existing OWNER is reported clearly;
+an Auth identity without a PostgreSQL profile is treated as a consistency error.
+An existing CUSTOMER is offered an OWNER-only, reason-required promotion using a
+serializable conditional profile-role update and an audit record. Supabase Auth,
+the profile ID, active state, password, and customer orders are unchanged.
+
+Only a profile previously promoted from CUSTOMER can be demoted. The reversal is
+also serializable and conditional, requires a reason, preserves customer history,
+and is allowed only before the profile creates owner-side operational or
+administrative history. Customer orders, customer checkout activity, and personal
+profile edits do not block it. Self-demotion, inactive targets, the final active
+owner, stale roles, and ordinary owners are rejected. Promoted identities cannot
+enter the permanent unused-owner deletion path.
+
 ## 5. Core database model
 
 ### Categories and products

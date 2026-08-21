@@ -11,8 +11,9 @@ orders, returns, analytics, and Cloudinary uploads.
   a local cart, and guest cash-on-delivery checkout.
 - Optional CUSTOMER registration, profile maintenance, shared OWNER/CUSTOMER
   email password recovery, and website-order history.
-- Controlled multiple-OWNER access, owner invitations, deletion of accounts
-  with no business or audit history, and protection for the final active owner.
+- Controlled multiple-OWNER access, new-email invitations, existing-customer
+  promotion, safe reversal before owner activity, unused-invitation deletion,
+  and protection for the final active owner.
 - Product, pack/size, price-history, purchase, FIFO inventory, stock-adjustment,
   physical-sale, delivery-order, whole delivery-return, identified physical-sale
   item return, and delivery-rate management.
@@ -125,6 +126,14 @@ the backend service-role key, SMTP, Site URL, and redirect URLs are configured.
 Another owner may permanently delete an unused owner account with no business
 or audit references; used accounts remain available for deactivation only.
 Public registration can only create CUSTOMER profiles.
+
+If the invitation email already belongs to a CUSTOMER, the profile screen offers
+an explicit, reason-required promotion instead of creating another Supabase
+identity. The same login, password, profile ID, active state, and customer-order
+history remain. An unused promoted account can be changed back to CUSTOMER with
+a reason; self-demotion, final-owner demotion, inactive targets, ordinary owners,
+and accounts with owner-side activity are blocked. Promoted customer identities
+are never removed through the unused-invitation delete action.
 
 An invited OWNER must complete the dedicated password-setup screen before any
 profile-management or admin workflow becomes available. The setup cannot be

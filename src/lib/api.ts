@@ -1,5 +1,6 @@
 import type {
   Category,
+  CustomerPromotionCandidate,
   AmountUnit,
   AnalyticsDashboardData,
   AnalyticsPreset,
@@ -129,6 +130,43 @@ export function inviteOwner(input: {
   email: string;
 }): Promise<OwnerAccount> {
   return requestV1<OwnerAccount>('/owners/invitations', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function customerPromotionCandidate(error: ApiError): CustomerPromotionCandidate | null {
+  const details = error.details;
+  if (error.code !== 'CUSTOMER_EMAIL_EXISTS'
+    || typeof details.customerProfileId !== 'string'
+    || typeof details.fullName !== 'string'
+    || typeof details.email !== 'string'
+    || typeof details.isActive !== 'boolean'
+    || (details.phoneNumber !== null && typeof details.phoneNumber !== 'string')) return null;
+  return {
+    customerProfileId: details.customerProfileId,
+    fullName: details.fullName,
+    phoneNumber: typeof details.phoneNumber === 'string' ? details.phoneNumber : null,
+    email: details.email,
+    isActive: details.isActive,
+  };
+}
+
+export function promoteCustomerToOwner(input: {
+  customerProfileId: string;
+  reason: string;
+}): Promise<OwnerAccount> {
+  return requestV1<OwnerAccount>('/owners/promotions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function demoteOwnerToCustomer(
+  ownerId: string,
+  input: { reason: string },
+): Promise<{ id: string; role: 'CUSTOMER' }> {
+  return requestV1<{ id: string; role: 'CUSTOMER' }>(`/owners/${ownerId}/demotion`, {
     method: 'POST',
     body: JSON.stringify(input),
   });

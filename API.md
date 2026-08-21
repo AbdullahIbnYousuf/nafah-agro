@@ -18,14 +18,24 @@ verifies the Supabase token, loads the active PostgreSQL profile, and enforces
 | `POST` | `/api/v1/auth/complete-customer-profile` | Supabase user | Recover only the token subject's CUSTOMER profile |
 | `GET` | `/api/v1/foundation` | Active profile | PostgreSQL proof endpoint |
 | `GET` | `/api/v1/foundation/owner` | OWNER | Owner-only proof |
-| `GET` | `/api/v1/owners` | OWNER | List owner profiles and Auth invitation/sign-in state |
-| `POST` | `/api/v1/owners/invitations` | OWNER | Send a Supabase email invitation and create an OWNER profile |
+| `GET` | `/api/v1/owners` | OWNER | List owner profiles, Auth state, promotion source, and safe-demotion eligibility |
+| `POST` | `/api/v1/owners/invitations` | OWNER | Invite a new Auth email; return a promotion candidate when the email is already a CUSTOMER |
+| `POST` | `/api/v1/owners/promotions` | OWNER | Reason-required existing CUSTOMER to OWNER role change without replacing the identity |
+| `POST` | `/api/v1/owners/:id/demotion` | OWNER | Reason-required reversal for an unused owner previously promoted from CUSTOMER |
 | `PATCH` | `/api/v1/owners/:id/status` | OWNER | Reason-required activate/deactivate; self/final-owner protected |
-| `DELETE` | `/api/v1/owners/:id` | OWNER | Permanently delete another owner only when no business or audit history exists |
+| `DELETE` | `/api/v1/owners/:id` | OWNER | Permanently delete another ordinary invited owner only when no business or audit history exists |
 
 Owner invitations require the backend-only `SUPABASE_SERVICE_ROLE_KEY`. Public
 registration always creates `CUSTOMER`; metadata can never grant OWNER. The CLI
 workflow remains the bootstrap/recovery path for the first owner.
+
+`CUSTOMER_EMAIL_EXISTS` includes owner-visible `customerProfileId`, `fullName`,
+`phoneNumber`, `email`, and `isActive` details so the frontend can request an
+explicit promotion reason. `OWNER_EMAIL_EXISTS` and
+`AUTH_IDENTITY_PROFILE_MISSING` keep already-owned and inconsistent identities
+out of the invitation path. Promotion/demotion preserve customer orders and Auth
+credentials. Demotion is blocked for self, the final active owner, inactive
+targets, ordinary owners, stale roles, and promoted owners with management work.
 
 ## Catalog and inventory
 

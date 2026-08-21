@@ -25,10 +25,14 @@ There was no production dataset to migrate during the V1 rebuild. The checked-in
 - Has full business access
 - Multiple owner accounts are allowed and have the same business access
 - Owner access is granted only through a controlled operational command
-- After bootstrap, an active owner can email-invite additional owners from the profile screen
+- After bootstrap, an active owner can email-invite new identities or promote an
+  existing CUSTOMER from the profile screen
 - The final active owner cannot be deleted, disabled, or demoted
 - Another owner may permanently delete an account only when it has no business
   or actor-audit references; self-deletion is blocked
+- CUSTOMER promotion preserves the same login, profile, password, active state,
+  and order history. It can be reversed only before owner-side activity; ordinary
+  owners and promoted customers with management history cannot be demoted
 - Can view buying costs, inventory value, gross profit, and profit margins
 - Can manage prices, stock batches, adjustments, orders, discounts, and delivery rates
 

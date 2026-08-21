@@ -8,6 +8,7 @@ export interface OwnerAuthIdentity {
 }
 
 export interface OwnerAuthAdmin {
+  findUserByEmail(email: string): Promise<OwnerAuthIdentity | null>;
   inviteOwner(
     email: string,
     metadata: { fullName: string; phoneNumber: string },
@@ -29,6 +30,32 @@ export function createOwnerAuthAdmin(
   });
 
   return {
+    async findUserByEmail(email) {
+      const normalizedEmail = email.trim().toLowerCase();
+      let page = 1;
+
+      while (true) {
+        const { data, error } = await client.auth.admin.listUsers({ page, perPage: 1000 });
+        if (error) {
+          throw Object.assign(new Error("The authentication account could not be checked."), {
+            status: 502,
+            code: "OWNER_AUTH_LOOKUP_FAILED",
+          });
+        }
+        const user = data.users.find(candidate => candidate.email?.trim().toLowerCase() === normalizedEmail);
+        if (user) {
+          return {
+            id: user.id,
+            email: user.email ?? null,
+            invitedAt: user.invited_at ?? null,
+            lastSignInAt: user.last_sign_in_at ?? null,
+          };
+        }
+        if (!data.nextPage) return null;
+        page = data.nextPage;
+      }
+    },
+
     async inviteOwner(email, metadata) {
       const { data, error } = await client.auth.admin.inviteUserByEmail(email, {
         data: {
