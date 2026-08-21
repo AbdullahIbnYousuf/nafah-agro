@@ -480,6 +480,36 @@ describe("PostgreSQL catalog service", () => {
     await expect(service.getProductBySlug(product.slug)).rejects.toMatchObject({ code: "PRODUCT_NOT_FOUND" });
   });
 
+  it("returns compact active storefront filters", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    await service.createProduct({ ...productInput(), tags: ["premium", "rice"] }, ACTOR_ID);
+
+    const filters = await service.listStorefrontFilters();
+    expect(filters.tags).toEqual(["premium", "rice"]);
+    expect(filters.categories.some((category) => category.id === CATEGORY_ID)).toBe(true);
+  });
+
+  it("starts the independent storefront listing and count queries together", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    await service.createProduct(productInput(), ACTOR_ID);
+    const records = await prisma.product.findMany({});
+    const countValue = await prisma.product.count({});
+    let resolveRecords!: (value: typeof records) => void;
+    let resolveCount!: (value: number) => void;
+    const findMany = vi.spyOn(prisma.product, "findMany").mockReturnValue(new Promise((resolve) => { resolveRecords = resolve; }));
+    const count = vi.spyOn(prisma.product, "count").mockReturnValue(new Promise((resolve) => { resolveCount = resolve; }));
+
+    const pending = service.listProducts(productListSchema.parse({ limit: 20, page: 1 }));
+    await Promise.resolve();
+    expect(findMany).toHaveBeenCalledOnce();
+    expect(count).toHaveBeenCalledOnce();
+    resolveRecords(records);
+    resolveCount(countValue);
+    await expect(pending).resolves.toMatchObject({ total: 1 });
+  });
+
   it("deletes an empty category but rejects a category containing products", async () => {
     const { prisma, state } = createInMemoryPrisma();
     const service = createCatalogService(prisma);

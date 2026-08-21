@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 interface VercelConfiguration {
   builds?: unknown;
   routes?: unknown;
+  regions?: string[];
+  headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
   rewrites?: Array<{ source: string; destination: string }>;
 }
 
@@ -30,6 +32,15 @@ describe("single-project Vercel configuration", () => {
     expect(
       existsSync(new URL("../api/[...path].ts", import.meta.url)),
     ).toBe(false);
+  });
+
+  it("pins the Function near Supabase and caches only versioned static assets", () => {
+    expect(config.regions).toEqual(["sin1"]);
+    expect(config.headers).toContainEqual({
+      source: "/assets/(.*)",
+      headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+    });
+    expect(config.headers?.some((entry) => entry.source.startsWith("/api"))).toBe(false);
   });
 
   it("forwards health and unknown API paths to Express", () => {

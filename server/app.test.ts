@@ -610,6 +610,7 @@ describe("GET /api/v1/foundation", () => {
     function catalogStub() {
       return {
         listCategories: vi.fn(async () => []),
+        listStorefrontFilters: vi.fn(async () => ({ categories: [], tags: [] })),
         createCategory: vi.fn(async (input: { name: string; slug: string }) => ({
           id: "10000000-0000-4000-8000-000000000001",
           ...input,
@@ -630,6 +631,16 @@ describe("GET /api/v1/foundation", () => {
         getPriceHistory: vi.fn(),
       } as unknown as CatalogService;
     }
+
+    it("serves storefront filters without authentication", async () => {
+      const catalog = catalogStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, catalog))
+        .get("/api/v1/storefront/filters");
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual({ categories: [], tags: [] });
+      expect(catalog.listStorefrontFilters).toHaveBeenCalledOnce();
+    });
 
     it("allows an OWNER to create a category", async () => {
       const catalog = catalogStub();

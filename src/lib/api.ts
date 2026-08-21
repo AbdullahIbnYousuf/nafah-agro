@@ -23,6 +23,12 @@ import type {
 import { supabase } from './supabase';
 
 const BASE = '/api';
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
+interface ApiRequestInit extends RequestInit {
+  auth?: boolean;
+  timeoutMs?: number;
+}
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -76,24 +82,54 @@ async function authorizationHeaders(explicitToken?: string): Promise<Record<stri
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(path: string, options?: RequestInit, explicitToken?: string): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...await authorizationHeaders(explicitToken),
-      ...options?.headers,
-    },
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = apiErrorMessage(body, response.status);
-    throw new ApiError(message, body?.error?.code ?? 'REQUEST_FAILED', response.status, body?.error?.details ?? {});
+async function request<T>(path: string, options: ApiRequestInit = {}, explicitToken?: string): Promise<T> {
+  const {
+    auth = true,
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    signal: externalSignal,
+    ...fetchOptions
+  } = options;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const cancel = () => controller.abort();
+  externalSignal?.addEventListener('abort', cancel, { once: true });
+
+  try {
+    const response = await fetch(`${BASE}${path}`, {
+      ...fetchOptions,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(auth ? await authorizationHeaders(explicitToken) : {}),
+        ...fetchOptions.headers,
+      },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = apiErrorMessage(body, response.status);
+      throw new ApiError(message, body?.error?.code ?? 'REQUEST_FAILED', response.status, body?.error?.details ?? {});
+    }
+    return body as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (timedOut) {
+      throw new ApiError('Request timed out. Please try again.', 'REQUEST_TIMEOUT', 408);
+    }
+    if (externalSignal?.aborted) {
+      throw new ApiError('Request cancelled.', 'REQUEST_CANCELLED', 0);
+    }
+    throw new ApiError('Network request failed. Check your connection and try again.', 'NETWORK_ERROR', 0);
+  } finally {
+    window.clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', cancel);
   }
-  return body as T;
 }
 
-async function requestV1<T>(path: string, options?: RequestInit, explicitToken?: string): Promise<T> {
+async function requestV1<T>(path: string, options?: ApiRequestInit, explicitToken?: string): Promise<T> {
   const envelope = await request<ApiEnvelope<T>>(`/v1${path}`, options, explicitToken);
   return envelope.data;
 }
@@ -200,12 +236,12 @@ export interface GetProductsParams {
   limit?: number;
 }
 
-export async function getProducts(params?: GetProductsParams): Promise<ProductsPage> {
+export async function getProducts(params?: GetProductsParams, signal?: AbortSignal): Promise<ProductsPage> {
   const query = new URLSearchParams();
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== '') query.set(key, String(value));
   });
-  return requestV1<ProductsPage>(`/products${query.size ? `?${query}` : ''}`);
+  return requestV1<ProductsPage>(`/products${query.size ? `?${query}` : ''}`, { auth: false, signal });
 }
 
 export async function getAdminProducts(params?: GetProductsParams): Promise<ProductsPage> {
@@ -220,9 +256,9 @@ export function getAdminProduct(id: string): Promise<Product> {
   return requestV1<Product>(`/admin/products/${encodeURIComponent(id)}`);
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | undefined> {
+export async function getProductBySlug(slug: string, signal?: AbortSignal): Promise<Product | undefined> {
   try {
-    return await requestV1<Product>(`/products/${encodeURIComponent(slug)}`);
+    return await requestV1<Product>(`/products/${encodeURIComponent(slug)}`, { auth: false, signal });
   } catch {
     return undefined;
   }
@@ -341,12 +377,20 @@ export function bulkChangeSellingPrices(
 }
 
 export async function getProductTags(): Promise<string[]> {
-  const products = await getProducts({ limit: 100 });
-  return [...new Set(products.data.flatMap((product) => product.tags))].sort();
+  return (await getStorefrontFilters()).tags;
 }
 
-export function getCategories(): Promise<Category[]> {
-  return requestV1<Category[]>('/categories');
+export interface StorefrontFilters {
+  categories: Category[];
+  tags: string[];
+}
+
+export function getStorefrontFilters(signal?: AbortSignal): Promise<StorefrontFilters> {
+  return requestV1<StorefrontFilters>('/storefront/filters', { auth: false, signal });
+}
+
+export function getCategories(signal?: AbortSignal): Promise<Category[]> {
+  return requestV1<Category[]>('/categories', { auth: false, signal });
 }
 
 export function getAdminCategories(): Promise<Category[]> {
@@ -453,7 +497,7 @@ export function returnPhysicalSale(id: string, input: {
 }
 
 export function getDeliveryRates(): Promise<DeliveryRate[]> {
-  return requestV1<DeliveryRate[]>('/delivery-rates');
+  return requestV1<DeliveryRate[]>('/delivery-rates', { auth: false });
 }
 
 export function getAdminDeliveryRates(): Promise<DeliveryRate[]> {

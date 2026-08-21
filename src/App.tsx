@@ -7,9 +7,12 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import GuestRoute from "@/components/GuestRoute";
 import RouteEffects from "@/components/RouteEffects";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import ProductGridSkeleton from "@/components/ProductGridSkeleton";
 import { useAuth } from "@/contexts/AuthContext";
+import Index from "./pages/Index";
 
-const Index = lazy(() => import("./pages/Index"));
 const Shop = lazy(() => import("./pages/Shop"));
 const ProductDetails = lazy(() => import("./pages/ProductDetails"));
 const Cart = lazy(() => import("./pages/Cart"));
@@ -31,6 +34,26 @@ const CustomerProfile = lazy(() => import("./pages/CustomerProfile"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function PageLoading() {
+  const location = useLocation();
+  if (location.pathname === '/shop') {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Navbar />
+        <main className="container mx-auto flex-1 px-4 py-8">
+          <div className="mb-6 h-9 w-56 animate-pulse rounded bg-muted" />
+          <div className="mb-3 flex flex-wrap gap-3">
+            <div className="h-11 min-w-[200px] flex-1 animate-pulse rounded bg-muted" />
+            <div className="h-11 w-full animate-pulse rounded bg-muted sm:w-44" />
+            <div className="h-11 w-full animate-pulse rounded bg-muted sm:w-40" />
+            <div className="h-11 w-full animate-pulse rounded bg-muted sm:w-48" />
+          </div>
+          <div className="mb-6 h-11 w-32 animate-pulse rounded-full bg-muted" />
+          <ProductGridSkeleton count={12} />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
   return <div className="flex min-h-screen items-center justify-center text-muted-foreground" role="status">লোড হচ্ছে…</div>;
 }
 

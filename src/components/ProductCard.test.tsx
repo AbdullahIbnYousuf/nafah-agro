@@ -28,4 +28,11 @@ describe('ProductCard routing', () => {
     fireEvent.click(screen.getByRole('link', { name: /Rice/ }));
     expect(screen.getByText('/shop?category=rice&page=2')).toBeInTheDocument();
   });
+
+  it('prioritizes only cards explicitly marked as initially visible', () => {
+    const imageProduct = { ...product, images: ['https://example.com/rice.jpg'] };
+    render(<MemoryRouter><ProductCard product={imageProduct} priority /></MemoryRouter>);
+    expect(screen.getByRole('img', { name: 'Rice' })).toHaveAttribute('loading', 'eager');
+    expect(screen.getByRole('img', { name: 'Rice' })).toHaveAttribute('fetchpriority', 'high');
+  });
 });

@@ -60,6 +60,8 @@ function AuthProbe() {
     completePasswordRecovery,
     isPasswordRecovery,
     needsPasswordSetup,
+    sessionError,
+    retrySession,
     user,
   } = useAuth();
   const [registrationError, setRegistrationError] = useState('');
@@ -69,6 +71,7 @@ function AuthProbe() {
     <span>{user?.name ?? 'no name'}</span>
     <span>{needsPasswordSetup ? 'password setup required' : 'password ready'}</span>
     <span>{isPasswordRecovery ? 'recovery active' : 'recovery inactive'}</span>
+    <span>{sessionError ?? 'session ready'}</span>
     <button onClick={() => void login('user@example.com', 'password')}>login</button>
     <button onClick={() => void register('User', '01700000000', 'user@example.com', 'password').catch((error: Error) => setRegistrationError(error.message))}>register</button>
     <button onClick={() => void register('User', '', 'user@example.com', 'password').catch(() => undefined)}>register without phone</button>
@@ -77,6 +80,7 @@ function AuthProbe() {
     <button onClick={() => void setInitialPassword('invited-password')}>set initial password</button>
     <button onClick={() => void requestPasswordReset('user@example.com')}>request password reset</button>
     <button onClick={() => void completePasswordRecovery('recovered-password').catch((error: Error) => setRecoveryError(error.message))}>complete password recovery</button>
+    <button onClick={() => void retrySession()}>retry session</button>
     {registrationError && <span>{registrationError}</span>}
     {recoveryError && <span>{recoveryError}</span>}
   </div>;
@@ -153,6 +157,20 @@ describe('Supabase frontend authentication', () => {
     );
     expect(await screen.findByText('CUSTOMER')).toBeInTheDocument();
     expect(completeProfile).toHaveBeenCalledWith('supabase-access-token');
+  });
+
+  it('preserves a valid Supabase session after a temporary profile failure and retries it', async () => {
+    const client = authClient(session);
+    const loadProfile = vi.fn<ProfileLoader>()
+      .mockRejectedValueOnce(new ApiError('Network failed', 'NETWORK_ERROR', 0))
+      .mockResolvedValueOnce(profile('OWNER'));
+    render(<AuthProvider client={client} loadProfile={loadProfile}><AuthProbe /></AuthProvider>);
+
+    expect(await screen.findByText(/অ্যাকাউন্টের তথ্য লোড করা যায়নি/)).toBeInTheDocument();
+    expect(client.auth.signOut).not.toHaveBeenCalled();
+    await act(async () => screen.getByText('retry session').click());
+    expect(await screen.findByText('OWNER')).toBeInTheDocument();
+    expect(screen.getByText('session ready')).toBeInTheDocument();
   });
 
   it('updates the authoritative profile and refreshes context state', async () => {

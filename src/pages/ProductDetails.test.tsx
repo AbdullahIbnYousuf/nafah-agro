@@ -82,6 +82,7 @@ describe('product pack/size selection', () => {
       variantName: '10 kg',
       quantity: 1,
       unitPrice: 1180,
+      imageUrl: undefined,
     }));
   }, 10_000);
 

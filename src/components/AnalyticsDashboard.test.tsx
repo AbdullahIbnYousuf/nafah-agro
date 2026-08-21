@@ -144,7 +144,7 @@ describe('analytics dashboard date controls', () => {
     await waitFor(() => expect(mocks.getAnalyticsDashboard).toHaveBeenCalledWith({ preset: 'today' }));
     expect(await screen.findByText('এক দিনের জন্য ট্রেন্ড গ্রাফ দেখানো হয় না।')).toBeInTheDocument();
     expect(screen.queryByTestId('graph-date')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-07');
+    await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-07'));
     expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-07');
   });
 });

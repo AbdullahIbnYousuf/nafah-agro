@@ -13,7 +13,15 @@ import type {
   VariantUpdate,
 } from "../schemas/catalog.js";
 
-const productInclude = {
+const publicProductInclude = {
+  category: { select: { id: true, name: true, slug: true, isActive: true } },
+  variants: {
+    where: { isActive: true },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+  },
+} satisfies Prisma.ProductInclude;
+
+const adminProductInclude = {
   category: { select: { id: true, name: true, slug: true, isActive: true } },
   variants: {
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -30,7 +38,9 @@ const productInclude = {
   },
 } satisfies Prisma.ProductInclude;
 
-type ProductRecord = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
+type PublicProductRecord = Prisma.ProductGetPayload<{ include: typeof publicProductInclude }>;
+type AdminProductRecord = Prisma.ProductGetPayload<{ include: typeof adminProductInclude }>;
+type ProductRecord = PublicProductRecord | AdminProductRecord;
 
 function catalogError(status: number, code: string, message: string) {
   return Object.assign(new Error(message), { status, code });
@@ -64,6 +74,16 @@ function isDeleteConstraintConflict(error: unknown) {
   return code === "P2003" || code === "P2014";
 }
 
+function hasNoBusinessHistory(variant: ProductRecord["variants"][number]) {
+  if (!("_count" in variant)) return false;
+  return variant.availableStock === 0
+    && variant.reservedStock === 0
+    && variant._count.stockBatches === 0
+    && variant._count.stockAdjustments === 0
+    && variant._count.salesOrderItems === 0
+    && variant._count.priceHistory <= 1;
+}
+
 function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
   const visibleVariants = includeInactiveVariants
     ? product.variants
@@ -88,13 +108,7 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
     sku: defaultVariant?.sku,
     variantName: defaultVariant?.name,
     defaultVariantId: defaultVariant?.id,
-    canDelete: includeInactiveVariants && product.variants.every((variant) =>
-      variant.availableStock === 0
-      && variant.reservedStock === 0
-      && variant._count.stockBatches === 0
-      && variant._count.stockAdjustments === 0
-      && variant._count.salesOrderItems === 0
-      && variant._count.priceHistory <= 1),
+    canDelete: includeInactiveVariants && product.variants.every(hasNoBusinessHistory),
     variants: visibleVariants.map((variant) => ({
       id: variant.id,
       name: variant.name,
@@ -111,7 +125,7 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
 
 export function createCatalogService(prisma: PrismaClient) {
   async function readProduct(id: string, includeInactiveVariants = true) {
-    const product = await prisma.product.findUnique({ where: { id }, include: productInclude });
+    const product = await prisma.product.findUnique({ where: { id }, include: adminProductInclude });
     if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
     return productDto(product, includeInactiveVariants);
   }
@@ -127,6 +141,23 @@ export function createCatalogService(prisma: PrismaClient) {
         ...category,
         canDelete: includeInactive && _count.products === 0,
       }));
+    },
+    async listStorefrontFilters() {
+      const [categories, products] = await Promise.all([
+        prisma.category.findMany({
+          where: { isActive: true },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, slug: true, isActive: true },
+        }),
+        prisma.product.findMany({
+          where: { kind: "PACKAGED", isActive: true, category: { isActive: true } },
+          select: { tags: true },
+        }),
+      ]);
+      return {
+        categories,
+        tags: [...new Set(products.flatMap((product) => product.tags))].sort(),
+      };
     },
     async createCategory(input: CategoryCreate) {
       try {
@@ -199,13 +230,16 @@ export function createCatalogService(prisma: PrismaClient) {
       // These are independent reads. Avoid opening an interactive transaction
       // for storefront pagination because pooled/serverless connections can be
       // briefly exhausted by concurrent page loads.
-      const records = await prisma.product.findMany({
-        where,
-        include: productInclude,
-        orderBy,
-        ...(priceSort ? {} : { skip: (input.page - 1) * input.limit, take: input.limit }),
-      });
-      const total = await prisma.product.count({ where });
+      const include = includeInactive ? adminProductInclude : publicProductInclude;
+      const [records, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include,
+          orderBy,
+          ...(priceSort ? {} : { skip: (input.page - 1) * input.limit, take: input.limit }),
+        }),
+        prisma.product.count({ where }),
+      ]);
       let data = records.map((product) => productDto(product, includeInactive));
       if (priceSort) {
         data = data.sort((a, b) => input.sort === "price_asc" ? a.price - b.price : b.price - a.price);
@@ -216,7 +250,7 @@ export function createCatalogService(prisma: PrismaClient) {
     async getProductBySlug(slug: string) {
       const product = await prisma.product.findFirst({
         where: { slug, kind: "PACKAGED", isActive: true, category: { isActive: true } },
-        include: productInclude,
+        include: publicProductInclude,
       });
       if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
       return productDto(product, false);

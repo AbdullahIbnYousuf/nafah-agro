@@ -5,15 +5,13 @@ import Shop from './Shop';
 
 const mocks = vi.hoisted(() => ({
   getProducts: vi.fn(),
-  getCategories: vi.fn(),
-  getProductTags: vi.fn(),
+  getStorefrontFilters: vi.fn(),
 }));
 
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/api')>(),
   getProducts: mocks.getProducts,
-  getCategories: mocks.getCategories,
-  getProductTags: mocks.getProductTags,
+  getStorefrontFilters: mocks.getStorefrontFilters,
 }));
 vi.mock('@/components/Navbar', () => ({ default: () => <nav>Navbar</nav> }));
 vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }));
@@ -37,8 +35,10 @@ function renderShop(entry: string) {
 describe('shop URL filters', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getCategories.mockResolvedValue([{ id: 'category-1', name: 'Rice', slug: 'rice', isActive: true }]);
-    mocks.getProductTags.mockResolvedValue(['premium']);
+    mocks.getStorefrontFilters.mockResolvedValue({
+      categories: [{ id: 'category-1', name: 'Rice', slug: 'rice', isActive: true }],
+      tags: ['premium'],
+    });
     mocks.getProducts.mockResolvedValue({ data: [], total: 0, page: 1, limit: 12, totalPages: 3 });
   });
 
@@ -53,7 +53,7 @@ describe('shop URL filters', () => {
       category: 'rice',
       tag: 'premium',
       featured: true,
-    }));
+    }, expect.any(AbortSignal)));
     expect(screen.getByDisplayValue('miniket')).toBeInTheDocument();
   });
 
@@ -77,5 +77,33 @@ describe('shop URL filters', () => {
       expect(location).toContain('q=milk');
       expect(location).toContain('page=2');
     });
+  });
+
+  it('shows a stable loading grid while products are pending', async () => {
+    mocks.getProducts.mockReturnValue(new Promise(() => undefined));
+    renderShop('/shop');
+    expect(screen.getByLabelText('পণ্য লোড হচ্ছে')).toBeInTheDocument();
+  });
+
+  it('shows a retry action after a product request fails', async () => {
+    mocks.getProducts
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ data: [], total: 0, page: 1, limit: 12, totalPages: 0 });
+    renderShop('/shop');
+
+    expect(await screen.findByText(/পণ্য লোড করা যায়নি/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /আবার চেষ্টা করুন/ }));
+    await waitFor(() => expect(mocks.getProducts).toHaveBeenCalledTimes(2));
+  });
+
+  it('cancels the obsolete product request when filters change', async () => {
+    mocks.getProducts.mockReturnValue(new Promise(() => undefined));
+    renderShop('/shop');
+    await waitFor(() => expect(mocks.getProducts).toHaveBeenCalledOnce());
+    const firstSignal = mocks.getProducts.mock.calls[0][1] as AbortSignal;
+
+    fireEvent.change(screen.getByPlaceholderText('পণ্য খুঁজুন...'), { target: { value: 'rice' } });
+    await waitFor(() => expect(mocks.getProducts.mock.calls.length).toBeGreaterThan(1), { timeout: 1200 });
+    expect(firstSignal.aborted).toBe(true);
   });
 });

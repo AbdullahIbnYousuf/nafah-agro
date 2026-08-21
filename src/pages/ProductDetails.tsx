@@ -101,6 +101,7 @@ const ProductDetails = () => {
         variantName: selectedVariant.name,
         quantity: 1,
         unitPrice: currentPrice,
+        imageUrl: product.images[0],
       });
       toast.success('কার্টে যোগ করা হয়েছে!');
     }
@@ -127,6 +128,7 @@ const ProductDetails = () => {
         variantName: selectedVariant.name,
         quantity: 1,
         unitPrice: currentPrice,
+        imageUrl: product.images[0],
       });
     }
     navigate('/cart');

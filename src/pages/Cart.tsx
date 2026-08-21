@@ -9,14 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { ApiError, createWebsiteOrder, getDeliveryRates, getProducts } from '@/lib/api';
-import type { DeliveryRate, Product, UnifiedOrder } from '@/lib/types';
+import { ApiError, createWebsiteOrder, getDeliveryRates } from '@/lib/api';
+import type { DeliveryRate, UnifiedOrder } from '@/lib/types';
 import { visiblePackSize } from '@/lib/productOptions';
 
 export default function Cart() {
   const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
   const { user } = useAuth();
-  const [productMap, setProductMap] = useState<Record<string, Product>>({});
   const [rates, setRates] = useState<DeliveryRate[]>([]);
   const [deliveryRateId, setDeliveryRateId] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
@@ -44,13 +43,6 @@ export default function Cart() {
       })
       .catch(() => toast.error('ডেলিভারি এলাকার তথ্য লোড করা যায়নি'));
   }, []);
-
-  useEffect(() => {
-    if (items.length === 0) return;
-    void getProducts({ limit: 100 }).then(page => {
-      setProductMap(Object.fromEntries(page.data.map(product => [product.id, product])));
-    });
-  }, [items.length]);
 
   const selectedRate = rates.find(rate => rate.id === deliveryRateId);
   const estimatedTotal = useMemo(
@@ -112,9 +104,10 @@ export default function Cart() {
     <div className="mb-6 flex flex-wrap items-center justify-between gap-2"><h1 className="text-2xl font-bold sm:text-3xl">কার্ট</h1><Button variant="ghost" className="text-destructive" onClick={clearCart}><Trash2 size={16} className="mr-1" />সব মুছুন</Button></div>
     <div className="grid lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-4">{items.map(item => {
-        const product = productMap[item.productId];
         return <div key={item.productVariantId} className="flex gap-3 rounded-lg border bg-card p-3 sm:gap-4 sm:p-4">
-          <div className="h-20 w-20 shrink-0 overflow-hidden rounded bg-muted">{product?.images[0] && <img src={product.images[0]} alt="" className="h-full w-full object-cover" />}</div>
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">{item.imageUrl
+            ? <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+            : <ShoppingBag size={24} className="text-muted-foreground/50" aria-hidden="true" />}</div>
           <div className="min-w-0 flex-1"><div className="break-words font-semibold">{item.productName}</div>{visiblePackSize(item.variantName) && <div className="break-words text-xs text-muted-foreground">{visiblePackSize(item.variantName)}</div>}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2">
               <button aria-label="পরিমাণ কমান" onClick={() => updateQuantity(item.productVariantId, item.quantity - 1)} className="flex h-11 w-11 items-center justify-center rounded-full border transition-colors hover:bg-muted"><Minus size={16} /></button>

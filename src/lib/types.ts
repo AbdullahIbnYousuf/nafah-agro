@@ -174,6 +174,7 @@ export interface CartItem {
   variantName: string;
   quantity: number;
   unitPrice: number;
+  imageUrl?: string;
 }
 
 export type OrderSource = 'WEBSITE' | 'PHYSICAL_SHOP' | 'FACEBOOK' | 'PHONE' | 'WHATSAPP' | 'OTHER';

@@ -22,6 +22,8 @@ interface AuthContextValue {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  sessionError: string | null;
+  retrySession: () => Promise<void>;
   login: (email: string, password: string) => Promise<User>;
   register: (name: string, phoneNumber: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -77,10 +79,12 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const resolveSession = useCallback(async (nextSession: Session | null) => {
     setSession(nextSession);
+    setSessionError(null);
     if (!nextSession) {
       setUser(null);
       return null;
@@ -112,33 +116,58 @@ export function AuthProvider({
         }
       }
       setUser(null);
-      await client.auth.signOut();
+      const permanentProfileFailure = error instanceof ApiError
+        && (error.status === 401
+          || error.status === 403
+          || error.code === 'PROFILE_REQUIRED'
+          || error.code === 'PROFILE_INACTIVE');
+      if (permanentProfileFailure) {
+        await client.auth.signOut();
+        setSession(null);
+      } else {
+        setSessionError(error instanceof ApiError && error.code === 'REQUEST_TIMEOUT'
+          ? 'অ্যাকাউন্টের তথ্য লোড হতে বেশি সময় লাগছে। আবার চেষ্টা করুন।'
+          : 'অ্যাকাউন্টের তথ্য লোড করা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।');
+      }
       throw error;
     }
   }, [client, completeProfile, loadProfile]);
 
   useEffect(() => {
     let active = true;
-    client.auth.getSession().then(async ({ data, error }) => {
-      if (!active) return;
-      if (error) throw error;
-      if (isPasswordRecoveryRoute()) {
-        setSession(data.session);
-        setUser(null);
-        setIsPasswordRecovery(Boolean(data.session && hasPasswordRecoveryMarker()));
-        return;
+    void (async () => {
+      try {
+        const { data, error } = await client.auth.getSession();
+        if (!active) return;
+        if (error) {
+          setSession(null);
+          setUser(null);
+          setSessionError('অ্যাকাউন্টের সেশন লোড করা যায়নি। আবার লগইন করুন।');
+          return;
+        }
+        if (isPasswordRecoveryRoute()) {
+          setSession(data.session);
+          setUser(null);
+          setIsPasswordRecovery(Boolean(data.session && hasPasswordRecoveryMarker()));
+          return;
+        }
+        setPasswordRecoveryMarker(false);
+        setIsPasswordRecovery(false);
+        try {
+          await resolveSession(data.session);
+        } catch {
+          // resolveSession already distinguishes permanent and temporary failures.
+        }
+      } catch {
+        if (active) {
+          setSession(null);
+          setUser(null);
+          setSessionError('অ্যাকাউন্টের সেশন লোড করা যায়নি। আবার লগইন করুন।');
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-      setPasswordRecoveryMarker(false);
-      setIsPasswordRecovery(false);
-      await resolveSession(data.session);
-    }).catch(() => {
-      if (active) {
-        setSession(null);
-        setUser(null);
-      }
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
+    })();
 
     const { data: { subscription } } = client.auth.onAuthStateChange(
       (event: AuthChangeEvent, nextSession: Session | null) => {
@@ -171,6 +200,18 @@ export function AuthProvider({
       subscription.unsubscribe();
     };
   }, [client, resolveSession]);
+
+  const retrySession = useCallback(async () => {
+    if (!session) return;
+    setLoading(true);
+    try {
+      await resolveSession(session);
+    } catch {
+      // resolveSession keeps a temporary failure visible and preserves the session.
+    } finally {
+      setLoading(false);
+    }
+  }, [resolveSession, session]);
 
   const login = useCallback(async (email: string, password: string) => {
     setPasswordRecoveryMarker(false);
@@ -276,6 +317,8 @@ export function AuthProvider({
     user,
     session,
     loading,
+    sessionError,
+    retrySession,
     login,
     register,
     logout,
@@ -289,7 +332,7 @@ export function AuthProvider({
     isOwner: user?.role === 'OWNER',
     isCustomer: user?.role === 'CUSTOMER',
     isAuthenticated: Boolean(user && session),
-  }), [changePassword, completePasswordRecovery, isPasswordRecovery, loading, login, logout, register, requestPasswordReset, session, setInitialPassword, updateProfile, user]);
+  }), [changePassword, completePasswordRecovery, isPasswordRecovery, loading, login, logout, register, requestPasswordReset, retrySession, session, sessionError, setInitialPassword, updateProfile, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

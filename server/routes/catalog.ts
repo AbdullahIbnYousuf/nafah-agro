@@ -33,6 +33,9 @@ export function createCatalogRouter(
   router.get("/categories", async (_req, res, next) => {
     try { res.json({ success: true, data: await service.listCategories() }); } catch (error) { next(error); }
   });
+  router.get("/storefront/filters", async (_req, res, next) => {
+    try { res.json({ success: true, data: await service.listStorefrontFilters() }); } catch (error) { next(error); }
+  });
   router.get("/admin/categories", ...protectedRoute, async (_req, res, next) => {
     try { res.json({ success: true, data: await service.listCategories(true) }); } catch (error) { next(error); }
   });

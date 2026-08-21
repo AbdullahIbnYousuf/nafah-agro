@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   ShoppingBag,
@@ -6,16 +6,17 @@ import {
   Leaf,
   Truck,
   ShieldCheck,
-  Loader2,
   Phone,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroBg from "@/assets/hero-bg.jpg";
 import ProductCard from "@/components/ProductCard";
-import { getProducts } from "@/lib/api";
+import { ApiError, getProducts } from "@/lib/api";
 import { Product } from "@/lib/types";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import ProductGridSkeleton from "@/components/ProductGridSkeleton";
 import {
   BUSINESS_ADDRESS,
   BUSINESS_PHONES,
@@ -43,12 +44,28 @@ const features = [
 const Index = () => {
   const [featured, setFeatured] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const retryFeatured = useCallback(() => setReloadKey((key) => key + 1), []);
 
   useEffect(() => {
-    getProducts({ featured: true, limit: 4 })
+    const controller = new AbortController();
+    setLoading(true);
+    setLoadError('');
+    getProducts({ featured: true, limit: 4 }, controller.signal)
       .then((page) => setFeatured(page.data))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch((error) => {
+        if (error instanceof ApiError && error.code === 'REQUEST_CANCELLED') return;
+        setLoadError(error instanceof ApiError && error.code === 'REQUEST_TIMEOUT'
+          ? 'পণ্য লোড হতে বেশি সময় লাগছে। আবার চেষ্টা করুন।'
+          : 'পণ্য লোড করা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [reloadKey]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -60,6 +77,10 @@ const Index = () => {
           <img
             src={heroBg}
             alt="নাফাহ এগ্রো"
+            width={1920}
+            height={1080}
+            {...{ fetchpriority: 'high' }}
+            decoding="async"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-primary/70" />
@@ -135,8 +156,13 @@ const Index = () => {
             </p>
           </div>
           {loading ? (
-            <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
-              <Loader2 size={20} className="animate-spin" /> লোড হচ্ছে...
+            <ProductGridSkeleton count={4} columns="featured" />
+          ) : loadError ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-8 text-center">
+              <p className="text-sm text-destructive">{loadError}</p>
+              <Button variant="outline" className="mt-4" onClick={retryFeatured}>
+                <RefreshCw size={16} className="mr-2" /> আবার চেষ্টা করুন
+              </Button>
             </div>
           ) : featured.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">

@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getProducts, getCategories, getProductTags, GetProductsParams } from '@/lib/api';
+import { ApiError, getProducts, getStorefrontFilters, GetProductsParams } from '@/lib/api';
 import { Product, Category } from '@/lib/types';
 import ProductCard from '@/components/ProductCard';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import ProductGridSkeleton from '@/components/ProductGridSkeleton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Loader2, X, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, X, Star, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatBanglaNumber } from '@/lib/utils';
 
@@ -26,6 +27,8 @@ const Shop = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [allTags, setAllTags] = useState<string[]>([]);
   const [filtersReady, setFiltersReady] = useState(false);
+  const [filtersError, setFiltersError] = useState('');
+  const [filtersReloadKey, setFiltersReloadKey] = useState(0);
 
   const querySearch = searchParams.get('q') ?? '';
   const [search, setSearch] = useState(querySearch);
@@ -45,6 +48,8 @@ const Shop = () => {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [productsError, setProductsError] = useState('');
+  const [productsReloadKey, setProductsReloadKey] = useState(0);
 
   const debouncedSearch = useDebounce(search, 350);
 
@@ -62,16 +67,22 @@ const Shop = () => {
     }, { replace: options.replace });
   }, [setSearchParams]);
 
-  // Load categories + tags once
+  // Load the compact storefront filters once.
   useEffect(() => {
-    Promise.all([getCategories(), getProductTags()])
-      .then(([cats, tags]) => {
-        setCategories(cats);
+    const controller = new AbortController();
+    setFiltersError('');
+    getStorefrontFilters(controller.signal)
+      .then(({ categories: nextCategories, tags }) => {
+        setCategories(nextCategories);
         setAllTags(tags);
         setFiltersReady(true);
       })
-      .catch(() => undefined);
-  }, []);
+      .catch((error) => {
+        if (error instanceof ApiError && error.code === 'REQUEST_CANCELLED') return;
+        setFiltersError('ফিল্টারের তথ্য লোড করা যায়নি।');
+      });
+    return () => controller.abort();
+  }, [filtersReloadKey]);
 
   useEffect(() => {
     if (querySearch !== previousQuerySearch.current) {
@@ -117,24 +128,33 @@ const Shop = () => {
     if (changed) setSearchParams(next, { replace: true });
   }, [allTags, categories, filtersReady, searchParams, setSearchParams]);
 
-  const fetchProducts = useCallback(() => {
+  useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
+    setProductsError('');
     const params: GetProductsParams = { limit: LIMIT, page, sort: sortBy };
     if (debouncedSearch) params.query = debouncedSearch;
     if (categoryFilter !== 'all') params.category = categoryFilter;
     if (tagFilter) params.tag = tagFilter;
     if (featuredOnly) params.featured = true;
 
-    getProducts(params)
+    getProducts(params, controller.signal)
       .then(result => {
         setProducts(result.data);
         setTotal(result.total);
         setTotalPages(result.totalPages);
       })
-      .finally(() => setLoading(false));
-  }, [debouncedSearch, categoryFilter, tagFilter, featuredOnly, sortBy, page]);
-
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+      .catch((error) => {
+        if (error instanceof ApiError && error.code === 'REQUEST_CANCELLED') return;
+        setProductsError(error instanceof ApiError && error.code === 'REQUEST_TIMEOUT'
+          ? 'পণ্য লোড হতে বেশি সময় লাগছে। আবার চেষ্টা করুন।'
+          : 'পণ্য লোড করা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [debouncedSearch, categoryFilter, tagFilter, featuredOnly, sortBy, page, productsReloadKey]);
 
   function clearFilters() {
     setSearch('');
@@ -166,6 +186,14 @@ const Shop = () => {
         </div>
 
         {/* Primary filter row */}
+        {filtersError && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <span>{filtersError}</span>
+            <Button variant="outline" size="sm" onClick={() => setFiltersReloadKey((key) => key + 1)}>
+              <RefreshCw size={14} className="mr-2" /> আবার চেষ্টা করুন
+            </Button>
+          </div>
+        )}
         <div className="flex flex-wrap gap-3 mb-3">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
@@ -253,13 +281,18 @@ const Shop = () => {
 
         {/* Results */}
         {loading ? (
-          <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
-            <Loader2 size={22} className="animate-spin" /> লোড হচ্ছে...
+          <ProductGridSkeleton count={LIMIT} />
+        ) : productsError ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-16 text-center">
+            <p className="text-sm text-destructive">{productsError}</p>
+            <Button variant="outline" className="mt-4" onClick={() => setProductsReloadKey((key) => key + 1)}>
+              <RefreshCw size={16} className="mr-2" /> আবার চেষ্টা করুন
+            </Button>
           </div>
         ) : products.length > 0 ? (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {products.map(p => <ProductCard key={p.id} product={p} />)}
+              {products.map((p, index) => <ProductCard key={p.id} product={p} priority={index < 4} />)}
             </div>
 
             {/* Pagination */}
