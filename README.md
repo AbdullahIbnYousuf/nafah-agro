@@ -126,6 +126,10 @@ Another owner may permanently delete an unused owner account with no business
 or audit references; used accounts remain available for deactivation only.
 Public registration can only create CUSTOMER profiles.
 
+An invited OWNER must complete the dedicated password-setup screen before any
+profile-management or admin workflow becomes available. The setup cannot be
+skipped; after choosing a password the owner goes directly to the dashboard.
+
 OWNER and CUSTOMER accounts can request a password-change email from `/login`.
 Supabase must allow these exact recovery redirects:
 

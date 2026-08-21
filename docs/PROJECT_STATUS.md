@@ -22,6 +22,9 @@ is not approved for production until the external gates in this document and
   Recovery sessions bypass application-profile loading without bypassing profile
   activation rules, clear pending owner-invite password metadata, sign out after
   success, and cannot be opened from an ordinary signed-in application session.
+- Replaced the subtle invited-owner password action with a mandatory activation
+  screen. Pending owners see only password setup and logout, cannot enter profile
+  or management workflows, and go directly to the dashboard after activation.
 - Simplified catalog option management for the small-business workflow: the UI
   uses `প্যাক/সাইজ`, accepts an optional initial option name, hides internal
   default names, and no longer exposes or accepts manual SKU values. Express

@@ -38,7 +38,8 @@ deployed API does not use it.
    relying on invitation email delivery.
 4. Sign in as an existing OWNER, open `/profile`, and confirm the invitation
    form is enabled. The invited person follows the email link, is redirected to
-   the profile page, and must set an initial password before using the app.
+   a dedicated setup screen, and must set an initial password before any profile
+   or management action is available. Successful setup opens the owner dashboard.
 
 The deployed `GET /api/v1/owners` response must report
 `invitationsConfigured: true` to an authenticated OWNER. A false value means

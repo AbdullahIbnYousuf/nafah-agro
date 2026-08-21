@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '@/lib/types';
 import CustomerProfile from './CustomerProfile';
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     updateProfile: vi.fn(),
     changePassword: vi.fn(),
     setInitialPassword: vi.fn(),
+    logout: vi.fn(),
     needsPasswordSetup: false,
   },
   getOwners: vi.fn(),
@@ -47,6 +48,7 @@ describe('role-aware profile page', () => {
     mocks.auth.updateProfile.mockResolvedValue(undefined);
     mocks.auth.changePassword.mockResolvedValue(undefined);
     mocks.auth.setInitialPassword.mockResolvedValue(undefined);
+    mocks.auth.logout.mockResolvedValue(undefined);
     mocks.getOwners.mockResolvedValue({ owners: [], invitationsConfigured: true });
     mocks.getMyOrders.mockResolvedValue([]);
     mocks.deleteUnusedOwner.mockResolvedValue({ id: 'owner-2' });
@@ -91,15 +93,75 @@ describe('role-aware profile page', () => {
     expect(screen.getByLabelText('নতুন পাসওয়ার্ড')).toBeInTheDocument();
   });
 
-  it('keeps initial password setup as a prominent personal-information action', async () => {
+  it('replaces the normal profile with a mandatory invited-owner setup screen', async () => {
     mocks.auth.needsPasswordSetup = true;
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
 
-    await screen.findByText('ওনার অ্যাকাউন্ট');
-    expect(screen.queryByRole('heading', { name: 'নিরাপত্তা' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করুন' }));
-    expect(await screen.findByRole('dialog', { name: 'নিজের পাসওয়ার্ড সেট করুন' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'অ্যাকাউন্ট চালু করতে পাসওয়ার্ড সেট করুন' })).toBeInTheDocument();
+    expect(screen.getByText('স্বাগতম, Nafah Owner')).toBeInTheDocument();
+    expect(screen.getByText('সেটআপ বাকি')).toBeInTheDocument();
+    expect(screen.getByLabelText('নতুন পাসওয়ার্ড')).toBeInTheDocument();
     expect(screen.queryByLabelText('বর্তমান পাসওয়ার্ড')).not.toBeInTheDocument();
+    expect(screen.queryByText('ব্যক্তিগত তথ্য')).not.toBeInTheDocument();
+    expect(screen.queryByText('ওনার অ্যাকাউন্ট')).not.toBeInTheDocument();
+    expect(screen.queryByText('নতুন ওনার আমন্ত্রণ')).not.toBeInTheDocument();
+    expect(mocks.getOwners).not.toHaveBeenCalled();
+  });
+
+  it('shows invited-owner password validation and Supabase errors inline', async () => {
+    mocks.auth.needsPasswordSetup = true;
+    render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
+    const submit = screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করে পরিচালনা প্যানেলে যান' });
+    const form = submit.closest('form');
+    if (!form) throw new Error('Owner setup form was not rendered.');
+
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'short' } });
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'short' } });
+    fireEvent.submit(form);
+    expect(await screen.findByRole('alert')).toHaveTextContent('কমপক্ষে ৮ অক্ষরের');
+
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'new-password' } });
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'other-password' } });
+    fireEvent.submit(form);
+    expect(await screen.findByRole('alert')).toHaveTextContent('পাসওয়ার্ড দুইটি মিলছে না');
+
+    mocks.auth.setInitialPassword.mockRejectedValueOnce(new Error('Supabase password update failed'));
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'new-password' } });
+    fireEvent.submit(form);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Supabase password update failed');
+  });
+
+  it('sets the invited owner password and opens the owner dashboard', async () => {
+    mocks.auth.needsPasswordSetup = true;
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <Routes>
+          <Route path="/profile" element={<CustomerProfile />} />
+          <Route path="/admin/dashboard" element={<div>owner dashboard</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'new-password' } });
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'new-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করে পরিচালনা প্যানেলে যান' }));
+
+    await waitFor(() => expect(mocks.auth.setInitialPassword).toHaveBeenCalledWith('new-password'));
+    expect(await screen.findByText('owner dashboard')).toBeInTheDocument();
+  });
+
+  it('allows an invited owner to log out without completing setup', async () => {
+    mocks.auth.needsPasswordSetup = true;
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <Routes>
+          <Route path="/profile" element={<CustomerProfile />} />
+          <Route path="/login" element={<div>login destination</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'লগআউট' }));
+    await waitFor(() => expect(mocks.auth.logout).toHaveBeenCalledOnce());
+    expect(await screen.findByText('login destination')).toBeInTheDocument();
   });
 
   it('submits a configured owner invitation with the required profile data', async () => {

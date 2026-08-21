@@ -33,6 +33,10 @@ profile issue is resolved. Use production SMTP and test both roles before launch
 
 Normal additional-owner flow: an active OWNER uses `/profile`; invitations
 require the backend service-role key, Supabase SMTP, and correct redirects.
+An invited owner is restricted to a dedicated password-setup screen and logout
+until Supabase accepts their initial password. After setup they enter the owner
+dashboard. If the screen remains pending after a successful submission, inspect
+the Auth user metadata for `nafah_owner_invite_pending` before changing any data.
 Bootstrap/recovery flow: an authorized operator creates or recovers the Auth
 identity and runs the controlled `npm run owner:create -- ... --confirm`
 command. The database prevents deactivating, demoting, or deleting the final

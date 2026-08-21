@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  ChevronDown, ChevronRight, KeyRound, Loader2, Package, Pencil, Settings,
-  ShoppingBag, Trash2, User, UserPlus, Users,
+  ChevronDown, ChevronRight, KeyRound, Loader2, LogOut, Package, Pencil, Settings,
+  ShieldCheck, ShoppingBag, Trash2, User, UserPlus, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
@@ -31,7 +31,11 @@ const statusLabels: Record<OrderStatus, string> = {
 };
 
 export default function CustomerProfile() {
-  const { user, isOwner, updateProfile, changePassword, setInitialPassword, needsPasswordSetup } = useAuth();
+  const {
+    user, isOwner, updateProfile, changePassword, setInitialPassword, logout,
+    needsPasswordSetup,
+  } = useAuth();
+  const navigate = useNavigate();
   const [fullName, setFullName] = useState(user?.name ?? '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -41,6 +45,8 @@ export default function CustomerProfile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     setFullName(user?.name ?? '');
@@ -67,12 +73,17 @@ export default function CustomerProfile() {
 
   async function savePassword(event: FormEvent) {
     event.preventDefault();
+    setPasswordError('');
     if (newPassword.length < 8) {
-      toast.error('নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে');
+      const message = 'নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে';
+      if (needsPasswordSetup) setPasswordError(message);
+      else toast.error(message);
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('নতুন পাসওয়ার্ড দুইটি মিলছে না');
+      const message = 'নতুন পাসওয়ার্ড দুইটি মিলছে না';
+      if (needsPasswordSetup) setPasswordError(message);
+      else toast.error(message);
       return;
     }
     setSavingPassword(true);
@@ -82,11 +93,50 @@ export default function CustomerProfile() {
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
       setPasswordDialogOpen(false);
       toast.success('পাসওয়ার্ড পরিবর্তন হয়েছে');
+      if (needsPasswordSetup) navigate('/admin/dashboard', { replace: true });
     } catch (error) {
-      toast.error(getErrorMessage(error, 'পাসওয়ার্ড পরিবর্তন করা যায়নি'));
+      const message = getErrorMessage(error, 'পাসওয়ার্ড পরিবর্তন করা যায়নি');
+      if (needsPasswordSetup) setPasswordError(message);
+      else toast.error(message);
     } finally {
       setSavingPassword(false);
     }
+  }
+
+  async function leaveSetup() {
+    setLoggingOut(true);
+    setPasswordError('');
+    try {
+      await logout();
+      navigate('/login', { replace: true });
+    } catch (error) {
+      setPasswordError(getErrorMessage(error, 'লগআউট করা যায়নি'));
+      setLoggingOut(false);
+    }
+  }
+
+  if (needsPasswordSetup) {
+    return <div className="min-h-screen flex flex-col bg-background"><Navbar /><main className="flex-1 flex items-center justify-center px-4 py-10">
+      <section className="w-full max-w-xl rounded-2xl border border-amber-500/40 bg-card p-6 shadow-xl sm:p-8" aria-labelledby="owner-setup-title">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15 text-amber-700"><ShieldCheck size={34} /></div>
+          <Badge className="mb-3 bg-amber-500 text-amber-950 hover:bg-amber-500">সেটআপ বাকি</Badge>
+          <p className="text-sm font-medium text-muted-foreground">স্বাগতম, {user?.name}</p>
+          <h1 id="owner-setup-title" className="mt-2 text-2xl font-bold text-foreground sm:text-3xl">অ্যাকাউন্ট চালু করতে পাসওয়ার্ড সেট করুন</h1>
+          <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">পরিচালনা প্যানেল ব্যবহার করার আগে নিজের একটি পাসওয়ার্ড সেট করতে হবে। এটি একবারই করতে হবে।</p>
+          {user?.email && <p className="mt-2 break-all text-sm font-medium text-foreground">{user.email}</p>}
+        </div>
+
+        <form className="space-y-4" onSubmit={savePassword}>
+          <div><Label htmlFor="setup-new-password">নতুন পাসওয়ার্ড</Label><Input id="setup-new-password" className="mt-1" type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={8} required /></div>
+          <div><Label htmlFor="setup-confirm-password">নতুন পাসওয়ার্ড নিশ্চিত করুন</Label><Input id="setup-confirm-password" className="mt-1" type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={8} required /></div>
+          <p className="text-xs text-muted-foreground">কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন।</p>
+          {passwordError && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{passwordError}</p>}
+          <Button type="submit" className="min-h-11 w-full" disabled={savingPassword || loggingOut}><KeyRound size={17} className="mr-2" />{savingPassword ? 'পাসওয়ার্ড সেট হচ্ছে…' : 'পাসওয়ার্ড সেট করে পরিচালনা প্যানেলে যান'}</Button>
+          <Button type="button" variant="ghost" className="min-h-11 w-full text-muted-foreground" onClick={() => void leaveSetup()} disabled={savingPassword || loggingOut}><LogOut size={17} className="mr-2" />{loggingOut ? 'লগআউট হচ্ছে…' : 'লগআউট'}</Button>
+        </form>
+      </section>
+    </main><Footer /></div>;
   }
 
   return <div className="min-h-screen flex flex-col"><Navbar /><main className="flex-1 container mx-auto px-4 py-8 space-y-8">

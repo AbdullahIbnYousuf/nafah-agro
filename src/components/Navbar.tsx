@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ChevronDown, Settings, ShoppingCart, Menu, X, LogOut, User as UserIcon } from 'lucide-react';
+import { ChevronDown, Settings, ShoppingCart, Menu, X, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
@@ -16,13 +16,40 @@ const roleBadge: Record<string, { label: string; className: string }> = {
 
 const Navbar = () => {
   const { totalItems } = useCart();
-  const { user, isAuthenticated, logout, isOwner } = useAuth();
+  const { user, isAuthenticated, logout, isOwner, needsPasswordSetup } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [
     { to: '/', label: 'হোম' },
     { to: '/shop', label: 'দোকান' },
   ];
+
+  if (isAuthenticated && user && needsPasswordSetup) {
+    return (
+      <nav className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-lg">
+        <div className="container mx-auto flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2" aria-label="নাফাহ এগ্রো">
+            <img src={logo} alt="নাফাহ এগ্রো" className="h-10 w-10 shrink-0 rounded-full bg-primary-foreground/10" />
+            <span className="hidden truncate text-xl font-bold tracking-wide sm:block">নাফাহ এগ্রো</span>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="flex items-center gap-1.5 rounded-full bg-amber-400 px-2.5 py-1 text-xs font-bold text-amber-950">
+              <ShieldCheck size={14} />সেটআপ বাকি
+            </span>
+            <button
+              type="button"
+              aria-label="লগআউট"
+              onClick={() => void logout()}
+              className="flex min-h-11 items-center gap-2 rounded-md px-2 font-medium transition-colors hover:bg-primary-foreground/10 hover:text-accent sm:px-3"
+            >
+              <LogOut size={17} />
+              <span aria-hidden="true" className="hidden sm:inline">লগআউট</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-lg">
