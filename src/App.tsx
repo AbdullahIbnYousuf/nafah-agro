@@ -26,6 +26,7 @@ const AdminOrders = lazy(() => import("./pages/Admin").then((module) => ({ defau
 const AdminNotFound = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminNotFound })));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const CustomerProfile = lazy(() => import("./pages/CustomerProfile"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -33,10 +34,12 @@ function PageLoading() {
   return <div className="flex min-h-screen items-center justify-center text-muted-foreground" role="status">লোড হচ্ছে…</div>;
 }
 
-function InvitePasswordRedirect() {
+export function InvitePasswordRedirect() {
   const { needsPasswordSetup } = useAuth();
   const location = useLocation();
-  return needsPasswordSetup && location.pathname !== '/profile'
+  return needsPasswordSetup
+    && location.pathname !== '/profile'
+    && location.pathname !== '/reset-password'
     ? <Navigate to="/profile" replace />
     : null;
 }
@@ -56,6 +59,7 @@ const App = () => (
               <Route path="/cart" element={<Cart />} />
               <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
               <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/profile"
                 element={

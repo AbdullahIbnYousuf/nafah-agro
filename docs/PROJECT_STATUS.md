@@ -1,11 +1,12 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-15
+Last updated: 2026-08-21
 
 ## Summary
 
 Milestones 1–6 are complete in local code. The V1 includes Supabase Auth with
-OWNER/CUSTOMER profiles, PostgreSQL/Prisma catalog and FIFO inventory, physical
+OWNER/CUSTOMER profiles and shared email password recovery, PostgreSQL/Prisma
+catalog and FIFO inventory, physical
 and delivery sales, whole delivery-order returns, identified physical-sale item
 returns, OWNER analytics, Cloudinary uploads,
 and a single-project Vercel layout. No deployment, external migration, or
@@ -17,6 +18,10 @@ is not approved for production until the external gates in this document and
 
 ## Milestone 6 completed in code
 
+- Added shared OWNER/CUSTOMER password recovery through Supabase email links.
+  Recovery sessions bypass application-profile loading without bypassing profile
+  activation rules, clear pending owner-invite password metadata, sign out after
+  success, and cannot be opened from an ordinary signed-in application session.
 - Simplified catalog option management for the small-business workflow: the UI
   uses `প্যাক/সাইজ`, accepts an optional initial option name, hides internal
   default names, and no longer exposes or accepts manual SKU values. Express

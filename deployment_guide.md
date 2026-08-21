@@ -50,9 +50,12 @@ Configure before browser acceptance:
 
 - Site URL: the canonical production URL, for example
   `https://nafah-agro.vercel.app`.
-- Redirect allow list: `http://localhost:8080/**`, the canonical production
-  URL with `/**`, and each Preview deployment hostname used for acceptance.
-- Production SMTP: required before relying on owner invitation emails.
+- Redirect allow list: `http://localhost:8080/**`,
+  `http://localhost:8080/reset-password`, the canonical production URL with
+  `/**`, `https://nafah-agro.vercel.app/reset-password`, and each Preview
+  deployment hostname used for acceptance.
+- Production SMTP: required before relying on owner invitation or password
+  recovery emails.
 
 Prefer exact Preview hostnames. If the team chooses a Supabase wildcard, scope
 it to this Vercel project/account and review it periodically.
@@ -106,5 +109,5 @@ Expected results:
 - browser Network entries call the same host under `/api/v1`, not another domain.
 
 Then verify real Supabase login/session restoration after refresh, OWNER and
-CUSTOMER denials, PostgreSQL writes, an allowed Cloudinary image upload and
+CUSTOMER password recovery and denials, PostgreSQL writes, an allowed Cloudinary image upload and
 render, and every flow in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).

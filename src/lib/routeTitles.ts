@@ -7,6 +7,7 @@ export function titleForPath(pathname: string) {
   if (pathname === '/cart') return `কার্ট | ${SITE_NAME}`;
   if (pathname === '/login') return `লগইন | ${SITE_NAME}`;
   if (pathname === '/register') return `রেজিস্ট্রেশন | ${SITE_NAME}`;
+  if (pathname === '/reset-password') return `পাসওয়ার্ড পরিবর্তন | ${SITE_NAME}`;
   if (pathname === '/profile') return `প্রোফাইল | ${SITE_NAME}`;
   if (pathname === '/admin/dashboard' || pathname === '/admin') return `ড্যাশবোর্ড | ${SITE_NAME}`;
   if (pathname.startsWith('/admin/products/')) {

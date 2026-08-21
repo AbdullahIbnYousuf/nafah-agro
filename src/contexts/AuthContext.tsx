@@ -28,6 +28,9 @@ interface AuthContextValue {
   updateProfile: (fullName: string, phoneNumber: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   setInitialPassword: (newPassword: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  completePasswordRecovery: (newPassword: string) => Promise<void>;
+  isPasswordRecovery: boolean;
   needsPasswordSetup: boolean;
   isOwner: boolean;
   isCustomer: boolean;
@@ -35,6 +38,26 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const PASSWORD_RECOVERY_STORAGE_KEY = 'nafah-agro-password-recovery';
+
+function isPasswordRecoveryRoute() {
+  return typeof window !== 'undefined' && window.location.pathname === '/reset-password';
+}
+
+function hasPasswordRecoveryMarker() {
+  return typeof window !== 'undefined'
+    && window.sessionStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) === 'true';
+}
+
+function setPasswordRecoveryMarker(active: boolean) {
+  if (typeof window === 'undefined') return;
+  if (active) {
+    window.sessionStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, 'true');
+  } else {
+    window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
+  }
+}
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -54,6 +77,7 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const resolveSession = useCallback(async (nextSession: Session | null) => {
     setSession(nextSession);
@@ -98,6 +122,14 @@ export function AuthProvider({
     client.auth.getSession().then(async ({ data, error }) => {
       if (!active) return;
       if (error) throw error;
+      if (isPasswordRecoveryRoute()) {
+        setSession(data.session);
+        setUser(null);
+        setIsPasswordRecovery(Boolean(data.session && hasPasswordRecoveryMarker()));
+        return;
+      }
+      setPasswordRecoveryMarker(false);
+      setIsPasswordRecovery(false);
       await resolveSession(data.session);
     }).catch(() => {
       if (active) {
@@ -109,8 +141,27 @@ export function AuthProvider({
     });
 
     const { data: { subscription } } = client.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, nextSession: Session | null) => {
+      (event: AuthChangeEvent, nextSession: Session | null) => {
         if (!active) return;
+        if (event === 'PASSWORD_RECOVERY') {
+          setPasswordRecoveryMarker(Boolean(nextSession));
+          setIsPasswordRecovery(Boolean(nextSession));
+          setSession(nextSession);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        if (event === 'SIGNED_OUT') {
+          setPasswordRecoveryMarker(false);
+          setIsPasswordRecovery(false);
+        }
+        if (isPasswordRecoveryRoute()) {
+          setSession(nextSession);
+          setUser(null);
+          return;
+        }
+        setPasswordRecoveryMarker(false);
+        setIsPasswordRecovery(false);
         void resolveSession(nextSession).catch(() => undefined);
       },
     );
@@ -122,6 +173,8 @@ export function AuthProvider({
   }, [client, resolveSession]);
 
   const login = useCallback(async (email: string, password: string) => {
+    setPasswordRecoveryMarker(false);
+    setIsPasswordRecovery(false);
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error) throw error;
     const profile = await resolveSession(data.session);
@@ -162,6 +215,8 @@ export function AuthProvider({
   const logout = useCallback(async () => {
     const { error } = await client.auth.signOut();
     if (error) throw error;
+    setPasswordRecoveryMarker(false);
+    setIsPasswordRecovery(false);
     setSession(null);
     setUser(null);
   }, [client]);
@@ -193,6 +248,30 @@ export function AuthProvider({
     }
   }, [client]);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) throw error;
+  }, [client]);
+
+  const completePasswordRecovery = useCallback(async (newPassword: string) => {
+    if (!session || !isPasswordRecovery) {
+      throw new Error('This password recovery link is invalid or has expired.');
+    }
+    const { error } = await client.auth.updateUser({
+      password: newPassword,
+      data: { nafah_owner_invite_pending: false },
+    });
+    if (error) throw error;
+    const { error: signOutError } = await client.auth.signOut();
+    if (signOutError) throw signOutError;
+    setPasswordRecoveryMarker(false);
+    setIsPasswordRecovery(false);
+    setSession(null);
+    setUser(null);
+  }, [client, isPasswordRecovery, session]);
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     session,
@@ -203,11 +282,14 @@ export function AuthProvider({
     updateProfile,
     changePassword,
     setInitialPassword,
+    requestPasswordReset,
+    completePasswordRecovery,
+    isPasswordRecovery,
     needsPasswordSetup: session?.user.user_metadata?.nafah_owner_invite_pending === true,
     isOwner: user?.role === 'OWNER',
     isCustomer: user?.role === 'CUSTOMER',
     isAuthenticated: Boolean(user && session),
-  }), [changePassword, loading, login, logout, register, session, setInitialPassword, updateProfile, user]);
+  }), [changePassword, completePasswordRecovery, isPasswordRecovery, loading, login, logout, register, requestPasswordReset, session, setInitialPassword, updateProfile, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

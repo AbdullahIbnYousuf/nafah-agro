@@ -1,8 +1,8 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { Session, SupabaseClient } from '@supabase/supabase-js';
-import { describe, expect, it, vi } from 'vitest';
+import type { AuthChangeEvent, Session, SupabaseClient } from '@supabase/supabase-js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import GuestRoute from '@/components/GuestRoute';
 import type { Role, User } from '@/lib/types';
@@ -24,39 +24,69 @@ function profile(role: Role): User {
   };
 }
 
-function authClient(restoredSession: Session | null = null) {
+type AuthTestClient = SupabaseClient & {
+  emitAuthStateChange: (event: AuthChangeEvent, nextSession: Session | null) => void;
+};
+
+function authClient(restoredSession: Session | null = null): AuthTestClient {
   const unsubscribe = vi.fn();
+  let authStateListener: ((event: AuthChangeEvent, nextSession: Session | null) => void) | undefined;
   const client = {
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: restoredSession }, error: null }),
-      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe } } }),
+      onAuthStateChange: vi.fn((listener: (event: AuthChangeEvent, nextSession: Session | null) => void) => {
+        authStateListener = listener;
+        return { data: { subscription: { unsubscribe } } };
+      }),
       signInWithPassword: vi.fn().mockResolvedValue({ data: { session, user: session.user }, error: null }),
       signUp: vi.fn().mockResolvedValue({ data: { session: null, user: session.user }, error: null }),
       signOut: vi.fn().mockResolvedValue({ error: null }),
       updateUser: vi.fn().mockResolvedValue({ data: { user: session.user }, error: null }),
+      resetPasswordForEmail: vi.fn().mockResolvedValue({ data: {}, error: null }),
     },
-  } as unknown as SupabaseClient;
+  } as unknown as AuthTestClient;
+  client.emitAuthStateChange = (event, nextSession) => authStateListener?.(event, nextSession);
   return client;
 }
 
 function AuthProbe() {
-  const { login, register, updateProfile, changePassword, setInitialPassword, needsPasswordSetup, user } = useAuth();
+  const {
+    login,
+    register,
+    updateProfile,
+    changePassword,
+    setInitialPassword,
+    requestPasswordReset,
+    completePasswordRecovery,
+    isPasswordRecovery,
+    needsPasswordSetup,
+    user,
+  } = useAuth();
   const [registrationError, setRegistrationError] = useState('');
+  const [recoveryError, setRecoveryError] = useState('');
   return <div>
     <span>{user?.role ?? 'guest'}</span>
     <span>{user?.name ?? 'no name'}</span>
     <span>{needsPasswordSetup ? 'password setup required' : 'password ready'}</span>
+    <span>{isPasswordRecovery ? 'recovery active' : 'recovery inactive'}</span>
     <button onClick={() => void login('user@example.com', 'password')}>login</button>
     <button onClick={() => void register('User', '01700000000', 'user@example.com', 'password').catch((error: Error) => setRegistrationError(error.message))}>register</button>
     <button onClick={() => void register('User', '', 'user@example.com', 'password').catch(() => undefined)}>register without phone</button>
     <button onClick={() => void updateProfile('Updated User', '01800000000')}>update profile</button>
     <button onClick={() => void changePassword('old-password', 'new-password')}>change password</button>
     <button onClick={() => void setInitialPassword('invited-password')}>set initial password</button>
+    <button onClick={() => void requestPasswordReset('user@example.com')}>request password reset</button>
+    <button onClick={() => void completePasswordRecovery('recovered-password').catch((error: Error) => setRecoveryError(error.message))}>complete password recovery</button>
     {registrationError && <span>{registrationError}</span>}
+    {recoveryError && <span>{recoveryError}</span>}
   </div>;
 }
 
 describe('Supabase frontend authentication', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
   it('restores a Supabase session and resolves its PostgreSQL profile', async () => {
     const loadProfile = vi.fn<ProfileLoader>().mockResolvedValue(profile('CUSTOMER'));
     render(<AuthProvider client={authClient(session)} loadProfile={loadProfile}><AuthProbe /></AuthProvider>);
@@ -161,6 +191,57 @@ describe('Supabase frontend authentication', () => {
       password: 'invited-password', data: { nafah_owner_invite_pending: false },
     });
     expect(await screen.findByText('password ready')).toBeInTheDocument();
+  });
+
+  it('requests the same Supabase password-recovery flow regardless of application role', async () => {
+    const client = authClient();
+    render(<AuthProvider client={client} loadProfile={vi.fn()}><AuthProbe /></AuthProvider>);
+    await screen.findByText('guest');
+    await act(async () => screen.getByText('request password reset').click());
+    expect(client.auth.resetPasswordForEmail).toHaveBeenCalledWith('user@example.com', {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+  });
+
+  it('accepts a Supabase recovery event without loading an application profile', async () => {
+    const client = authClient();
+    const loadProfile = vi.fn<ProfileLoader>();
+    render(<AuthProvider client={client} loadProfile={loadProfile}><AuthProbe /></AuthProvider>);
+    await screen.findByText('recovery inactive');
+
+    act(() => client.emitAuthStateChange('PASSWORD_RECOVERY', session));
+    expect(await screen.findByText('recovery active')).toBeInTheDocument();
+    expect(loadProfile).not.toHaveBeenCalled();
+
+    await act(async () => screen.getByText('complete password recovery').click());
+    expect(client.auth.updateUser).toHaveBeenCalledWith({
+      password: 'recovered-password',
+      data: { nafah_owner_invite_pending: false },
+    });
+    expect(client.auth.signOut).toHaveBeenCalled();
+    expect(await screen.findByText('recovery inactive')).toBeInTheDocument();
+  });
+
+  it('does not let an ordinary authenticated session use password recovery', async () => {
+    const client = authClient(session);
+    render(<AuthProvider client={client} loadProfile={vi.fn<ProfileLoader>().mockResolvedValue(profile('OWNER'))}><AuthProbe /></AuthProvider>);
+    expect(await screen.findByText('OWNER')).toBeInTheDocument();
+    await act(async () => screen.getByText('complete password recovery').click());
+    expect(await screen.findByText(/recovery link is invalid or has expired/i)).toBeInTheDocument();
+    expect(client.auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('clears an abandoned recovery state when the user signs in normally', async () => {
+    const client = authClient();
+    render(<AuthProvider client={client} loadProfile={vi.fn<ProfileLoader>().mockResolvedValue(profile('CUSTOMER'))}><AuthProbe /></AuthProvider>);
+    await screen.findByText('recovery inactive');
+    act(() => client.emitAuthStateChange('PASSWORD_RECOVERY', session));
+    expect(await screen.findByText('recovery active')).toBeInTheDocument();
+
+    await act(async () => screen.getByText('login').click());
+    expect(await screen.findByText('CUSTOMER')).toBeInTheDocument();
+    expect(screen.getByText('recovery inactive')).toBeInTheDocument();
+    expect(window.sessionStorage.getItem('nafah-agro-password-recovery')).toBeNull();
   });
 });
 

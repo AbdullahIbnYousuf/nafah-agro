@@ -23,6 +23,14 @@ owner.
 
 ## Owner access and recovery
 
+Self-service password recovery is available to OWNER and CUSTOMER accounts from
+`/login`. Supabase sends the recovery email and must allow the exact production
+and local `/reset-password` redirects documented in `deployment_guide.md`.
+After a successful change, the temporary recovery session is signed out. An
+inactive account may change its Auth password but remains blocked by its
+PostgreSQL profile state. A missing profile also remains blocked until its
+profile issue is resolved. Use production SMTP and test both roles before launch.
+
 Normal additional-owner flow: an active OWNER uses `/profile`; invitations
 require the backend service-role key, Supabase SMTP, and correct redirects.
 Bootstrap/recovery flow: an authorized operator creates or recovers the Auth

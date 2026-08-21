@@ -9,7 +9,8 @@ orders, returns, analytics, and Cloudinary uploads.
 
 - Public catalog with categories, products, sellable pack/size options, search/filtering,
   a local cart, and guest cash-on-delivery checkout.
-- Optional CUSTOMER registration, profile maintenance, and website-order history.
+- Optional CUSTOMER registration, profile maintenance, shared OWNER/CUSTOMER
+  email password recovery, and website-order history.
 - Controlled multiple-OWNER access, owner invitations, deletion of accounts
   with no business or audit history, and protection for the final active owner.
 - Product, pack/size, price-history, purchase, FIFO inventory, stock-adjustment,
@@ -124,6 +125,17 @@ the backend service-role key, SMTP, Site URL, and redirect URLs are configured.
 Another owner may permanently delete an unused owner account with no business
 or audit references; used accounts remain available for deactivation only.
 Public registration can only create CUSTOMER profiles.
+
+OWNER and CUSTOMER accounts can request a password-change email from `/login`.
+Supabase must allow these exact recovery redirects:
+
+- `https://nafah-agro.vercel.app/reset-password`
+- `http://localhost:8080/reset-password`
+
+After a valid recovery link sets a new password, the temporary session is
+signed out and the user logs in normally. Configure production SMTP before
+depending on recovery email delivery. No additional environment variable or
+backend service-role access is required for this self-service flow.
 
 An OWNER may also permanently delete an empty category or a product that has
 never appeared in inventory, a stock adjustment, an order, or a selling-price
