@@ -55,10 +55,12 @@ enum SalesOrderStatus {
 enum SalesPaymentMethod {
   CASH
   CASH_ON_DELIVERY
+  CREDIT
 }
 
 enum SalesPaymentStatus {
   UNPAID
+  PARTIALLY_PAID
   PAID
   REFUNDED
 }
@@ -102,6 +104,8 @@ model Profile {
   updatedDeliveryRates  DeliveryRate[]
   auditLogs             AuditLog[]
   physicalSaleReturns   PhysicalSaleReturn[]
+  creditPaymentsCreated CreditPayment[] @relation("CreditPaymentsCreated")
+  creditPaymentsVoided  CreditPayment[] @relation("CreditPaymentsVoided")
 
   @@map("profiles")
 }
@@ -253,6 +257,7 @@ model SalesOrder {
   deliveredAt                     DateTime?            @map("delivered_at")
   cancelledAt                     DateTime?            @map("cancelled_at")
   returnedAt                      DateTime?            @map("returned_at")
+  nextFollowUpDate                DateTime?            @map("next_follow_up_date") @db.Date
   statusReason                    String?              @map("status_reason")
   returnCondition                 ReturnCondition?     @map("return_condition")
   createdAt                       DateTime             @default(now()) @map("created_at")
@@ -264,8 +269,10 @@ model SalesOrder {
   items                           SalesOrderItem[]
   returnStockBatches              StockBatch[]         @relation("ReturnStockBatches")
   physicalSaleReturns             PhysicalSaleReturn[]
+  creditPayments                  CreditPayment[]
 
   @@index([source, status, placedAt])
+  @@index([paymentMethod, paymentStatus, nextFollowUpDate])
   @@index([customerProfileId, placedAt])
   @@index([customerPhone])
   @@index([completedAt])
@@ -329,6 +336,8 @@ model PhysicalSaleReturn {
   condition           ReturnCondition
   reason              String
   refundAmount        Decimal                  @map("refund_amount") @db.Decimal(14, 2)
+  creditOffsetAmount  Decimal                  @default(0) @map("credit_offset_amount") @db.Decimal(14, 2)
+  cashRefundAmount    Decimal                  @default(0) @map("cash_refund_amount") @db.Decimal(14, 2)
   reversedBuyingCost  Decimal                  @map("reversed_buying_cost") @db.Decimal(14, 2)
   reversedGrossProfit Decimal                  @map("reversed_gross_profit") @db.Decimal(14, 2)
   createdByProfileId  String                   @map("created_by_profile_id") @db.Uuid
@@ -339,6 +348,26 @@ model PhysicalSaleReturn {
 
   @@index([salesOrderId, createdAt])
   @@map("physical_sale_returns")
+}
+
+model CreditPayment {
+  id                  String    @id @default(uuid()) @db.Uuid
+  salesOrderId        String    @map("sales_order_id") @db.Uuid
+  idempotencyKey      String    @unique @map("idempotency_key") @db.Uuid
+  amount              Decimal   @db.Decimal(14, 2)
+  paidOn              DateTime  @map("paid_on") @db.Date
+  note                String?
+  createdByProfileId  String    @map("created_by_profile_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at")
+  voidedAt            DateTime? @map("voided_at")
+  voidedByProfileId   String?   @map("voided_by_profile_id") @db.Uuid
+  voidReason          String?   @map("void_reason")
+  salesOrder          SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Restrict)
+  createdBy           Profile    @relation("CreditPaymentsCreated", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  voidedBy            Profile?   @relation("CreditPaymentsVoided", fields: [voidedByProfileId], references: [id], onDelete: Restrict)
+
+  @@index([salesOrderId, paidOn, createdAt])
+  @@map("credit_payments")
 }
 
 model PhysicalSaleReturnItem {

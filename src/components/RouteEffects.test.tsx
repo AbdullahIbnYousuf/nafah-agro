@@ -12,6 +12,7 @@ describe('route presentation effects', () => {
     expect(titleForPath('/admin/products/new')).toBe('নতুন পণ্য | নাফাহ এগ্রো');
     expect(titleForPath('/admin/products/product-id/variants')).toBe('প্যাক/সাইজ ও দাম | নাফাহ এগ্রো');
     expect(titleForPath('/admin/orders')).toBe('অর্ডার | নাফাহ এগ্রো');
+    expect(titleForPath('/admin/dues')).toBe('বাকি হিসাব | নাফাহ এগ্রো');
     expect(titleForPath('/reset-password')).toBe('পাসওয়ার্ড পরিবর্তন | নাফাহ এগ্রো');
     expect(titleForPath('/missing')).toBe('পৃষ্ঠা পাওয়া যায়নি | নাফাহ এগ্রো');
   });

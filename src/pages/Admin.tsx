@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, ImageIcon, Loader2, Package, Plus, Settings2, Store, Tag, Trash2 } from 'lucide-react';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, HandCoins, ImageIcon, Loader2, Package, Plus, Settings2, Store, Tag, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
   getAdminCategories,
   getAdminProduct,
   getAdminProducts,
+  getCreditSummary,
   setCategoryActive,
   setProductActive,
   updateCategory,
@@ -27,12 +28,16 @@ const VariantManager = lazy(() => import('@/components/VariantManager'));
 const InventoryManager = lazy(() => import('@/components/InventoryManager'));
 const PhysicalSaleScreen = lazy(() => import('@/components/PhysicalSaleScreen'));
 const UnifiedOrderManager = lazy(() => import('@/components/UnifiedOrderManager'));
+const CreditSalesManager = lazy(() => import('@/components/CreditSalesManager'));
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w\u0980-\u09FF-]/g, '');
 }
 
 export default function Admin() {
+  const location = useLocation();
+  const [creditReminder, setCreditReminder] = useState<{ overdueCount: number; dueTodayCount: number } | null>(null);
+  const [reminderHidden, setReminderHidden] = useState(() => sessionStorage.getItem('nafah_credit_reminder_hidden') === '1');
   const links = [
     { path: '/admin/dashboard', label: 'ড্যাশবোর্ড', mobileLabel: 'ড্যাশবোর্ড', icon: BarChart3 },
     { path: '/admin/products', label: 'পণ্য', mobileLabel: 'পণ্য', icon: Package },
@@ -41,6 +46,12 @@ export default function Admin() {
     { path: '/admin/physical-sales', label: 'দোকানের বিক্রি', mobileLabel: 'বিক্রি', icon: Store },
     { path: '/admin/orders', label: 'অর্ডার', mobileLabel: 'অর্ডার', icon: ClipboardList },
   ];
+
+  useEffect(() => {
+    getCreditSummary()
+      .then(({ overdueCount, dueTodayCount }) => setCreditReminder({ overdueCount, dueTodayCount }))
+      .catch(() => setCreditReminder(null));
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen md:flex bg-background">
@@ -63,6 +74,7 @@ export default function Admin() {
         <Link to="/" className="flex min-h-11 items-center gap-1.5 text-sm text-primary-foreground/80"><ArrowLeft size={16} />সাইটে ফিরুন</Link>
       </header>
       <main className="min-w-0 flex-1 p-4 pb-24 md:p-8">
+        {!reminderHidden && creditReminder && creditReminder.overdueCount + creditReminder.dueTodayCount > 0 && <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"><HandCoins size={19} /><div className="min-w-0 flex-1"><strong>বাকি যোগাযোগ বাকি আছে</strong><p className="text-sm">সময় পার হয়েছে {creditReminder.overdueCount}টি, আজ যোগাযোগ {creditReminder.dueTodayCount}টি</p></div><Button asChild size="sm"><Link to="/admin/dues">বাকি হিসাব দেখুন</Link></Button><Button type="button" size="icon" variant="ghost" aria-label="এইবার বন্ধ রাখুন" onClick={() => { sessionStorage.setItem('nafah_credit_reminder_hidden', '1'); setReminderHidden(true); }}><X size={17} /></Button></div>}
         <Outlet />
       </main>
       <nav aria-label="মোবাইল পরিচালনা বিভাগ" className="fixed inset-x-0 bottom-0 z-30 border-t border-primary-foreground/15 bg-primary px-1 pb-[env(safe-area-inset-bottom)] text-primary-foreground shadow-[0_-6px_20px_rgba(0,0,0,0.12)] md:hidden">
@@ -338,6 +350,10 @@ export function AdminInventory() {
 
 export function AdminPhysicalSales() {
   return <Suspense fallback={<Loading />}><PhysicalSaleScreen /></Suspense>;
+}
+
+export function AdminDues() {
+  return <Suspense fallback={<Loading />}><CreditSalesManager /></Suspense>;
 }
 
 export function AdminOrders() {

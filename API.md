@@ -57,7 +57,12 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `GET` | `/api/v1/stock-batches` | OWNER | FIFO batches and costs |
 | `POST` | `/api/v1/purchases` | OWNER | Atomic multi-item purchase |
 | `POST` | `/api/v1/stock-adjustments` | OWNER | Reason-required increase/decrease |
-| `POST/GET` | `/api/v1/physical-sales` | OWNER | Immediate FIFO CASH sale/list |
+| `POST/GET` | `/api/v1/physical-sales` | OWNER | Immediate FIFO paid or credit sale/list |
+| `GET` | `/api/v1/credit-sales`, `/credit-sales/:id` | OWNER | Filter/search credit sales and read exact repayment/return history |
+| `GET` | `/api/v1/credit-sales/summary` | OWNER | Outstanding, overdue, due-today, upcoming, and customer counts |
+| `POST` | `/api/v1/credit-sales/:id/payments` | OWNER | Idempotently record a partial or full payment |
+| `POST` | `/api/v1/credit-sales/:id/payments/:paymentId/void` | OWNER | Void an incorrect payment with a required reason |
+| `PATCH` | `/api/v1/credit-sales/:id/follow-up` | OWNER | Move the next follow-up date |
 
 Admin category/product responses include `canDelete`, calculated by the API.
 Deletion is transactional and rechecks eligibility server-side. A deleted
@@ -96,6 +101,30 @@ Valid units are `PIECE` for packaged products, `KG`/`G` for loose weight, and
 piece/gram/ml inputs must resolve to whole base units. The API stores exact
 pieces, grams, or millilitres and treats prices/costs as rates per piece, kg,
 or litre. Incompatible units and overselling are rejected transactionally.
+
+Physical-sale creation accepts `paymentMode: "PAID_NOW" | "CREDIT"`. Credit
+sales require `customerName`, `customerPhone`, and a date-only
+`nextFollowUpDate` that is today or later in `Asia/Dhaka`. They are stored as
+`COMPLETED + CREDIT + UNPAID`; FIFO stock, recognized revenue, and gross profit
+are recorded at completion exactly like an immediately paid sale.
+
+Credit payment input uses a UUID idempotency key:
+
+```json
+{
+  "idempotencyKey": "uuid",
+  "amount": "500.00",
+  "paidOn": "2026-08-22",
+  "note": "Optional note"
+}
+```
+
+Amounts must be positive, cannot exceed the current outstanding balance, and
+cannot use a future payment date. Payment rows are immutable; an incorrect row
+is voided with an audited reason. Concurrent collection writes lock the sale and
+run in a serializable transaction. A return reduces unpaid balance first, then
+reports only any excess as a cash refund. Repayments never create revenue or
+profit again.
 
 ## Unified orders
 

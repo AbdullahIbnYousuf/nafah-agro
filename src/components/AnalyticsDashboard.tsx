@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -7,6 +8,7 @@ import {
   Boxes,
   CircleDollarSign,
   ClipboardList,
+  HandCoins,
   PackageCheck,
   RefreshCw,
   ShoppingBag,
@@ -23,12 +25,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getAnalyticsDashboard } from '@/lib/api';
+import { getAnalyticsDashboard, getCreditSummary } from '@/lib/api';
 import type {
   AnalyticsDashboardData,
   AnalyticsPreset,
   AnalyticsProductRow,
   ComparedAnalyticsMetric,
+  CreditSummary,
   OrderSource,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -205,7 +208,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
   );
 }
 
-function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
+function DashboardContent({ data, creditSummary }: { data: AnalyticsDashboardData; creditSummary?: CreditSummary }) {
   const showTrend = data.range.current.from !== data.range.current.to;
   const primaryMetrics = [
     { label: 'মোট সম্পন্ন বিক্রি', metric: data.summary.recognizedSales, icon: CircleDollarSign },
@@ -225,10 +228,11 @@ function DashboardContent({ data }: { data: AnalyticsDashboardData }) {
       {primaryMetrics.map((item) => <MetricCard key={item.label} {...item} />)}
     </div>
 
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <OperationalCard label="চলমান COD অর্ডার" value={data.summary.pendingCodOrderCount} detail={`পেন্ডিং ${count(data.pendingCod.pending)} · নিশ্চিত ${count(data.pendingCod.confirmed)} · প্রসেসিং ${count(data.pendingCod.processing)}`} icon={Truck} />
       <OperationalCard label="কম স্টকের প্যাক/সাইজ" value={data.summary.lowStockVariantCount} detail="স্টক নির্ধারিত সীমায় নেমে এসেছে" icon={AlertTriangle} />
       <OperationalCard label="স্টক নেই এমন প্যাক/সাইজ" value={data.summary.outOfStockVariantCount} detail="বিক্রির জন্য স্টক নেই" icon={Boxes} />
+      <Link to="/admin/dues" className="rounded-xl border bg-card p-4 transition-colors hover:border-secondary"><div className="flex items-center justify-between text-sm text-muted-foreground"><span>বাকি হিসাব</span><HandCoins size={18} className="text-secondary" /></div><div className="mt-2 text-2xl font-bold">{creditSummary ? money(creditSummary.totalOutstanding) : '...'}</div><div className="mt-1 text-xs text-muted-foreground">সময় পার হয়েছে {creditSummary?.overdueCount ?? 0}টি · আজ {creditSummary?.dueTodayCount ?? 0}টি</div></Link>
     </div>
 
     {showTrend ? <section className="rounded-xl border bg-card p-4 sm:p-5">
@@ -299,6 +303,11 @@ function AnalyticsDashboardContent() {
     queryFn: () => getAnalyticsDashboard(queryInput),
     staleTime: 60_000,
   });
+  const creditQuery = useQuery({
+    queryKey: ['credit-summary'],
+    queryFn: getCreditSummary,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     if (query.data && activePreset !== null) setDraftRange(query.data.range.current);
@@ -324,7 +333,7 @@ function AnalyticsDashboardContent() {
   return <div>
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div><h1 className="text-2xl font-bold">ড্যাশবোর্ড</h1><p className="text-sm text-muted-foreground">বিক্রি, লাভ এবং বর্তমান ইনভেন্টরি</p></div>
-      <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}><RefreshCw size={16} className={`mr-2 ${query.isFetching ? 'animate-spin' : ''}`} />রিফ্রেশ</Button>
+      <Button variant="outline" onClick={() => { void query.refetch(); void creditQuery.refetch(); }} disabled={query.isFetching || creditQuery.isFetching}><RefreshCw size={16} className={`mr-2 ${query.isFetching || creditQuery.isFetching ? 'animate-spin' : ''}`} />রিফ্রেশ</Button>
     </div>
 
     <div className="mb-5 rounded-xl border bg-card p-3 sm:p-4">
@@ -335,7 +344,7 @@ function AnalyticsDashboardContent() {
 
     {query.isLoading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-xl border bg-muted/50" />)}</div>}
     {query.isError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center"><AlertTriangle className="mx-auto mb-2 text-destructive" /><h2 className="font-bold">ড্যাশবোর্ড লোড করা যায়নি</h2><p className="mt-1 text-sm text-muted-foreground">{query.error instanceof Error ? query.error.message : 'আবার চেষ্টা করুন।'}</p><Button className="mt-4" onClick={() => void query.refetch()}>আবার চেষ্টা করুন</Button></div>}
-    {query.data && <DashboardContent data={query.data} />}
+    {query.data && <DashboardContent data={query.data} creditSummary={creditQuery.data} />}
   </div>;
 }
 

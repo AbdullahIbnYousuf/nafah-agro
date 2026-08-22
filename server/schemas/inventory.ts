@@ -67,8 +67,27 @@ export const physicalSaleCreateSchema = z.object({
   customerName: z.string().trim().min(1).max(120).optional(),
   customerPhone: z.string().trim().min(7).max(30).optional(),
   discountTotal: nonNegativeMoney.default("0"),
+  paymentMode: z.enum(["PAID_NOW", "CREDIT"]).default("PAID_NOW"),
+  nextFollowUpDate: dateOnly.optional(),
   confirmUnprofitable: z.boolean().default(false),
-}).strict().superRefine(uniqueVariantIds);
+}).strict().superRefine((value, context) => {
+  uniqueVariantIds(value, context);
+  if (value.paymentMode !== "CREDIT") {
+    if (value.nextFollowUpDate) {
+      context.addIssue({ code: "custom", path: ["nextFollowUpDate"], message: "Paid sales cannot have a credit follow-up date" });
+    }
+    return;
+  }
+  if (!value.customerName) {
+    context.addIssue({ code: "custom", path: ["customerName"], message: "Customer name is required for a credit sale" });
+  }
+  if (!value.customerPhone) {
+    context.addIssue({ code: "custom", path: ["customerPhone"], message: "Customer phone is required for a credit sale" });
+  }
+  if (!value.nextFollowUpDate) {
+    context.addIssue({ code: "custom", path: ["nextFollowUpDate"], message: "Follow-up date is required for a credit sale" });
+  }
+});
 
 export const physicalSaleListSchema = z.object({
   product: z.string().trim().max(120).optional(),
@@ -97,9 +116,34 @@ export const physicalSaleReturnSchema = z.object({
   }
 });
 
+export const creditSaleListSchema = z.object({
+  state: z.enum(["OPEN", "OVERDUE", "TODAY", "UPCOMING", "SETTLED", "ALL"]).default("OPEN"),
+  query: z.string().trim().max(120).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+}).strict();
+
+export const creditPaymentCreateSchema = z.object({
+  idempotencyKey: uuid,
+  amount: positiveMoney,
+  paidOn: dateOnly,
+  note: z.string().trim().max(1_000).optional(),
+}).strict();
+
+export const creditPaymentVoidSchema = z.object({ reason }).strict();
+
+export const creditFollowUpSchema = z.object({
+  nextFollowUpDate: dateOnly,
+  note: z.string().trim().max(1_000).optional(),
+}).strict();
+
 export type PurchaseCreate = z.infer<typeof purchaseCreateSchema>;
 export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 export type StockBatchList = z.infer<typeof stockBatchListSchema>;
 export type PhysicalSaleCreate = z.infer<typeof physicalSaleCreateSchema>;
 export type PhysicalSaleList = z.infer<typeof physicalSaleListSchema>;
 export type PhysicalSaleReturnInput = z.infer<typeof physicalSaleReturnSchema>;
+export type CreditSaleList = z.infer<typeof creditSaleListSchema>;
+export type CreditPaymentCreate = z.infer<typeof creditPaymentCreateSchema>;
+export type CreditPaymentVoid = z.infer<typeof creditPaymentVoidSchema>;
+export type CreditFollowUp = z.infer<typeof creditFollowUpSchema>;

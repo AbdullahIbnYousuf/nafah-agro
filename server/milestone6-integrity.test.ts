@@ -14,6 +14,8 @@ const measuredAllocationConstraintMigrationPath =
   'prisma/migrations/202608150003_measured_allocation_values_constraint/migration.sql';
 const physicalSaleReturnMigrationPath =
   'prisma/migrations/202608150004_physical_sale_item_returns/migration.sql';
+const creditSalesMigrationPath =
+  'prisma/migrations/202608220001_credit_sales/migration.sql';
 
 describe('Milestone 6 integrity safeguards', () => {
   it('validates cached variant stock totals at transaction commit', () => {
@@ -98,6 +100,19 @@ describe('Milestone 6 integrity safeguards', () => {
     expect(migration).not.toMatch(/^\s*(?:UPDATE|DELETE\s+FROM|TRUNCATE)\b/im);
   });
 
+  it('adds auditable credit payments and preserves historical paid physical sales', () => {
+    const migration = readFileSync(creditSalesMigrationPath, 'utf8');
+    expect(migration).toContain("ADD VALUE IF NOT EXISTS 'CREDIT'");
+    expect(migration).toContain("ADD VALUE IF NOT EXISTS 'PARTIALLY_PAID'");
+    expect(migration).toContain('CREATE TABLE "credit_payments"');
+    expect(migration).toContain('credit_payments_amount_positive');
+    expect(migration).toContain('credit_payments_void_fields_consistent');
+    expect(migration).toContain('physical_sale_returns_refund_split_valid');
+    expect(migration).toContain('UUID NOT NULL DEFAULT gen_random_uuid()');
+    expect(migration).toContain('"next_follow_up_date" DATE');
+    expect(migration).not.toMatch(/UPDATE\s+"sales_orders"/i);
+  });
+
   it('refreshes only known demo-order dates for dashboard demonstrations', () => {
     const seed = readFileSync('prisma/seed-dashboard-demo.ts', 'utf8');
     expect(seed).toContain('CONFIRM_DASHBOARD_DEMO');
@@ -117,6 +132,7 @@ describe('Milestone 6 integrity safeguards', () => {
       'src/components/UnifiedOrderManager.tsx',
       'src/components/ReturnOrderDialog.tsx',
       'src/components/PhysicalSaleReturnDialog.tsx',
+      'src/components/CreditSalesManager.tsx',
     ].map((path) => readFileSync(path, 'utf8')).join('\n');
     expect(sources).not.toMatch(/\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
   });

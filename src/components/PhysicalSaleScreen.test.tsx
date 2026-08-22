@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import type { PhysicalSale, Product } from '@/lib/types';
 import PhysicalSaleScreen from './PhysicalSaleScreen';
 
@@ -25,6 +26,7 @@ const sale: PhysicalSale = {
   status: 'COMPLETED',
   paymentMethod: 'CASH',
   paymentStatus: 'PAID',
+  nextFollowUpDate: null,
   customerName: 'রহিম',
   customerPhone: '01300000000',
   subtotal: 200,
@@ -35,6 +37,8 @@ const sale: PhysicalSale = {
   grossProfitMargin: 33.33,
   refundedAmount: 0,
   remainingRevenue: 180,
+  collectedAmount: 0,
+  outstandingAmount: 0,
   remainingBuyingCost: 120,
   remainingGrossProfit: 60,
   unprofitableOverrideConfirmed: false,
@@ -60,6 +64,7 @@ const sale: PhysicalSale = {
     allocations: [],
   }],
   returns: [],
+  creditPayments: [],
 };
 
 const product: Product = {
@@ -89,6 +94,10 @@ const product: Product = {
   }],
 };
 
+function renderScreen() {
+  return render(<MemoryRouter><PhysicalSaleScreen /></MemoryRouter>);
+}
+
 const packagedProduct: Product = {
   ...product,
   id: '30000000-0000-4000-8000-000000000002',
@@ -112,11 +121,12 @@ describe('physical sale history', () => {
     vi.clearAllMocks();
     mocks.getAdminProducts.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
     mocks.getPhysicalSales.mockResolvedValue([sale]);
+    mocks.createPhysicalSale.mockResolvedValue(sale);
   });
 
   it('uses the same explicit expand-and-add flow for packaged and loose products', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct, product], total: 2, page: 1, limit: 100, totalPages: 1 });
-    render(<PhysicalSaleScreen />);
+    renderScreen();
     await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' });
 
     fireEvent.click(screen.getByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' }));
@@ -132,7 +142,7 @@ describe('physical sale history', () => {
 
   it('adds the chosen loose amount and validates it against available stock', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
-    render(<PhysicalSaleScreen />);
+    renderScreen();
     await screen.findByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' });
 
     fireEvent.click(screen.getByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' }));
@@ -150,7 +160,7 @@ describe('physical sale history', () => {
 
   it('closes an expanded product without adding when the owner clicks elsewhere', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
-    render(<PhysicalSaleScreen />);
+    renderScreen();
     await screen.findByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' });
 
     fireEvent.click(screen.getByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' }));
@@ -161,7 +171,7 @@ describe('physical sale history', () => {
   });
 
   it('keeps sale cards concise and reveals financial details when clicked', async () => {
-    render(<PhysicalSaleScreen />);
+    renderScreen();
 
     expect(await screen.findByText('PS-20260815-TEST')).toBeInTheDocument();
     expect(screen.getByText('খোলা মিনিকেট চাল')).toBeInTheDocument();
@@ -184,7 +194,7 @@ describe('physical sale history', () => {
 
   it('suggests catalog products and searches immediately after selection', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
-    render(<PhysicalSaleScreen />);
+    renderScreen();
     await screen.findByText('PS-20260815-TEST');
 
     const search = screen.getByRole('combobox', { name: 'পণ্য বেছে নিন' });
@@ -200,7 +210,7 @@ describe('physical sale history', () => {
 
   it('combines the product filter with customer or sale information', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
-    render(<PhysicalSaleScreen />);
+    renderScreen();
     await screen.findByText('PS-20260815-TEST');
 
     const productSearch = screen.getByRole('combobox', { name: 'পণ্য বেছে নিন' });
@@ -220,7 +230,7 @@ describe('physical sale history', () => {
 
   it('clearly reports when the sale product search has no match', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
-    render(<PhysicalSaleScreen />);
+    renderScreen();
     await screen.findByRole('button', { name: /খোলা মিনিকেট চাল/ });
 
     fireEvent.change(screen.getByRole('textbox', { name: 'বিক্রির পণ্য খুঁজুন' }), {
@@ -228,5 +238,26 @@ describe('physical sale history', () => {
     });
 
     expect(screen.getByRole('status')).toHaveTextContent('এমন কোনো পণ্য পাওয়া যায়নি।');
+  });
+
+  it('requires identifiable customer details and submits the seven-day credit follow-up', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি বিক্রি সম্পন্ন করুন' }));
+    expect(screen.getByText('বাকি বিক্রির জন্য ক্রেতার নাম দিন।')).toBeInTheDocument();
+    expect(screen.getByText('বাকি বিক্রির জন্য ফোন নম্বর দিন।')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('ক্রেতার নাম'), { target: { value: 'করিম' } });
+    fireEvent.change(screen.getByLabelText('ক্রেতার ফোন'), { target: { value: '01300000001' } });
+    const followUp = screen.getByLabelText('পরবর্তী যোগাযোগের তারিখ');
+    expect((followUp as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি বিক্রি সম্পন্ন করুন' }));
+
+    await waitFor(() => expect(mocks.createPhysicalSale).toHaveBeenCalledWith(expect.objectContaining({
+      paymentMode: 'CREDIT', customerName: 'করিম', customerPhone: '01300000001', nextFollowUpDate: expect.any(String),
+    })));
   });
 });

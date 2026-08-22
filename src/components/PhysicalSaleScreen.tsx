@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Clock3, Plus, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CalendarClock, ChevronDown, Clock3, HandCoins, Plus, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -20,6 +21,12 @@ interface SaleLine {
   amountUnit: AmountUnit;
 }
 
+function dhakaDate(offsetDays = 0) {
+  const value = new Date(Date.now() + 6 * 60 * 60 * 1_000);
+  value.setUTCDate(value.getUTCDate() + offsetDays);
+  return value.toISOString().slice(0, 10);
+}
+
 export default function PhysicalSaleScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -31,6 +38,8 @@ export default function PhysicalSaleScreen() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [discount, setDiscount] = useState('0');
+  const [paymentMode, setPaymentMode] = useState<'PAID_NOW' | 'CREDIT'>('PAID_NOW');
+  const [nextFollowUpDate, setNextFollowUpDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState<PhysicalSale | null>(null);
   const [projectedLoss, setProjectedLoss] = useState<unknown>(null);
@@ -40,7 +49,7 @@ export default function PhysicalSaleScreen() {
   const [historyDateFrom, setHistoryDateFrom] = useState('');
   const [historyDateTo, setHistoryDateTo] = useState('');
   const [historyFilters, setHistoryFilters] = useState({ product: '', query: '', dateFrom: '', dateTo: '' });
-  const [errors, setErrors] = useState<{ items?: string; phone?: string; discount?: string; submit?: string }>({});
+  const [errors, setErrors] = useState<{ items?: string; customerName?: string; phone?: string; followUp?: string; discount?: string; submit?: string }>({});
   const productGridRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -129,6 +138,9 @@ export default function PhysicalSaleScreen() {
       return base === null || base > line.variant.availableStock;
     })) nextErrors.items = 'প্রতিটি পণ্যের সঠিক পরিমাণ দিন এবং বর্তমান স্টকের মধ্যে রাখুন।';
     if (customerPhone.trim() && (customerPhone.trim().length < 7 || customerPhone.trim().length > 30)) nextErrors.phone = 'ফোন নম্বর ৭ থেকে ৩০ অক্ষরের মধ্যে লিখুন।';
+    if (paymentMode === 'CREDIT' && !customerName.trim()) nextErrors.customerName = 'বাকি বিক্রির জন্য ক্রেতার নাম দিন।';
+    if (paymentMode === 'CREDIT' && !customerPhone.trim()) nextErrors.phone = 'বাকি বিক্রির জন্য ফোন নম্বর দিন।';
+    if (paymentMode === 'CREDIT' && (!nextFollowUpDate || nextFollowUpDate < dhakaDate())) nextErrors.followUp = 'আজ বা পরের কোনো যোগাযোগের তারিখ দিন।';
     if (!Number.isFinite(discountNumber) || discountNumber < 0 || discountNumber > subtotal) nextErrors.discount = 'ডিসকাউন্ট শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
     if (Object.keys(nextErrors).length > 0) { setErrors(nextErrors); return; }
     setErrors({});
@@ -139,10 +151,12 @@ export default function PhysicalSaleScreen() {
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         discountTotal: discountNumber,
+        paymentMode,
+        nextFollowUpDate: paymentMode === 'CREDIT' ? nextFollowUpDate : undefined,
         confirmUnprofitable,
       });
       setCompleted(result);
-      setLines([]); setCustomerName(''); setCustomerPhone(''); setDiscount('0');
+      setLines([]); setCustomerName(''); setCustomerPhone(''); setDiscount('0'); setPaymentMode('PAID_NOW'); setNextFollowUpDate('');
       setProjectedLoss(null);
       toast.success(`বিক্রয় ${result.orderNumber} সম্পন্ন হয়েছে`);
       load();
@@ -182,7 +196,7 @@ export default function PhysicalSaleScreen() {
   }
 
   return <div className="space-y-8">
-    <div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">পেমেন্ট CASH। বিক্রি সম্পন্ন হলে আগে কেনা স্টক আগে কমবে।</p></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">এখন পেমেন্ট অথবা বাকি রেখে বিক্রি সম্পন্ন করুন।</p></div><Button asChild variant="outline"><Link to="/admin/dues"><HandCoins size={17} className="mr-2" />বাকি হিসাব</Link></Button></div>
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="বিক্রির পণ্য খুঁজুন" className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য বা প্যাক/সাইজ খুঁজুন" /></div>
@@ -230,15 +244,17 @@ export default function PhysicalSaleScreen() {
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
         <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{line.variant.sellingPrice} {rateLabel(line.product.kind)} · স্টক {formatQuantity(line.variant.availableStock, quantityUnitForKind(line.product.kind))}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
-        <div className="grid sm:grid-cols-2 gap-3"><Field label="ক্রেতার নাম (ঐচ্ছিক)"><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></Field><Field label="ফোন (ঐচ্ছিক)" error={errors.phone}><Input value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field></div>
+        <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setErrors((current) => ({ ...current, customerName: undefined, phone: undefined, followUp: undefined })); }}>এখন পরিশোধ</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
+        <div className="grid sm:grid-cols-2 gap-3"><Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName}><Input aria-label="ক্রেতার নাম" value={customerName} onChange={(event) => { setCustomerName(event.target.value); setErrors((current) => ({ ...current, customerName: undefined })); }} aria-invalid={Boolean(errors.customerName)} /></Field><Field label={`ফোন${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.phone}><Input aria-label="ক্রেতার ফোন" value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field></div>
+        {paymentMode === 'CREDIT' && <Field label="পরবর্তী যোগাযোগের তারিখ" error={errors.followUp}><div className="relative"><CalendarClock className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="পরবর্তী যোগাযোগের তারিখ" className="pl-10" type="date" min={dhakaDate()} value={nextFollowUpDate} onChange={(event) => { setNextFollowUpDate(event.target.value); setErrors((current) => ({ ...current, followUp: undefined })); }} aria-invalid={Boolean(errors.followUp)} /></div></Field>}
         <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
         {errors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{errors.submit}</p>}
-        <Button className="w-full min-h-11" disabled={saving || lines.length === 0} onClick={() => void saveSale()}><Plus size={16} className="mr-2" />{saving ? 'সম্পন্ন হচ্ছে…' : 'CASH বিক্রয় সম্পন্ন করুন'}</Button>
+        <Button className="w-full min-h-11" disabled={saving || lines.length === 0} onClick={() => void saveSale()}><Plus size={16} className="mr-2" />{saving ? 'সম্পন্ন হচ্ছে…' : paymentMode === 'CREDIT' ? 'বাকি বিক্রি সম্পন্ন করুন' : 'বিক্রি সম্পন্ন করুন'}</Button>
       </section>
     </div>
 
-    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label="মার্জিন" value={completed.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
+    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2>{completed.paymentMethod === 'CREDIT' && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">বাকি {money(completed.outstandingAmount)}</span>}</div><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label={completed.paymentMethod === 'CREDIT' ? 'পরবর্তী যোগাযোগ' : 'মার্জিন'} value={completed.paymentMethod === 'CREDIT' ? completed.nextFollowUpDate ?? 'বাকি শেষ' : completed.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
 
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
@@ -368,6 +384,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
           <div className="flex min-w-0 items-center gap-2">
             <strong className="truncate text-base">{firstItem ? productPackLabel(firstItem.productName, firstItem.variantName) : sale.orderNumber}</strong>
             {remainingItems > 0 && <span className="shrink-0 rounded-full bg-secondary/15 px-2 py-0.5 text-xs font-medium text-secondary">আরও {remainingItems}টি</span>}
+            {sale.paymentMethod === 'CREDIT' && <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${sale.outstandingAmount > 0 ? 'bg-amber-100 text-amber-900' : 'bg-green-100 text-green-800'}`}>{sale.outstandingAmount > 0 ? `বাকি ${money(sale.outstandingAmount)}` : 'বাকি শেষ'}</span>}
           </div>
           {firstItem && <div className="mt-0.5 text-sm text-muted-foreground">{formatQuantity(firstItem.quantity, firstItem.quantityUnit)}{remainingItems > 0 ? ' এবং অন্যান্য পণ্য' : ''}</div>}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -414,12 +431,13 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
           <SaleSummaryMetric label="বর্তমান ক্রয়মূল্য" value={money(sale.remainingBuyingCost)} />
           <SaleSummaryMetric label="বর্তমান লাভ" value={money(sale.remainingGrossProfit)} negative={sale.remainingGrossProfit < 0} />
         </div>
+        {sale.paymentMethod === 'CREDIT' && <div className="mt-4 rounded-lg border bg-card p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>বাকি হিসাব</strong><span>{sale.nextFollowUpDate ? `পরবর্তী যোগাযোগ: ${sale.nextFollowUpDate}` : 'বাকি শেষ'}</span></div><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"><Metric label="জমা হয়েছে" value={money(sale.collectedAmount)} /><Metric label="এখনো বাকি" value={money(sale.outstandingAmount)} /><Metric label="পেমেন্ট" value={`${sale.creditPayments.filter((payment) => !payment.voidedAt).length}টি`} /></div></div>}
         {sale.returns.length > 0 && <div className="mt-4 space-y-2">
           <h3 className="text-sm font-semibold">ফেরতের ইতিহাস</h3>
           {sale.returns.map((value) => <div key={value.id} className="rounded-lg border bg-card p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{new Date(value.createdAt).toLocaleString('bn-BD')}</span></div>
             <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
-            <div className="mt-1">ফেরত টাকা {money(value.refundAmount)} · কারণ: {value.reason}</div>
+            <div className="mt-1">ফেরত মূল্য {money(value.refundAmount)}{sale.paymentMethod === 'CREDIT' ? ` · বাকি কমেছে ${money(value.creditOffsetAmount)} · নগদ ফেরত ${money(value.cashRefundAmount)}` : ''} · কারণ: {value.reason}</div>
           </div>)}
         </div>}
         <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">

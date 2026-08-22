@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type {
+  CreditFollowUp,
+  CreditPaymentCreate,
+  CreditPaymentVoid,
+  CreditSaleList,
   PhysicalSaleCreate,
   PhysicalSaleList,
   PhysicalSaleReturnInput,
@@ -43,6 +47,13 @@ const moneyNumber = (value: Prisma.Decimal | null) => value === null ? null : Nu
 
 const saleInclude = {
   createdBy: { select: { fullName: true, role: true } },
+  creditPayments: {
+    orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }],
+    include: {
+      createdBy: { select: { fullName: true, role: true } },
+      voidedBy: { select: { fullName: true, role: true } },
+    },
+  },
   physicalSaleReturns: {
     orderBy: { createdAt: "desc" },
     include: {
@@ -90,6 +101,13 @@ function saleDto(sale: SaleRecord) {
     (total, value) => total.plus(value.reversedGrossProfit),
     new Prisma.Decimal(0),
   );
+  const creditPayments = sale.creditPayments ?? [];
+  const collectedAmount = creditPayments.reduce(
+    (total, payment) => payment.voidedAt ? total : total.plus(payment.amount),
+    new Prisma.Decimal(0),
+  );
+  const remainingRevenue = Prisma.Decimal.max(asMoney(sale.grandTotal).minus(refundedAmount), 0);
+  const outstandingAmount = Prisma.Decimal.max(remainingRevenue.minus(collectedAmount), 0);
   return {
     id: sale.id,
     orderNumber: sale.orderNumber,
@@ -97,6 +115,7 @@ function saleDto(sale: SaleRecord) {
     status: sale.status,
     paymentMethod: sale.paymentMethod,
     paymentStatus: sale.paymentStatus,
+    nextFollowUpDate: sale.nextFollowUpDate?.toISOString().slice(0, 10) ?? null,
     customerName: sale.customerName,
     customerPhone: sale.customerPhone,
     subtotal: moneyNumber(sale.subtotal),
@@ -106,7 +125,9 @@ function saleDto(sale: SaleRecord) {
     grossProfit: moneyNumber(sale.grossProfit),
     grossProfitMargin: moneyNumber(sale.grossProfitMargin),
     refundedAmount: Number(refundedAmount),
-    remainingRevenue: Number(asMoney(sale.grandTotal).minus(refundedAmount)),
+    remainingRevenue: Number(remainingRevenue),
+    collectedAmount: Number(collectedAmount),
+    outstandingAmount: Number(outstandingAmount),
     remainingBuyingCost: sale.totalBuyingCost === null ? null : Number(asMoney(sale.totalBuyingCost).minus(reversedBuyingCost)),
     remainingGrossProfit: sale.grossProfit === null ? null : Number(asMoney(sale.grossProfit).minus(reversedGrossProfit)),
     unprofitableOverrideConfirmed: sale.unprofitableOverrideConfirmed,
@@ -146,6 +167,8 @@ function saleDto(sale: SaleRecord) {
       condition: value.condition,
       reason: value.reason,
       refundAmount: Number(value.refundAmount),
+      creditOffsetAmount: Number(value.creditOffsetAmount ?? 0),
+      cashRefundAmount: Number(value.cashRefundAmount ?? value.refundAmount),
       reversedBuyingCost: Number(value.reversedBuyingCost),
       reversedGrossProfit: Number(value.reversedGrossProfit),
       createdBy: value.createdBy,
@@ -161,6 +184,17 @@ function saleDto(sale: SaleRecord) {
         reversedBuyingCost: Number(item.reversedBuyingCost),
         reversedGrossProfit: Number(item.reversedGrossProfit),
       })),
+    })),
+    creditPayments: creditPayments.map((payment) => ({
+      id: payment.id,
+      amount: Number(payment.amount),
+      paidOn: payment.paidOn.toISOString().slice(0, 10),
+      note: payment.note,
+      createdBy: payment.createdBy,
+      createdAt: payment.createdAt,
+      voidedAt: payment.voidedAt,
+      voidReason: payment.voidReason,
+      voidedBy: payment.voidedBy,
     })),
   };
 }
@@ -193,6 +227,29 @@ function proportionalMoney(
 
 function dhakaDateOnly(now = new Date()) {
   return new Date(now.getTime() + 6 * 60 * 60 * 1_000).toISOString().slice(0, 10);
+}
+
+function activeCreditTotal(sale: {
+  grandTotal: Prisma.Decimal;
+  physicalSaleReturns?: Array<{ refundAmount: Prisma.Decimal }>;
+  creditPayments?: Array<{ amount: Prisma.Decimal; voidedAt: Date | null }>;
+}) {
+  const returned = (sale.physicalSaleReturns ?? []).reduce((total, value) => total.plus(value.refundAmount), new Prisma.Decimal(0));
+  const collected = (sale.creditPayments ?? []).reduce(
+    (total, value) => value.voidedAt ? total : total.plus(value.amount),
+    new Prisma.Decimal(0),
+  );
+  const currentSaleValue = Prisma.Decimal.max(sale.grandTotal.minus(returned), 0);
+  return {
+    currentSaleValue,
+    collected,
+    outstanding: Prisma.Decimal.max(currentSaleValue.minus(collected), 0),
+  };
+}
+
+function creditPaymentStatus(collected: Prisma.Decimal, outstanding: Prisma.Decimal) {
+  if (outstanding.isZero()) return "PAID" as const;
+  return collected.isZero() ? "UNPAID" as const : "PARTIALLY_PAID" as const;
 }
 
 
@@ -409,6 +466,14 @@ export function createInventoryService(prisma: PrismaClient) {
           ));
         const totalBuyingCost = lineCosts.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
         const grandTotal = subtotal.minus(discount);
+        if (input.paymentMode === "CREDIT") {
+          if (grandTotal.lte(0)) {
+            throw inventoryError(400, "CREDIT_BALANCE_REQUIRED", "A credit sale must have an amount to collect.");
+          }
+          if (!input.nextFollowUpDate || input.nextFollowUpDate < dhakaDateOnly()) {
+            throw inventoryError(400, "INVALID_FOLLOW_UP_DATE", "Follow-up date must be today or later.");
+          }
+        }
         const grossProfit = grandTotal.minus(totalBuyingCost);
         const isUnprofitable = grossProfit.isNegative();
         if (isUnprofitable && !input.confirmUnprofitable) {
@@ -442,6 +507,9 @@ export function createInventoryService(prisma: PrismaClient) {
           unprofitableOverrideByProfileId: isUnprofitable ? actorId : null,
           createdByProfileId: actorId,
           completedAt,
+          paymentMethod: input.paymentMode === "CREDIT" ? "CREDIT" : "CASH",
+          paymentStatus: input.paymentMode === "CREDIT" ? "UNPAID" : "PAID",
+          nextFollowUpDate: input.paymentMode === "CREDIT" ? asDate(input.nextFollowUpDate!) : null,
         } });
 
         for (const [index, item] of sortedItems.entries()) {
@@ -480,7 +548,13 @@ export function createInventoryService(prisma: PrismaClient) {
           action: "PHYSICAL_SALE_COMPLETED",
           entityType: "SALES_ORDER",
           entityId: sale.id,
-          newData: { source: "PHYSICAL_SHOP", status: "COMPLETED", paymentStatus: "PAID" },
+          newData: {
+            source: "PHYSICAL_SHOP",
+            status: "COMPLETED",
+            paymentMethod: input.paymentMode === "CREDIT" ? "CREDIT" : "CASH",
+            paymentStatus: input.paymentMode === "CREDIT" ? "UNPAID" : "PAID",
+            nextFollowUpDate: input.paymentMode === "CREDIT" ? input.nextFollowUpDate : null,
+          },
         } });
         return sale.id;
         }, SERIALIZABLE_TRANSACTION_OPTIONS);
@@ -502,6 +576,8 @@ export function createInventoryService(prisma: PrismaClient) {
           const sale = await transaction.salesOrder.findUnique({
             where: { id },
             include: {
+              creditPayments: { select: { amount: true, voidedAt: true } },
+              physicalSaleReturns: { select: { refundAmount: true } },
               items: {
                 include: {
                   physicalSaleReturnItems: { select: { quantity: true, refundAmount: true } },
@@ -605,12 +681,19 @@ export function createInventoryService(prisma: PrismaClient) {
           const refundAmount = prepared.reduce((total, value) => total.plus(value.refundAmount), new Prisma.Decimal(0));
           const reversedBuyingCost = prepared.reduce((total, value) => total.plus(value.reversedBuyingCost), new Prisma.Decimal(0));
           const reversedGrossProfit = refundAmount.minus(reversedBuyingCost);
+          const creditBeforeReturn = activeCreditTotal(sale);
+          const creditOffsetAmount = sale.paymentMethod === "CREDIT"
+            ? Prisma.Decimal.min(refundAmount, creditBeforeReturn.outstanding)
+            : new Prisma.Decimal(0);
+          const cashRefundAmount = refundAmount.minus(creditOffsetAmount);
           const returnedAt = new Date();
           const physicalReturn = await transaction.physicalSaleReturn.create({ data: {
             salesOrderId: sale.id,
             condition: input.condition,
             reason: input.reason,
             refundAmount,
+            creditOffsetAmount,
+            cashRefundAmount,
             reversedBuyingCost,
             reversedGrossProfit,
             createdByProfileId: actorId,
@@ -659,6 +742,17 @@ export function createInventoryService(prisma: PrismaClient) {
             }
           }
 
+          if (sale.paymentMethod === "CREDIT") {
+            const outstandingAfter = Prisma.Decimal.max(creditBeforeReturn.outstanding.minus(creditOffsetAmount), 0);
+            await transaction.salesOrder.update({
+              where: { id: sale.id },
+              data: {
+                paymentStatus: creditPaymentStatus(creditBeforeReturn.collected, outstandingAfter),
+                ...(outstandingAfter.isZero() ? { nextFollowUpDate: null } : {}),
+              },
+            });
+          }
+
           await transaction.auditLog.create({ data: {
             actorProfileId: actorId,
             action: "PHYSICAL_SALE_ITEMS_RETURNED",
@@ -668,6 +762,8 @@ export function createInventoryService(prisma: PrismaClient) {
               returnId: physicalReturn.id,
               condition: input.condition,
               refundAmount: refundAmount.toString(),
+              creditOffsetAmount: creditOffsetAmount.toString(),
+              cashRefundAmount: cashRefundAmount.toString(),
               reversedBuyingCost: reversedBuyingCost.toString(),
               items: prepared.map((value) => ({ salesOrderItemId: value.item.id, quantity: value.quantity })),
             },
@@ -712,6 +808,263 @@ export function createInventoryService(prisma: PrismaClient) {
         take: input.limit,
       });
       return sales.map(saleDto);
+    },
+
+    async listCreditSales(input: CreditSaleList) {
+      const today = asDate(dhakaDateOnly());
+      const query = input.query?.trim();
+      const openStatuses = ["UNPAID", "PARTIALLY_PAID"] as const;
+      const stateWhere = input.state === "SETTLED"
+        ? { paymentStatus: "PAID" as const }
+        : input.state === "ALL"
+          ? {}
+          : {
+              paymentStatus: { in: [...openStatuses] },
+              ...(input.state === "OVERDUE" ? { nextFollowUpDate: { lt: today } }
+                : input.state === "TODAY" ? { nextFollowUpDate: today }
+                  : input.state === "UPCOMING" ? { nextFollowUpDate: { gt: today } }
+                    : {}),
+            };
+      const where: Prisma.SalesOrderWhereInput = {
+        source: "PHYSICAL_SHOP",
+        paymentMethod: "CREDIT",
+        ...stateWhere,
+        ...(query ? { OR: [
+          { orderNumber: { contains: query, mode: "insensitive" } },
+          { customerName: { contains: query, mode: "insensitive" } },
+          { customerPhone: { contains: query } },
+        ] } : {}),
+      };
+      const [sales, total] = await Promise.all([
+        prisma.salesOrder.findMany({
+          where,
+          include: saleInclude,
+          orderBy: [{ nextFollowUpDate: "asc" }, { completedAt: "desc" }],
+          skip: (input.page - 1) * input.limit,
+          take: input.limit,
+        }),
+        prisma.salesOrder.count({ where }),
+      ]);
+      return {
+        data: sales.map(saleDto),
+        total,
+        page: input.page,
+        limit: input.limit,
+        totalPages: Math.ceil(total / input.limit),
+      };
+    },
+
+    async getCreditSummary() {
+      const today = dhakaDateOnly();
+      const sales = await prisma.salesOrder.findMany({
+        where: {
+          source: "PHYSICAL_SHOP",
+          paymentMethod: "CREDIT",
+          paymentStatus: { in: ["UNPAID", "PARTIALLY_PAID"] },
+        },
+        select: {
+          customerPhone: true,
+          nextFollowUpDate: true,
+          grandTotal: true,
+          physicalSaleReturns: { select: { refundAmount: true } },
+          creditPayments: { select: { amount: true, voidedAt: true } },
+        },
+      });
+      let overdueCount = 0;
+      let dueTodayCount = 0;
+      let upcomingCount = 0;
+      let totalOutstanding = new Prisma.Decimal(0);
+      const customers = new Set<string>();
+      for (const sale of sales) {
+        const followUp = sale.nextFollowUpDate?.toISOString().slice(0, 10);
+        if (followUp && followUp < today) overdueCount += 1;
+        else if (followUp === today) dueTodayCount += 1;
+        else if (followUp && followUp > today) upcomingCount += 1;
+        totalOutstanding = totalOutstanding.plus(activeCreditTotal(sale).outstanding);
+        if (sale.customerPhone) customers.add(sale.customerPhone);
+      }
+      return {
+        totalOutstanding: Number(totalOutstanding),
+        openSaleCount: sales.length,
+        customerCount: customers.size,
+        overdueCount,
+        dueTodayCount,
+        upcomingCount,
+      };
+    },
+
+    async getCreditSale(id: string) {
+      const sale = await prisma.salesOrder.findUnique({ where: { id }, include: saleInclude });
+      if (!sale || sale.source !== "PHYSICAL_SHOP" || sale.paymentMethod !== "CREDIT") {
+        throw inventoryError(404, "CREDIT_SALE_NOT_FOUND", "Credit sale not found.");
+      }
+      const history = await prisma.auditLog.findMany({
+        where: { entityType: "SALES_ORDER", entityId: id, action: "CREDIT_FOLLOW_UP_RESCHEDULED" },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          previousData: true,
+          newData: true,
+          createdAt: true,
+          actor: { select: { fullName: true, role: true } },
+        },
+      });
+      return { ...saleDto(sale), followUpHistory: history };
+    },
+
+    async recordCreditPayment(id: string, input: CreditPaymentCreate, actorId: string) {
+      if (input.paidOn > dhakaDateOnly()) {
+        throw inventoryError(400, "FUTURE_PAYMENT_DATE", "Payment date cannot be in the future.");
+      }
+      try {
+        await prisma.$transaction(async (transaction) => {
+          const locked = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            SELECT "id" FROM "sales_orders" WHERE "id" = ${id}::uuid FOR UPDATE
+          `);
+          if (locked.length === 0) throw inventoryError(404, "CREDIT_SALE_NOT_FOUND", "Credit sale not found.");
+          const duplicate = await transaction.creditPayment.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+          if (duplicate) {
+            if (duplicate.salesOrderId !== id) {
+              throw inventoryError(409, "PAYMENT_REQUEST_CONFLICT", "This payment request belongs to another sale.");
+            }
+            return;
+          }
+          const sale = await transaction.salesOrder.findUnique({
+            where: { id },
+            include: {
+              physicalSaleReturns: { select: { refundAmount: true } },
+              creditPayments: { select: { amount: true, voidedAt: true } },
+            },
+          });
+          if (!sale || sale.source !== "PHYSICAL_SHOP" || sale.paymentMethod !== "CREDIT") {
+            throw inventoryError(404, "CREDIT_SALE_NOT_FOUND", "Credit sale not found.");
+          }
+          const balance = activeCreditTotal(sale);
+          const amount = asMoney(input.amount);
+          if (balance.outstanding.isZero()) {
+            throw inventoryError(409, "CREDIT_ALREADY_SETTLED", "This credit sale is already settled.");
+          }
+          if (amount.gt(balance.outstanding)) {
+            throw inventoryError(400, "PAYMENT_EXCEEDS_BALANCE", "Payment cannot exceed the outstanding balance.", {
+              outstandingAmount: Number(balance.outstanding),
+            });
+          }
+          await transaction.creditPayment.create({ data: {
+            salesOrderId: id,
+            idempotencyKey: input.idempotencyKey,
+            amount,
+            paidOn: asDate(input.paidOn),
+            note: input.note,
+            createdByProfileId: actorId,
+          } });
+          const collected = balance.collected.plus(amount);
+          const outstanding = balance.outstanding.minus(amount);
+          await transaction.salesOrder.update({
+            where: { id },
+            data: {
+              paymentStatus: creditPaymentStatus(collected, outstanding),
+              ...(outstanding.isZero() ? { nextFollowUpDate: null } : {}),
+            },
+          });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_PAYMENT_RECORDED",
+            entityType: "SALES_ORDER",
+            entityId: id,
+            newData: { amount: amount.toString(), paidOn: input.paidOn, note: input.note ?? null },
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        rethrowInventoryTransactionError(error);
+      }
+      return readSale(id);
+    },
+
+    async voidCreditPayment(id: string, paymentId: string, input: CreditPaymentVoid, actorId: string) {
+      try {
+        await prisma.$transaction(async (transaction) => {
+          const locked = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            SELECT "id" FROM "sales_orders" WHERE "id" = ${id}::uuid FOR UPDATE
+          `);
+          if (locked.length === 0) throw inventoryError(404, "CREDIT_SALE_NOT_FOUND", "Credit sale not found.");
+          const sale = await transaction.salesOrder.findUnique({
+            where: { id },
+            include: {
+              physicalSaleReturns: { select: { refundAmount: true } },
+              creditPayments: { select: { id: true, amount: true, voidedAt: true } },
+            },
+          });
+          if (!sale || sale.source !== "PHYSICAL_SHOP" || sale.paymentMethod !== "CREDIT") {
+            throw inventoryError(404, "CREDIT_SALE_NOT_FOUND", "Credit sale not found.");
+          }
+          const payment = sale.creditPayments.find((value) => value.id === paymentId);
+          if (!payment) throw inventoryError(404, "CREDIT_PAYMENT_NOT_FOUND", "Credit payment not found.");
+          if (payment.voidedAt) throw inventoryError(409, "CREDIT_PAYMENT_ALREADY_VOIDED", "This payment is already voided.");
+          await transaction.creditPayment.update({
+            where: { id: paymentId },
+            data: { voidedAt: new Date(), voidedByProfileId: actorId, voidReason: input.reason },
+          });
+          const activeCollected = sale.creditPayments.reduce(
+            (total, value) => value.voidedAt || value.id === paymentId ? total : total.plus(value.amount),
+            new Prisma.Decimal(0),
+          );
+          const returned = sale.physicalSaleReturns.reduce((total, value) => total.plus(value.refundAmount), new Prisma.Decimal(0));
+          const currentSaleValue = Prisma.Decimal.max(sale.grandTotal.minus(returned), 0);
+          const outstanding = Prisma.Decimal.max(currentSaleValue.minus(activeCollected), 0);
+          await transaction.salesOrder.update({
+            where: { id },
+            data: {
+              paymentStatus: creditPaymentStatus(activeCollected, outstanding),
+              ...(outstanding.gt(0) && sale.nextFollowUpDate === null ? { nextFollowUpDate: asDate(dhakaDateOnly()) } : {}),
+            },
+          });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_PAYMENT_VOIDED",
+            entityType: "SALES_ORDER",
+            entityId: id,
+            previousData: { paymentId, amount: payment.amount.toString() },
+            reason: input.reason,
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        rethrowInventoryTransactionError(error);
+      }
+      return readSale(id);
+    },
+
+    async rescheduleCreditFollowUp(id: string, input: CreditFollowUp, actorId: string) {
+      if (input.nextFollowUpDate < dhakaDateOnly()) {
+        throw inventoryError(400, "INVALID_FOLLOW_UP_DATE", "Follow-up date must be today or later.");
+      }
+      try {
+        await prisma.$transaction(async (transaction) => {
+          const locked = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            SELECT "id" FROM "sales_orders" WHERE "id" = ${id}::uuid FOR UPDATE
+          `);
+          if (locked.length === 0) throw inventoryError(404, "CREDIT_SALE_NOT_FOUND", "Credit sale not found.");
+          const sale = await transaction.salesOrder.findUnique({ where: { id } });
+          if (!sale || sale.source !== "PHYSICAL_SHOP" || sale.paymentMethod !== "CREDIT") {
+            throw inventoryError(404, "CREDIT_SALE_NOT_FOUND", "Credit sale not found.");
+          }
+          if (sale.paymentStatus === "PAID") {
+            throw inventoryError(409, "CREDIT_ALREADY_SETTLED", "A settled credit sale does not need a follow-up date.");
+          }
+          const previous = sale.nextFollowUpDate?.toISOString().slice(0, 10) ?? null;
+          await transaction.salesOrder.update({ where: { id }, data: { nextFollowUpDate: asDate(input.nextFollowUpDate) } });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_FOLLOW_UP_RESCHEDULED",
+            entityType: "SALES_ORDER",
+            entityId: id,
+            previousData: { nextFollowUpDate: previous },
+            newData: { nextFollowUpDate: input.nextFollowUpDate, note: input.note ?? null },
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        rethrowInventoryTransactionError(error);
+      }
+      return readSale(id);
     },
   };
 }

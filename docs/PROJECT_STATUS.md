@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 ## Summary
 
@@ -12,11 +12,29 @@ returns, OWNER analytics, Cloudinary uploads,
 and a single-project Vercel layout. No deployment, external migration, or
 production-data change was performed during the final review.
 
+Physical-shop বাকি sales are now complete in local code. They consume FIFO and
+recognize the sale immediately while an independent append-only ledger tracks
+partial/full collection, outstanding balances, due dates, and payment corrections.
+
 The code is ready for a disposable Supabase/Vercel Preview acceptance run. It
 is not approved for production until the external gates in this document and
 `docs/RELEASE_CHECKLIST.md` are completed.
 
 ## Milestone 6 completed in code
+
+- Added OWNER-only physical-shop বাকি sales with required customer contact and
+  follow-up date. Credit sales remain completed sales; later payments do not
+  record revenue or profit again.
+- Added `/admin/dues`, customer-grouped open/settled lists, direct call links,
+  due/overdue filters, payment and follow-up dialogs, dashboard/sales-page entry
+  points, and a session-dismissible reminder across owner pages.
+- Added immutable idempotent credit-payment records, reason-required payment
+  voiding, serializable row-locked overpayment protection, and audited follow-up
+  rescheduling. Physical returns reduce credit first and expose only the excess
+  as a cash refund.
+- Migration `202608220001_credit_sales` is checked in but was not applied to an
+  external database. Existing physical sales remain `CASH + PAID`; no
+  historical sale is converted to credit.
 
 - Added shared OWNER/CUSTOMER password recovery through Supabase email links.
 - Added OWNER-controlled promotion for an email already registered as CUSTOMER.
@@ -96,18 +114,23 @@ is not approved for production until the external gates in this document and
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 281 tests passed across 38 files. This includes analytics
+- `npm test -- --run`: 320 tests passed across 45 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
   database-integrity source checks, unused owner/catalog deletion safeguards,
-  customer-to-owner role transitions, and dialog request behavior.
-- `npm run build`: passed. The public entry chunk is 561.14 kB
-  (162.60 kB gzip). OWNER analytics remains lazy at 435.36 kB (121.29 kB gzip).
+  customer-to-owner role transitions, credit collection/concurrency/return
+  behavior, and dialog request behavior.
+- `npm run build`: passed. The public entry chunk is 638.26 kB
+  (185.83 kB gzip). OWNER analytics remains lazy at 435.97 kB (121.40 kB gzip),
+  and the new dues screen is a separate 14.19 kB lazy chunk (4.80 kB gzip).
 - `npm run build:server`: passed.
 - `npm run prisma:validate`: passed.
 - `npm run prisma:generate`: passed.
 - `npm run inventory:check`: passed against the configured database with no
   cached stock-total mismatches.
+- `npx prisma migrate status --schema prisma/schema.prisma`: connected to the
+  configured database and reported only `202608220001_credit_sales` as pending.
+  The expected nonzero status means the migration was not applied by this task.
 - `git diff --check`: passed.
 
 - Playwright with system Chrome: two responsive scenarios passed at 390x844,

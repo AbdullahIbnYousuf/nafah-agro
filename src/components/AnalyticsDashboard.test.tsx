@@ -1,11 +1,18 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalyticsDashboardData } from '@/lib/types';
 import AnalyticsDashboard from './AnalyticsDashboard';
 
-const mocks = vi.hoisted(() => ({ getAnalyticsDashboard: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  getAnalyticsDashboard: vi.fn(),
+  getCreditSummary: vi.fn(),
+}));
 
-vi.mock('@/lib/api', () => ({ getAnalyticsDashboard: mocks.getAnalyticsDashboard }));
+vi.mock('@/lib/api', () => ({
+  getAnalyticsDashboard: mocks.getAnalyticsDashboard,
+  getCreditSummary: mocks.getCreditSummary,
+}));
 vi.mock('recharts', () => ({
   CartesianGrid: () => null,
   Legend: () => null,
@@ -69,6 +76,14 @@ const dashboard: AnalyticsDashboardData = {
 describe('analytics dashboard date controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getCreditSummary.mockResolvedValue({
+      totalOutstanding: 0,
+      openSaleCount: 0,
+      customerCount: 0,
+      overdueCount: 0,
+      dueTodayCount: 0,
+      upcomingCount: 0,
+    });
     mocks.getAnalyticsDashboard.mockImplementation(async (input: {
       preset: string;
       from?: string;
@@ -109,7 +124,7 @@ describe('analytics dashboard date controls', () => {
   });
 
   it('keeps editable dates visible, syncs presets, and validates manual ranges', async () => {
-    render(<AnalyticsDashboard />);
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
 
     expect(await screen.findByLabelText('তারিখ থেকে')).toHaveValue('2026-08-01');
     expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-31');
@@ -136,7 +151,7 @@ describe('analytics dashboard date controls', () => {
   });
 
   it('hides the trend graph when the selected range is one day', async () => {
-    render(<AnalyticsDashboard />);
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
     expect(await screen.findByTestId('graph-date')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'আজ' }));

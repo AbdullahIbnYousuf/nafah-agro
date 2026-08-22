@@ -1,6 +1,9 @@
 import type {
   Category,
   CustomerPromotionCandidate,
+  CreditSalesPage,
+  CreditSaleState,
+  CreditSummary,
   AmountUnit,
   AnalyticsDashboardData,
   AnalyticsPreset,
@@ -463,11 +466,63 @@ export function createPhysicalSale(input: {
   customerName?: string;
   customerPhone?: string;
   discountTotal: number;
+  paymentMode?: 'PAID_NOW' | 'CREDIT';
+  nextFollowUpDate?: string;
   confirmUnprofitable?: boolean;
 }): Promise<PhysicalSale> {
   return requestV1<PhysicalSale>('/physical-sales', {
     method: 'POST',
     body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal) }),
+  });
+}
+
+export function getCreditSales(input: {
+  state?: CreditSaleState;
+  query?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<CreditSalesPage> {
+  const query = new URLSearchParams();
+  Object.entries({ state: 'OPEN', page: 1, limit: 30, ...input }).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<CreditSalesPage>(`/credit-sales?${query}`);
+}
+
+export function getCreditSummary(): Promise<CreditSummary> {
+  return requestV1<CreditSummary>('/credit-sales/summary');
+}
+
+export function getCreditSale(id: string): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/credit-sales/${id}`);
+}
+
+export function recordCreditPayment(id: string, input: {
+  idempotencyKey: string;
+  amount: number;
+  paidOn: string;
+  note?: string;
+}): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/credit-sales/${id}/payments`, {
+    method: 'POST',
+    body: JSON.stringify({ ...input, amount: String(input.amount) }),
+  });
+}
+
+export function voidCreditPayment(id: string, paymentId: string, reason: string): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/credit-sales/${id}/payments/${paymentId}/void`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function rescheduleCreditFollowUp(id: string, input: {
+  nextFollowUpDate: string;
+  note?: string;
+}): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/credit-sales/${id}/follow-up`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
   });
 }
 

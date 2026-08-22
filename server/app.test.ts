@@ -743,6 +743,12 @@ describe("GET /api/v1/foundation", () => {
         createPhysicalSale: vi.fn(),
         listPhysicalSales: vi.fn(async () => []),
         returnPhysicalSale: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
+        listCreditSales: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 30, totalPages: 0 })),
+        getCreditSummary: vi.fn(async () => ({ totalOutstanding: 0, openSaleCount: 0, customerCount: 0, overdueCount: 0, dueTodayCount: 0, upcomingCount: 0 })),
+        getCreditSale: vi.fn(),
+        recordCreditPayment: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
+        voidCreditPayment: vi.fn(),
+        rescheduleCreditFollowUp: vi.fn(),
       } as unknown as InventoryService;
     }
 
@@ -783,13 +789,37 @@ describe("GET /api/v1/foundation", () => {
         .post("/api/v1/physical-sales/50000000-0000-4000-8000-000000000001/returns")
         .set("Authorization", "Bearer valid-token")
         .send({});
+      const creditResponse = await request(app)
+        .get("/api/v1/credit-sales")
+        .set("Authorization", "Bearer valid-token");
 
       expect(purchaseResponse.status).toBe(403);
       expect(saleResponse.status).toBe(403);
       expect(returnResponse.status).toBe(403);
+      expect(creditResponse.status).toBe(403);
       expect(inventory.createPurchase).not.toHaveBeenCalled();
       expect(inventory.createPhysicalSale).not.toHaveBeenCalled();
       expect(inventory.returnPhysicalSale).not.toHaveBeenCalled();
+      expect(inventory.listCreditSales).not.toHaveBeenCalled();
+    });
+
+    it("allows an OWNER to record a validated credit payment", async () => {
+      const inventory = inventoryStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, inventory))
+        .post("/api/v1/credit-sales/50000000-0000-4000-8000-000000000001/payments")
+        .set("Authorization", "Bearer valid-token")
+        .send({
+          idempotencyKey: "70000000-0000-4000-8000-000000000001",
+          amount: "250.00",
+          paidOn: "2026-08-22",
+          note: "Partial payment",
+        });
+      expect(response.status).toBe(201);
+      expect(inventory.recordCreditPayment).toHaveBeenCalledWith(
+        "50000000-0000-4000-8000-000000000001",
+        expect.objectContaining({ amount: "250.00" }),
+        ownerProfile.id,
+      );
     });
 
     it("allows an OWNER to return selected physical-sale items", async () => {

@@ -36,8 +36,12 @@ Status: complete in code; real Supabase/Cloudinary acceptance remains.
 Status: complete in code; real PostgreSQL concurrency acceptance remains.
 
 - Multi-item purchases, costed batches, cached variant totals, FIFO allocation,
-  reason-required adjustments, immediate CASH/PAID physical sales, preserved
-  price/cost snapshots, discount/loss confirmation, profit visibility.
+  reason-required adjustments, immediate paid or বাকি physical sales,
+  preserved price/cost snapshots, discount/loss confirmation, and profit visibility.
+- Credit sales complete and consume FIFO immediately while an append-only
+  payment ledger tracks partial/full collection separately. Required customer
+  contact, follow-up dates, in-app due reminders, safe payment voiding, and
+  return-first debt reduction are complete in local code.
 - Packaged and physical-shop-only loose products use independent FIFO pools.
   Loose weight/volume is stored exactly as grams/millilitres while owner inputs
   use kg/g or litre/ml and prices remain rates per kg/litre.

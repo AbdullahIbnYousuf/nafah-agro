@@ -19,6 +19,7 @@ export function titleForPath(pathname: string) {
   if (pathname === '/admin/categories') return `ক্যাটাগরি | ${SITE_NAME}`;
   if (pathname === '/admin/inventory') return `ক্রয় ও ইনভেন্টরি | ${SITE_NAME}`;
   if (pathname === '/admin/physical-sales') return `দোকানের বিক্রি | ${SITE_NAME}`;
+  if (pathname === '/admin/dues') return `বাকি হিসাব | ${SITE_NAME}`;
   if (pathname === '/admin/orders') return `অর্ডার | ${SITE_NAME}`;
   if (pathname.startsWith('/admin/')) return `পরিচালনা পৃষ্ঠা পাওয়া যায়নি | ${SITE_NAME}`;
   return `পৃষ্ঠা পাওয়া যায়নি | ${SITE_NAME}`;

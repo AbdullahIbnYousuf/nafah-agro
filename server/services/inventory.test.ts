@@ -3,6 +3,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import {
+  creditFollowUpSchema,
+  creditPaymentCreateSchema,
+  creditPaymentVoidSchema,
   physicalSaleCreateSchema,
   physicalSaleReturnSchema,
   purchaseCreateSchema,
@@ -64,8 +67,9 @@ interface SaleRow {
   orderNumber: string;
   source: "PHYSICAL_SHOP";
   status: "COMPLETED";
-  paymentMethod: "CASH";
-  paymentStatus: "PAID";
+  paymentMethod: "CASH" | "CREDIT";
+  paymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID";
+  nextFollowUpDate: Date | null;
   customerName: string | null;
   customerPhone: string | null;
   subtotal: string;
@@ -120,10 +124,26 @@ interface PhysicalReturnRow {
   condition: "SELLABLE" | "DAMAGED";
   reason: string;
   refundAmount: string;
+  creditOffsetAmount: string;
+  cashRefundAmount: string;
   reversedBuyingCost: string;
   reversedGrossProfit: string;
   createdByProfileId: string;
   createdAt: Date;
+}
+
+interface CreditPaymentRow {
+  id: string;
+  salesOrderId: string;
+  idempotencyKey: string;
+  amount: string;
+  paidOn: Date;
+  note: string | null;
+  createdByProfileId: string;
+  createdAt: Date;
+  voidedAt: Date | null;
+  voidedByProfileId: string | null;
+  voidReason: string | null;
 }
 
 interface PhysicalReturnItemRow {
@@ -163,6 +183,7 @@ function createInMemoryPrisma() {
     physicalReturns: PhysicalReturnRow[];
     physicalReturnItems: PhysicalReturnItemRow[];
     physicalReturnAllocations: PhysicalReturnAllocationRow[];
+    creditPayments: CreditPaymentRow[];
     audits: Array<Record<string, unknown>>;
     failBatchForVariant: string | null;
   } = {
@@ -179,7 +200,7 @@ function createInMemoryPrisma() {
       },
     ],
     batches: [], adjustments: [], sales: [], saleItems: [], allocations: [],
-    physicalReturns: [], physicalReturnItems: [], physicalReturnAllocations: [], audits: [],
+    physicalReturns: [], physicalReturnItems: [], physicalReturnAllocations: [], creditPayments: [], audits: [],
     failBatchForVariant: null,
   };
 
@@ -197,6 +218,12 @@ function createInMemoryPrisma() {
     grossProfit: new Prisma.Decimal(sale.grossProfit),
     grossProfitMargin: sale.grossProfitMargin === null ? null : new Prisma.Decimal(sale.grossProfitMargin),
     createdBy: creator,
+    creditPayments: state.creditPayments.filter((value) => value.salesOrderId === sale.id).map((value) => ({
+      ...value,
+      amount: new Prisma.Decimal(value.amount),
+      createdBy: creator,
+      voidedBy: value.voidedByProfileId ? creator : null,
+    })),
     physicalSaleReturns: state.physicalReturns.filter((value) => value.salesOrderId === sale.id).map((value) => ({
       ...value,
       refundAmount: new Prisma.Decimal(value.refundAmount),
@@ -330,7 +357,9 @@ function createInMemoryPrisma() {
         const now = new Date();
         const row: SaleRow = {
           id: id(), orderNumber: String(data.orderNumber), source: "PHYSICAL_SHOP", status: "COMPLETED",
-          paymentMethod: "CASH", paymentStatus: "PAID",
+          paymentMethod: (data.paymentMethod as SaleRow["paymentMethod"] | undefined) ?? "CASH",
+          paymentStatus: (data.paymentStatus as SaleRow["paymentStatus"] | undefined) ?? "PAID",
+          nextFollowUpDate: (data.nextFollowUpDate as Date | undefined) ?? null,
           customerName: (data.customerName as string | undefined) ?? null,
           customerPhone: (data.customerPhone as string | undefined) ?? null,
           subtotal: money(data.subtotal as MoneyValue), discountTotal: money(data.discountTotal as MoneyValue),
@@ -349,7 +378,15 @@ function createInMemoryPrisma() {
         const row = state.sales.find((sale) => sale.id === where.id);
         return row ? hydrateSale(row) : null;
       },
-      findMany: async ({ take }: { take: number }) => state.sales.slice(-take).reverse().map(hydrateSale),
+      findMany: async ({ take }: { take?: number }) => state.sales.slice(-(take ?? state.sales.length)).reverse().map(hydrateSale),
+      count: async () => state.sales.length,
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = state.sales.find((sale) => sale.id === where.id)!;
+        if (data.paymentStatus) row.paymentStatus = data.paymentStatus as SaleRow["paymentStatus"];
+        if (Object.prototype.hasOwnProperty.call(data, "nextFollowUpDate")) row.nextFollowUpDate = data.nextFollowUpDate as Date | null;
+        row.updatedAt = new Date();
+        return row;
+      },
     },
     salesOrderItem: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -389,12 +426,43 @@ function createInMemoryPrisma() {
           condition: data.condition as PhysicalReturnRow["condition"],
           reason: String(data.reason),
           refundAmount: money(data.refundAmount as MoneyValue),
+          creditOffsetAmount: money(data.creditOffsetAmount as MoneyValue),
+          cashRefundAmount: money(data.cashRefundAmount as MoneyValue),
           reversedBuyingCost: money(data.reversedBuyingCost as MoneyValue),
           reversedGrossProfit: money(data.reversedGrossProfit as MoneyValue),
           createdByProfileId: String(data.createdByProfileId),
           createdAt: data.createdAt as Date,
         };
         state.physicalReturns.push(row);
+        return row;
+      },
+    },
+    creditPayment: {
+      findUnique: async ({ where }: { where: { idempotencyKey?: string; id?: string } }) => state.creditPayments.find((payment) => (
+        where.idempotencyKey ? payment.idempotencyKey === where.idempotencyKey : payment.id === where.id
+      )) ?? null,
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row: CreditPaymentRow = {
+          id: id(),
+          salesOrderId: String(data.salesOrderId),
+          idempotencyKey: String(data.idempotencyKey),
+          amount: money(data.amount as MoneyValue),
+          paidOn: data.paidOn as Date,
+          note: (data.note as string | undefined) ?? null,
+          createdByProfileId: String(data.createdByProfileId),
+          createdAt: new Date(),
+          voidedAt: null,
+          voidedByProfileId: null,
+          voidReason: null,
+        };
+        state.creditPayments.push(row);
+        return row;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = state.creditPayments.find((payment) => payment.id === where.id)!;
+        row.voidedAt = data.voidedAt as Date;
+        row.voidedByProfileId = String(data.voidedByProfileId);
+        row.voidReason = String(data.voidReason);
         return row;
       },
     },
@@ -492,6 +560,27 @@ function physicalReturn(
     reason: "Customer returned the product",
     items: [{ salesOrderItemId, amount: String(quantity), amountUnit: "PIECE" }],
   });
+}
+
+function dateOffset(days: number) {
+  const value = new Date(Date.now() + 6 * 60 * 60 * 1_000);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function creditSale(quantity = 2) {
+  return physicalSaleCreateSchema.parse({
+    items: [{ productVariantId: VARIANT_A, amount: String(quantity), amountUnit: "PIECE" }],
+    customerName: "Rahim",
+    customerPhone: "01300000000",
+    paymentMode: "CREDIT",
+    nextFollowUpDate: dateOffset(7),
+    discountTotal: "0",
+  });
+}
+
+function creditPayment(amount: string, idempotencyKey: string) {
+  return creditPaymentCreateSchema.parse({ amount, idempotencyKey, paidOn: dateOffset(0), note: "Received at shop" });
 }
 
 describe("Milestone 3 inventory and physical sales", () => {
@@ -781,5 +870,106 @@ describe("Milestone 3 inventory and physical sales", () => {
     expect(returned).toMatchObject({ refundedAmount: 50, remainingRevenue: 150, remainingBuyingCost: 90, remainingGrossProfit: 60 });
     expect(returned.items[0]).toMatchObject({ returnedQuantity: 500, returnableQuantity: 1_500 });
     expect(state.variants[1].availableStock).toBe(8_500);
+  });
+});
+
+describe("physical-shop credit sales", () => {
+  it("requires customer details and a follow-up date for credit, while cash remains unchanged", () => {
+    expect(() => physicalSaleCreateSchema.parse({
+      items: [{ productVariantId: VARIANT_A, amount: "1", amountUnit: "PIECE" }],
+      paymentMode: "CREDIT",
+      discountTotal: "0",
+    })).toThrow();
+    expect(sale([{ productVariantId: VARIANT_A, quantity: 1 }])).toMatchObject({ paymentMode: "PAID_NOW" });
+  });
+
+  it("completes a credit sale, deducts FIFO stock, and keeps the balance separate from profit", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 3, unitBuyingCost: "300" }]), OWNER_ID);
+    const result = await service.createPhysicalSale(creditSale(2), OWNER_ID);
+    expect(result).toMatchObject({
+      paymentMethod: "CREDIT",
+      paymentStatus: "UNPAID",
+      grandTotal: 1000,
+      outstandingAmount: 1000,
+      collectedAmount: 0,
+      grossProfit: 400,
+    });
+    expect(state.variants[0].availableStock).toBe(1);
+    expect(result.nextFollowUpDate).toBe(dateOffset(7));
+  });
+
+  it("records partial and full payments without changing sale revenue or profit", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 2, unitBuyingCost: "300" }]), OWNER_ID);
+    const created = await service.createPhysicalSale(creditSale(2), OWNER_ID);
+    const partial = await service.recordCreditPayment(created.id, creditPayment("400", "10000000-0000-4000-8000-000000000101"), OWNER_ID);
+    expect(partial).toMatchObject({ paymentStatus: "PARTIALLY_PAID", collectedAmount: 400, outstandingAmount: 600, grandTotal: 1000, grossProfit: 400 });
+    const settled = await service.recordCreditPayment(created.id, creditPayment("600", "10000000-0000-4000-8000-000000000102"), OWNER_ID);
+    expect(settled).toMatchObject({ paymentStatus: "PAID", collectedAmount: 1000, outstandingAmount: 0, nextFollowUpDate: null, grandTotal: 1000, grossProfit: 400 });
+  });
+
+  it("makes duplicate payment requests idempotent and rejects excessive, future, and concurrent overpayments", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 1, unitBuyingCost: "300" }]), OWNER_ID);
+    const created = await service.createPhysicalSale(creditSale(1), OWNER_ID);
+    const duplicate = creditPayment("100", "10000000-0000-4000-8000-000000000103");
+    await service.recordCreditPayment(created.id, duplicate, OWNER_ID);
+    await service.recordCreditPayment(created.id, duplicate, OWNER_ID);
+    expect(state.creditPayments).toHaveLength(1);
+    await expect(service.recordCreditPayment(created.id, creditPayment("401", "10000000-0000-4000-8000-000000000104"), OWNER_ID)).rejects.toMatchObject({ code: "PAYMENT_EXCEEDS_BALANCE" });
+    await expect(service.recordCreditPayment(created.id, creditPaymentCreateSchema.parse({
+      amount: "1", idempotencyKey: "10000000-0000-4000-8000-000000000105", paidOn: dateOffset(1),
+    }), OWNER_ID)).rejects.toMatchObject({ code: "FUTURE_PAYMENT_DATE" });
+    const results = await Promise.allSettled([
+      service.recordCreditPayment(created.id, creditPayment("300", "10000000-0000-4000-8000-000000000106"), OWNER_ID),
+      service.recordCreditPayment(created.id, creditPayment("300", "10000000-0000-4000-8000-000000000107"), OWNER_ID),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+  });
+
+  it("voids an incorrect payment, reopens a reminder, and reschedules it with audit history", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 1, unitBuyingCost: "300" }]), OWNER_ID);
+    const created = await service.createPhysicalSale(creditSale(1), OWNER_ID);
+    const settled = await service.recordCreditPayment(created.id, creditPayment("500", "10000000-0000-4000-8000-000000000108"), OWNER_ID);
+    const paymentId = settled.creditPayments[0].id;
+    const reopened = await service.voidCreditPayment(created.id, paymentId, creditPaymentVoidSchema.parse({ reason: "Wrong amount entered" }), OWNER_ID);
+    expect(reopened).toMatchObject({ paymentStatus: "UNPAID", outstandingAmount: 500, nextFollowUpDate: dateOffset(0) });
+    const rescheduled = await service.rescheduleCreditFollowUp(created.id, creditFollowUpSchema.parse({ nextFollowUpDate: dateOffset(10), note: "Customer requested more time" }), OWNER_ID);
+    expect(rescheduled.nextFollowUpDate).toBe(dateOffset(10));
+    expect(state.audits.map((value) => value.action)).toEqual(expect.arrayContaining([
+      "CREDIT_PAYMENT_RECORDED", "CREDIT_PAYMENT_VOIDED", "CREDIT_FOLLOW_UP_RESCHEDULED",
+    ]));
+  });
+
+  it("applies returned value to debt first and reports only the excess as cash refund", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 2, unitBuyingCost: "300" }]), OWNER_ID);
+    const created = await service.createPhysicalSale(creditSale(2), OWNER_ID);
+    await service.recordCreditPayment(created.id, creditPayment("700", "10000000-0000-4000-8000-000000000109"), OWNER_ID);
+    const returned = await service.returnPhysicalSale(created.id, physicalReturn(created.items[0].id, 1), OWNER_ID);
+    expect(returned).toMatchObject({ paymentStatus: "PAID", outstandingAmount: 0, collectedAmount: 700 });
+    expect(returned.returns[0]).toMatchObject({ refundAmount: 500, creditOffsetAmount: 300, cashRefundAmount: 200 });
+  });
+
+  it("summarizes overdue, today, and upcoming reminders in Dhaka dates", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 3, unitBuyingCost: "300" }]), OWNER_ID);
+    await service.createPhysicalSale({ ...creditSale(1), nextFollowUpDate: dateOffset(1) }, OWNER_ID);
+    const todaySale = await service.createPhysicalSale({ ...creditSale(1), nextFollowUpDate: dateOffset(0) }, OWNER_ID);
+    const upcoming = await service.createPhysicalSale({ ...creditSale(1), nextFollowUpDate: dateOffset(5) }, OWNER_ID);
+    state.sales[0]!.nextFollowUpDate = new Date(`${dateOffset(-1)}T00:00:00.000Z`);
+    const result = await service.getCreditSummary();
+    expect(result).toMatchObject({ overdueCount: 1, dueTodayCount: 1, upcomingCount: 1, openSaleCount: 3, totalOutstanding: 1500 });
+    expect(todaySale.outstandingAmount).toBe(500);
+    expect(upcoming.outstandingAmount).toBe(500);
   });
 });

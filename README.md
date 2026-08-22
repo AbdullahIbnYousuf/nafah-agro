@@ -17,6 +17,9 @@ orders, returns, analytics, and Cloudinary uploads.
 - Product, pack/size, price-history, purchase, FIFO inventory, stock-adjustment,
   physical-sale, delivery-order, whole delivery-return, identified physical-sale
   item return, and delivery-rate management.
+- Physical-shop `বাকি` sales with required customer contact, date-based
+  follow-up reminders, partial/full repayment history, payment correction, and
+  return-aware outstanding balances.
 - Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
   are physical-shop-only, use exact gram/millilitre stock internally, and show
   owner inputs and balances in kg/g or litre/ml.
@@ -60,7 +63,9 @@ Public pages use `/`, `/shop`, `/products/:slug`, `/cart`, `/login`,
 
 Owner pages are directly addressable under `/admin`: `/admin/dashboard`,
 `/admin/products`, `/admin/categories`, `/admin/inventory`,
-`/admin/physical-sales`, and `/admin/orders`. Product creation, editing, and
+`/admin/physical-sales`, `/admin/dues`, and `/admin/orders`. The বাকি page is
+linked from the dashboard and physical-sale screen on desktop and mobile.
+Product creation, editing, and
 pack/size management use `/admin/products/new`,
 `/admin/products/:productId/edit`, and
 `/admin/products/:productId/variants`. `/admin` redirects to the dashboard.
@@ -126,6 +131,12 @@ the backend service-role key, SMTP, Site URL, and redirect URLs are configured.
 Another owner may permanently delete an unused owner account with no business
 or audit references; used accounts remain available for deactivation only.
 Public registration can only create CUSTOMER profiles.
+
+Physical-shop sales default to immediate payment. Selecting `বাকি` requires a
+customer name, phone, and next follow-up date. The sale still completes and
+deducts FIFO stock immediately; later payments reduce the outstanding balance
+without recording revenue or profit a second time. Due and overdue reminders
+are in-app only in V1.
 
 If the invitation email already belongs to a CUSTOMER, the profile screen offers
 an explicit, reason-required promotion instead of creating another Supabase

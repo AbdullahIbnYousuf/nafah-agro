@@ -10,6 +10,7 @@ const sale: PhysicalSale = {
   status: 'COMPLETED',
   paymentMethod: 'CASH',
   paymentStatus: 'PAID',
+  nextFollowUpDate: null,
   customerName: null,
   customerPhone: null,
   subtotal: 200,
@@ -20,6 +21,8 @@ const sale: PhysicalSale = {
   grossProfitMargin: 33.33,
   refundedAmount: 0,
   remainingRevenue: 180,
+  collectedAmount: 0,
+  outstandingAmount: 0,
   remainingBuyingCost: 120,
   remainingGrossProfit: 60,
   unprofitableOverrideConfirmed: false,
@@ -45,6 +48,7 @@ const sale: PhysicalSale = {
     allocations: [],
   }],
   returns: [],
+  creditPayments: [],
 };
 
 function setup() {

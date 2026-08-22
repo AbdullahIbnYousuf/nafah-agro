@@ -439,7 +439,7 @@ export function createApp(dependencies: AppDependencies) {
     );
   } else {
     app.use(
-      ["/api/v1/stock-batches", "/api/v1/purchases", "/api/v1/stock-adjustments", "/api/v1/physical-sales"],
+      ["/api/v1/stock-batches", "/api/v1/purchases", "/api/v1/stock-adjustments", "/api/v1/physical-sales", "/api/v1/credit-sales"],
       (_req, res) => {
         res.status(503).json({
           success: false,

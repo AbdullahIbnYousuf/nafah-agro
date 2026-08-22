@@ -94,6 +94,8 @@ export interface PhysicalSaleReturn {
   condition: 'SELLABLE' | 'DAMAGED';
   reason: string;
   refundAmount: number;
+  creditOffsetAmount: number;
+  cashRefundAmount: number;
   reversedBuyingCost: number;
   reversedGrossProfit: number;
   createdBy: { fullName: string; role: Role };
@@ -116,8 +118,9 @@ export interface PhysicalSale {
   orderNumber: string;
   source: 'PHYSICAL_SHOP';
   status: 'COMPLETED';
-  paymentMethod: 'CASH';
-  paymentStatus: 'PAID';
+  paymentMethod: 'CASH' | 'CREDIT';
+  paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+  nextFollowUpDate: string | null;
   customerName: string | null;
   customerPhone: string | null;
   subtotal: number;
@@ -128,6 +131,8 @@ export interface PhysicalSale {
   grossProfitMargin: number | null;
   refundedAmount: number;
   remainingRevenue: number;
+  collectedAmount: number;
+  outstandingAmount: number;
   remainingBuyingCost: number;
   remainingGrossProfit: number;
   unprofitableOverrideConfirmed: boolean;
@@ -135,6 +140,45 @@ export interface PhysicalSale {
   completedAt: string;
   items: PhysicalSaleItem[];
   returns: PhysicalSaleReturn[];
+  creditPayments: CreditPayment[];
+  followUpHistory?: Array<{
+    id: string;
+    previousData: unknown;
+    newData: unknown;
+    createdAt: string;
+    actor: { fullName: string; role: Role } | null;
+  }>;
+}
+
+export interface CreditPayment {
+  id: string;
+  amount: number;
+  paidOn: string;
+  note: string | null;
+  createdBy: { fullName: string; role: Role };
+  createdAt: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  voidedBy: { fullName: string; role: Role } | null;
+}
+
+export type CreditSaleState = 'OPEN' | 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'SETTLED' | 'ALL';
+
+export interface CreditSalesPage {
+  data: PhysicalSale[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface CreditSummary {
+  totalOutstanding: number;
+  openSaleCount: number;
+  customerCount: number;
+  overdueCount: number;
+  dueTodayCount: number;
+  upcomingCount: number;
 }
 
 export interface Product {
