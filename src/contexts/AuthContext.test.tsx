@@ -62,6 +62,7 @@ function AuthProbe() {
     needsPasswordSetup,
     sessionError,
     retrySession,
+    logout,
     user,
   } = useAuth();
   const [registrationError, setRegistrationError] = useState('');
@@ -81,6 +82,7 @@ function AuthProbe() {
     <button onClick={() => void requestPasswordReset('user@example.com')}>request password reset</button>
     <button onClick={() => void completePasswordRecovery('recovered-password').catch((error: Error) => setRecoveryError(error.message))}>complete password recovery</button>
     <button onClick={() => void retrySession()}>retry session</button>
+    <button onClick={() => void logout()}>logout</button>
     {registrationError && <span>{registrationError}</span>}
     {recoveryError && <span>{recoveryError}</span>}
   </div>;
@@ -190,6 +192,21 @@ describe('Supabase frontend authentication', () => {
     await act(async () => screen.getByText('change password').click());
     expect(client.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'user@example.com', password: 'old-password' });
     expect(client.auth.updateUser).toHaveBeenCalledWith({ password: 'new-password' });
+  });
+
+  it('cleans up an OWNER device subscription before explicit logout', async () => {
+    const client = authClient(session);
+    const cleanupPushOnLogout = vi.fn(async () => undefined);
+    render(<AuthProvider
+      client={client}
+      loadProfile={vi.fn<ProfileLoader>().mockResolvedValue(profile('OWNER'))}
+      cleanupPushOnLogout={cleanupPushOnLogout}
+    ><AuthProbe /></AuthProvider>);
+    expect(await screen.findByText('OWNER')).toBeInTheDocument();
+
+    await act(async () => screen.getByText('logout').click());
+    expect(cleanupPushOnLogout).toHaveBeenCalledOnce();
+    expect(client.auth.signOut).toHaveBeenCalledOnce();
   });
 
   it('lets an invited owner set the initial password without an old password', async () => {

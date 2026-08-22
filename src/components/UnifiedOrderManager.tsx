@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,13 +28,14 @@ const manualSources = ['FACEBOOK', 'PHONE', 'WHATSAPP', 'OTHER'] as const;
 interface ManualItem { productVariantId: string; quantity: number }
 
 export default function UnifiedOrderManager() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<UnifiedOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [rates, setRates] = useState<DeliveryRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<OrderSource | ''>('');
   const [status, setStatus] = useState<OrderStatus | ''>('');
-  const [orderNumber, setOrderNumber] = useState('');
+  const [orderNumber, setOrderNumber] = useState(() => searchParams.get('orderNumber')?.trim() ?? '');
   const [phoneFilter, setPhoneFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -92,6 +94,11 @@ export default function UnifiedOrderManager() {
     setPhoneFilter('');
     setDateFrom('');
     setDateTo('');
+    if (searchParams.has('orderNumber')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('orderNumber');
+      setSearchParams(next, { replace: true });
+    }
   }
 
   async function submitAction(reason: string | undefined, confirmUnprofitable: boolean) {

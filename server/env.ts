@@ -53,6 +53,19 @@ export const backendEnvSchema = z
       z.string().trim().min(20).optional(),
     ),
     SUPABASE_JWT_AUDIENCE: z.string().trim().default("authenticated"),
+    VAPID_PUBLIC_KEY: optionalString,
+    VAPID_PRIVATE_KEY: optionalString,
+    VAPID_SUBJECT: z.preprocess(
+      emptyToUndefined,
+      z.string().trim().refine(
+        (value) => value.startsWith("mailto:") || value.startsWith("https://"),
+        "Must be a mailto: or https:// URL",
+      ).optional(),
+    ),
+    CRON_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().trim().min(24).optional(),
+    ),
   })
   .superRefine((env, ctx) => {
     const cloudinaryValues = [
@@ -87,6 +100,21 @@ export const backendEnvSchema = z
       });
     }
 
+    const pushValues = [
+      env.VAPID_PUBLIC_KEY,
+      env.VAPID_PRIVATE_KEY,
+      env.VAPID_SUBJECT,
+      env.CRON_SECRET,
+    ];
+    const pushCount = pushValues.filter(Boolean).length;
+    if (pushCount > 0 && pushCount < pushValues.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["VAPID_PUBLIC_KEY"],
+        message: "VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, and CRON_SECRET must be provided together",
+      });
+    }
+
     if (env.NODE_ENV === "production") {
       const requiredProductionValues = [
         ["DATABASE_URL", env.DATABASE_URL],
@@ -95,6 +123,10 @@ export const backendEnvSchema = z
         ["CLOUDINARY_CLOUD_NAME", env.CLOUDINARY_CLOUD_NAME],
         ["CLOUDINARY_API_KEY", env.CLOUDINARY_API_KEY],
         ["CLOUDINARY_API_SECRET", env.CLOUDINARY_API_SECRET],
+        ["VAPID_PUBLIC_KEY", env.VAPID_PUBLIC_KEY],
+        ["VAPID_PRIVATE_KEY", env.VAPID_PRIVATE_KEY],
+        ["VAPID_SUBJECT", env.VAPID_SUBJECT],
+        ["CRON_SECRET", env.CRON_SECRET],
       ] as const;
       for (const [name, value] of requiredProductionValues) {
         if (!value) {
@@ -112,6 +144,9 @@ export const backendEnvSchema = z
     FOUNDATION_CONFIGURED: Boolean(env.DATABASE_URL && env.SUPABASE_URL),
     OWNER_INVITATIONS_CONFIGURED: Boolean(
       env.DATABASE_URL && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY,
+    ),
+    PUSH_CONFIGURED: Boolean(
+      env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT && env.CRON_SECRET,
     ),
   }));
 

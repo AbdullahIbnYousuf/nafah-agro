@@ -24,6 +24,14 @@ Set these encrypted Production values: `DATABASE_URL`, `SUPABASE_URL`,
 additional-owner invitation flow. Never place database, Cloudinary-secret, or
 service-role values in a variable whose name begins with `VITE_`.
 
+Also set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and
+`CRON_SECRET`. Generate the VAPID pair once with
+`npx web-push generate-vapid-keys --json` and keep it stable across deployments.
+Generate `CRON_SECRET` with `openssl rand -base64 36`. The private VAPID key and
+cron secret are backend-only and must never use a `VITE_` prefix. `vercel.json`
+schedules `/api/v1/cron/credit-reminders` at `0 3 * * *`, corresponding to 9 AM
+Dhaka. Hobby plans may invoke a daily cron at any point within that hour.
+
 Keep `DIRECT_URL` in a protected migration workstation or CI environment. The
 deployed API does not use it.
 

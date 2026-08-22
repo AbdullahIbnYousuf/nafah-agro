@@ -8,6 +8,7 @@ import {
   websiteCheckoutSchema,
 } from "../schemas/orders.js";
 import type { UnifiedOrderService } from "../services/orders.js";
+import type { BackgroundTaskScheduler } from "../lib/backgroundTasks.js";
 
 function validate<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output<S> {
   try {
@@ -30,6 +31,8 @@ export function createOrderRouter(
   authenticate: RequestHandler,
   requireOwner: RequestHandler,
   protectedLimiter: RequestHandler,
+  onWebsiteOrderCreated?: (order: { id: string; orderNumber: string }) => Promise<unknown>,
+  scheduleBackground?: BackgroundTaskScheduler,
 ) {
   const router = Router();
   const management = [protectedLimiter, authenticate, requireOwner];
@@ -60,6 +63,11 @@ export function createOrderRouter(
         validate(websiteCheckoutSchema, req.body),
         req.authenticatedUser?.profile.id,
       );
+      if (!result.replayed && onWebsiteOrderCreated) {
+        const notification = onWebsiteOrderCreated(result.order);
+        if (scheduleBackground) scheduleBackground(notification);
+        else void notification.catch(() => undefined);
+      }
       res.status(result.replayed ? 200 : 201).json({ success: true, data: result });
     } catch (error) { next(error); }
   });

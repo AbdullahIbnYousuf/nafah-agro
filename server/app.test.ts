@@ -10,6 +10,8 @@ import type { InventoryService } from "./services/inventory.js";
 import type { UnifiedOrderService } from "./services/orders.js";
 import type { AccountService } from "./services/accounts.js";
 import type { AnalyticsService } from "./services/analytics.js";
+import type { PushNotificationService } from "./services/pushNotifications.js";
+import type { BackgroundTaskScheduler } from "./lib/backgroundTasks.js";
 
 const baseEnvironment = {
   NODE_ENV: "test",
@@ -23,6 +25,10 @@ const productionEnvironment = {
   CLOUDINARY_CLOUD_NAME: "cloud",
   CLOUDINARY_API_KEY: "key",
   CLOUDINARY_API_SECRET: "secret",
+  VAPID_PUBLIC_KEY: "BHK9qjd_sn06o2u-iVL9aKWAVu4y5ISsU4iegSiwlcidBWbRJA7_jwm_22bN9F1VyqYqW0CrGTNB6GAd3_N0oyk",
+  VAPID_PRIVATE_KEY: "UeF5d1zIP_odC1Chn2AMdR-rrKwehI8Qf8rsbpCkAXA",
+  VAPID_SUBJECT: "mailto:owner@nafah-agro.example",
+  CRON_SECRET: "cron-secret-with-enough-length",
 };
 
 function createTestEnv(configureFoundation = false) {
@@ -257,6 +263,8 @@ describe("GET /api/v1/foundation", () => {
     orderService?: UnifiedOrderService,
     accountService?: AccountService,
     analyticsService?: AnalyticsService,
+    pushService?: PushNotificationService,
+    scheduleBackground?: BackgroundTaskScheduler,
   ) {
     return createApp({
       env: parseBackendEnv({
@@ -264,6 +272,12 @@ describe("GET /api/v1/foundation", () => {
         DATABASE_URL: "postgresql://user:password@localhost:5432/nafah",
         SUPABASE_URL: "https://project.supabase.co",
         PROTECTED_RATE_LIMIT_MAX: String(protectedRateLimit),
+        ...(pushService ? {
+          VAPID_PUBLIC_KEY: "BHK9qjd_sn06o2u-iVL9aKWAVu4y5ISsU4iegSiwlcidBWbRJA7_jwm_22bN9F1VyqYqW0CrGTNB6GAd3_N0oyk",
+          VAPID_PRIVATE_KEY: "UeF5d1zIP_odC1Chn2AMdR-rrKwehI8Qf8rsbpCkAXA",
+          VAPID_SUBJECT: "mailto:owner@nafah-agro.example",
+          CRON_SECRET: "cron-secret-with-enough-length",
+        } : {}),
       }),
       checkDatabase: vi.fn(),
       verifySupabaseToken: vi.fn(async (token: string) => {
@@ -285,6 +299,8 @@ describe("GET /api/v1/foundation", () => {
       orderService,
       accountService,
       analyticsService,
+      pushService,
+      scheduleBackground,
     });
   }
 
@@ -916,6 +932,111 @@ describe("GET /api/v1/foundation", () => {
         .send({});
       expect(response.status).toBe(403);
       expect(orders.createManualOrder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("OWNER web push notifications", () => {
+    function pushOrderStub() {
+      return {
+        listDeliveryRates: vi.fn(async () => []),
+        updateDeliveryRate: vi.fn(),
+        createWebsiteOrder: vi.fn(async () => ({
+          order: { id: "order-1", orderNumber: "WEB-1001", status: "PENDING" },
+          replayed: false,
+        })),
+        createManualOrder: vi.fn(),
+        listOrders: vi.fn(),
+        listCustomerWebsiteOrders: vi.fn(),
+        transitionOrder: vi.fn(),
+      } as unknown as UnifiedOrderService;
+    }
+
+    function pushStub() {
+      return {
+        publicKey: "public-vapid-key",
+        register: vi.fn(async () => ({ enabled: true as const })),
+        remove: vi.fn(async () => ({ enabled: false as const })),
+        sendTest: vi.fn(async () => ({ sent: 1, failed: 0, expired: 0, skipped: 0 })),
+        notifyWebsiteOrder: vi.fn(async () => ({ sent: 1, failed: 0, expired: 0, skipped: 0 })),
+        sendCreditReminders: vi.fn(async () => ({
+          date: "2026-08-22", actionableCount: 3, totalOpenCount: 5,
+          sent: 1, failed: 0, expired: 0, skipped: 0,
+        })),
+      } satisfies PushNotificationService;
+    }
+
+    it("allows an OWNER to register and test the current device", async () => {
+      const push = pushStub();
+      const app = createProtectedApp(ownerProfile, 60, undefined, undefined, undefined, undefined, undefined, push);
+      const registration = await request(app)
+        .post("/api/v1/push/subscriptions")
+        .set("Authorization", "Bearer valid-token")
+        .send({
+          endpoint: "https://push.example/device",
+          keys: { p256dh: "p256dh-key-value", auth: "auth-key-value" },
+        });
+      const testResponse = await request(app)
+        .post("/api/v1/push/test")
+        .set("Authorization", "Bearer valid-token")
+        .send({ endpoint: "https://push.example/device" });
+
+      expect(registration.status).toBe(201);
+      expect(testResponse.status).toBe(200);
+      expect(push.register).toHaveBeenCalledWith(ownerProfile.id, expect.objectContaining({
+        endpoint: "https://push.example/device",
+      }));
+    });
+
+    it("denies CUSTOMER notification management", async () => {
+      const push = pushStub();
+      const response = await request(createProtectedApp(
+        { ...ownerProfile, role: "CUSTOMER" }, 60,
+        undefined, undefined, undefined, undefined, undefined, push,
+      ))
+        .get("/api/v1/push/config")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(403);
+    });
+
+    it("protects the credit reminder cron with CRON_SECRET", async () => {
+      const push = pushStub();
+      const app = createProtectedApp(ownerProfile, 60, undefined, undefined, undefined, undefined, undefined, push);
+      const denied = await request(app).get("/api/v1/cron/credit-reminders");
+      const accepted = await request(app)
+        .get("/api/v1/cron/credit-reminders")
+        .set("Authorization", "Bearer cron-secret-with-enough-length");
+
+      expect(denied.status).toBe(401);
+      expect(accepted.status).toBe(200);
+      expect(accepted.body.data).toMatchObject({ actionableCount: 3, totalOpenCount: 5 });
+    });
+
+    it("schedules one push for a new website order and skips an idempotent replay", async () => {
+      const orders = pushOrderStub();
+      const push = pushStub();
+      const scheduled: Promise<unknown>[] = [];
+      const schedule = vi.fn((task: Promise<unknown>) => { scheduled.push(task); });
+      const app = createProtectedApp(
+        ownerProfile, 60, undefined, undefined, orders, undefined, undefined, push, schedule,
+      );
+      const checkout = {
+        items: [{ productVariantId: "10000000-0000-4000-8000-000000000001", quantity: 1 }],
+        customer: { name: "Guest", phone: "01700000000", address: "Dhaka address" },
+        deliveryRateId: "30000000-0000-4000-8000-000000000001",
+        idempotencyKey: "push-checkout-001",
+      };
+
+      await request(app).post("/api/v1/orders/website").send(checkout);
+      await Promise.all(scheduled);
+      expect(push.notifyWebsiteOrder).toHaveBeenCalledOnce();
+
+      vi.mocked(orders.createWebsiteOrder).mockResolvedValueOnce({
+        order: { id: "order-1", orderNumber: "WEB-1001" },
+        replayed: true,
+      } as never);
+      await request(app).post("/api/v1/orders/website").send(checkout);
+      expect(push.notifyWebsiteOrder).toHaveBeenCalledOnce();
     });
   });
 

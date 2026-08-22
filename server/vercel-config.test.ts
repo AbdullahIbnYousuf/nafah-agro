@@ -9,6 +9,7 @@ interface VercelConfiguration {
   regions?: string[];
   headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
   rewrites?: Array<{ source: string; destination: string }>;
+  crons?: Array<{ path: string; schedule: string }>;
 }
 
 const config = JSON.parse(
@@ -41,6 +42,13 @@ describe("single-project Vercel configuration", () => {
       headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
     });
     expect(config.headers?.some((entry) => entry.source.startsWith("/api"))).toBe(false);
+  });
+
+  it("schedules the credit reminder for 9 AM in Asia/Dhaka", () => {
+    expect(config.crons).toEqual([{
+      path: "/api/v1/cron/credit-reminders",
+      schedule: "0 3 * * *",
+    }]);
   });
 
   it("forwards health and unknown API paths to Express", () => {

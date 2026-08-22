@@ -12,6 +12,12 @@
       ]
     }
   ],
+  "crons": [
+    {
+      "path": "/api/v1/cron/credit-reminders",
+      "schedule": "0 3 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

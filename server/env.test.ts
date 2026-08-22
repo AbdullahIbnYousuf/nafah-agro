@@ -25,6 +25,10 @@ describe("backend environment validation", () => {
       CLOUDINARY_CLOUD_NAME: "cloud",
       CLOUDINARY_API_KEY: "key",
       CLOUDINARY_API_SECRET: "secret",
+      VAPID_PUBLIC_KEY: "public-vapid-key",
+      VAPID_PRIVATE_KEY: "private-vapid-key",
+      VAPID_SUBJECT: "mailto:owner@nafah-agro.example",
+      CRON_SECRET: "cron-secret-with-enough-length",
     });
 
     expect(env.NODE_ENV).toBe("production");
@@ -71,5 +75,26 @@ describe("backend environment validation", () => {
 
     expect(disabled.OWNER_INVITATIONS_CONFIGURED).toBe(false);
     expect(enabled.OWNER_INVITATIONS_CONFIGURED).toBe(true);
+  });
+
+  it("requires all push notification variables together", () => {
+    expect(() => parseBackendEnv({
+      ...validEnvironment,
+      VAPID_PUBLIC_KEY: "public-vapid-key",
+    })).toThrow("must be provided together");
+  });
+
+  it("reports push notifications configured only with the complete group", () => {
+    const disabled = parseBackendEnv(validEnvironment);
+    const enabled = parseBackendEnv({
+      ...validEnvironment,
+      VAPID_PUBLIC_KEY: "public-vapid-key",
+      VAPID_PRIVATE_KEY: "private-vapid-key",
+      VAPID_SUBJECT: "mailto:owner@nafah-agro.example",
+      CRON_SECRET: "cron-secret-with-enough-length",
+    });
+
+    expect(disabled.PUSH_CONFIGURED).toBe(false);
+    expect(enabled.PUSH_CONFIGURED).toBe(true);
   });
 });

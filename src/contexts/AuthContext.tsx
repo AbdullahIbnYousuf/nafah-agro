@@ -11,12 +11,14 @@ import type { AuthChangeEvent, Session, SupabaseClient } from '@supabase/supabas
 import type { User } from '@/lib/types';
 import { ApiError, completeCustomerProfile, getCurrentProfile, updateMyProfile } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { disablePushNotifications } from '@/lib/pushNotifications';
 
 export type ProfileLoader = (accessToken: string) => Promise<User>;
 export type ProfileCompleter = (
   accessToken: string,
 ) => Promise<User>;
 export type ProfileUpdater = (input: { fullName: string; phoneNumber: string }) => Promise<User>;
+export type PushLogoutCleanup = () => Promise<unknown>;
 
 interface AuthContextValue {
   user: User | null;
@@ -67,6 +69,7 @@ interface AuthProviderProps {
   loadProfile?: ProfileLoader;
   completeProfile?: ProfileCompleter;
   saveProfile?: ProfileUpdater;
+  cleanupPushOnLogout?: PushLogoutCleanup;
 }
 
 export function AuthProvider({
@@ -75,6 +78,7 @@ export function AuthProvider({
   loadProfile = getCurrentProfile,
   completeProfile = completeCustomerProfile,
   saveProfile = updateMyProfile,
+  cleanupPushOnLogout = disablePushNotifications,
 }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -254,13 +258,16 @@ export function AuthProvider({
   }, [client, resolveSession]);
 
   const logout = useCallback(async () => {
+    if (user?.role === 'OWNER') {
+      await cleanupPushOnLogout().catch(() => undefined);
+    }
     const { error } = await client.auth.signOut();
     if (error) throw error;
     setPasswordRecoveryMarker(false);
     setIsPasswordRecovery(false);
     setSession(null);
     setUser(null);
-  }, [client]);
+  }, [cleanupPushOnLogout, client, user?.role]);
 
   const updateProfile = useCallback(async (fullName: string, phoneNumber: string) => {
     const updated = await saveProfile({ fullName, phoneNumber });

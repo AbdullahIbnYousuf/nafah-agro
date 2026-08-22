@@ -43,6 +43,7 @@ describe('installable PWA configuration', () => {
     expect(pwaOptions.registerType).toBe('prompt');
     expect(pwaOptions.workbox?.globPatterns).not.toContain('**/*.json');
     expect(pwaOptions.workbox?.navigateFallbackDenylist?.some(pattern => pattern.test('/api/v1/health'))).toBe(true);
+    expect(pwaOptions.workbox?.importScripts).toContain('/push-handler.js');
 
     const runtimeRules = pwaOptions.workbox?.runtimeCaching ?? [];
     expect(runtimeRules).toHaveLength(1);
@@ -52,5 +53,13 @@ describe('installable PWA configuration', () => {
     expect((apiRule.urlPattern as RegExp).test('https://nafah-agro.vercel.app/api/v1/products')).toBe(true);
     expect((apiRule.urlPattern as RegExp).test('https://project.supabase.co/auth/v1/user')).toBe(false);
     expect((apiRule.urlPattern as RegExp).test('https://res.cloudinary.com/demo/image/upload/item.jpg')).toBe(false);
+  });
+
+  it('keeps push payloads private and opens only approved application paths', async () => {
+    const worker = await readFile('public/push-handler.js', 'utf8');
+    expect(worker).toContain("self.addEventListener('push'");
+    expect(worker).toContain("self.addEventListener('notificationclick'");
+    expect(worker).toContain("received.url.startsWith('/')");
+    expect(worker).not.toMatch(/customer(Name|Phone|Address)|phoneNumber|grandTotal/);
   });
 });

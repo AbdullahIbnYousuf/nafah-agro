@@ -16,6 +16,12 @@ Physical-shop বাকি sales are now complete in local code. They consume FI
 recognize the sale immediately while an independent append-only ledger tracks
 partial/full collection, outstanding balances, due dates, and payment corrections.
 
+Opt-in OWNER Web Push is complete in local code for newly committed website
+orders and one due/overdue credit reminder at 9 AM Dhaka. Subscriptions are
+per device, inactive/non-owner profiles are excluded, deliveries are
+deduplicated, expired endpoints are removed, and payloads contain no customer
+or financial details.
+
 The code is ready for a disposable Supabase/Vercel Preview acceptance run. It
 is not approved for production until the external gates in this document and
 `docs/RELEASE_CHECKLIST.md` are completed.
@@ -35,6 +41,9 @@ is not approved for production until the external gates in this document and
 - Migration `202608220001_credit_sales` is checked in but was not applied to an
   external database. Existing physical sales remain `CASH + PAID`; no
   historical sale is converted to credit.
+- Migration `202608220002_push_notifications` is checked in and is the only
+  migration currently pending on the configured Supabase database. It was not
+  applied by this task.
 
 - Added shared OWNER/CUSTOMER password recovery through Supabase email links.
 - Added OWNER-controlled promotion for an email already registered as CUSTOMER.
@@ -114,7 +123,7 @@ is not approved for production until the external gates in this document and
 
 - `npm run typecheck`: passed (frontend, backend, Prisma scripts).
 - `npm run lint`: passed with no errors or warnings.
-- `npm test -- --run`: 320 tests passed across 45 files. This includes analytics
+- `npm test -- --run`: 339 tests passed across 48 files. This includes analytics
   recognition/reversal/FIFO/discount/source/ranking/inventory cases, auth claims,
   OWNER/CUSTOMER access, strict request contracts, upload limits, safe errors,
   database-integrity source checks, unused owner/catalog deletion safeguards,
@@ -129,7 +138,7 @@ is not approved for production until the external gates in this document and
 - `npm run inventory:check`: passed against the configured database with no
   cached stock-total mismatches.
 - `npx prisma migrate status --schema prisma/schema.prisma`: connected to the
-  configured database and reported only `202608220001_credit_sales` as pending.
+  configured database and reported only `202608220002_push_notifications` as pending.
   The expected nonzero status means the migration was not applied by this task.
 - `git diff --check`: passed.
 
@@ -191,6 +200,9 @@ Vercel runtime/build variables:
 - `CLOUDINARY_API_SECRET`
 - `JSON_BODY_LIMIT` only when overriding the safe default
 - `SUPABASE_SERVICE_ROLE_KEY` (backend-only; required for production OWNER invitations)
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (required
+  together for OWNER device notifications)
+- `CRON_SECRET` (required for the scheduled credit reminder endpoint)
 
 `DIRECT_URL` belongs in protected local migration/CI configuration, not the
 normal Vercel runtime. Obsolete MongoDB, custom-JWT, admin-unlock,
@@ -206,6 +218,11 @@ cross-origin-frontend, and separate-backend variables are not used.
 - Configure a Vercel Preview with the required secrets; verify Function detection,
   `/`, `/shop`, `/admin`, product refreshes, health, JSON API 404s, PostgreSQL,
   logs/request IDs, and rollback to a known-good deployment.
+- Apply `202608220002_push_notifications`, verify the cron appears in Vercel,
+  enable notifications from an OWNER profile on real desktop and Android
+  Chrome, place one website order, run one authorized reminder request, and
+  confirm expired-device cleanup. Vercel Hobby cron may start at any point in
+  the scheduled 9:00 to 9:59 AM Dhaka hour.
 - Perform a real authorized Cloudinary upload and render, plus invalid MIME,
   oversize, over-count, and CUSTOMER-denial checks.
 - Enter client-approved Dhaka and Outside-Dhaka charges, approved opening stock

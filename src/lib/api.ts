@@ -641,6 +641,39 @@ export function getAnalyticsDashboard(input: {
   return requestV1<AnalyticsDashboardData>(`/analytics/dashboard?${query}`);
 }
 
+export function getPushConfig(): Promise<{ publicKey: string }> {
+  return requestV1('/push/config');
+}
+
+export function registerPushSubscription(input: {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}): Promise<{ enabled: true }> {
+  return requestV1('/push/subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function removePushSubscription(endpoint: string): Promise<{ enabled: false }> {
+  return requestV1('/push/subscriptions', {
+    method: 'DELETE',
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
+export function sendTestPush(endpoint: string): Promise<{
+  sent: number;
+  failed: number;
+  expired: number;
+  skipped: number;
+}> {
+  return requestV1('/push/test', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
 // Cloudinary upload route protected by Supabase OWNER middleware.
 export async function uploadImages(files: File[]): Promise<string[]> {
   const form = new FormData();

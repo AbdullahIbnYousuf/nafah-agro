@@ -30,6 +30,9 @@ orders, returns, analytics, and Cloudinary uploads.
   gross profit, returns, sources, rankings, open COD work, and inventory value.
 - One-project Vercel routing: the frontend uses `/`; every API route uses
   same-origin `/api/v1/*`.
+- Opt-in OWNER device notifications for new website orders and due or overdue
+  credit-sale follow-ups. Notification payloads contain no customer contact or
+  financial data.
 
 ## Local setup
 
@@ -88,6 +91,10 @@ pack/size management use `/admin/products/new`,
 | `PROTECTED_RATE_LIMIT_MAX` | backend, optional | Protected requests per IP/window; default `300` |
 | `OWNER_INVITE_RATE_LIMIT_MAX` | backend, optional | Owner invitations per IP/window |
 | `DIRECT_URL` | protected CLI/CI only | Direct/session URL for migrations, seeds, and owner commands |
+| `VAPID_PUBLIC_KEY` | backend/Vercel | Public half of the permanent Web Push signing pair |
+| `VAPID_PRIVATE_KEY` | backend/Vercel | Secret Web Push signing key; never expose through `VITE_` |
+| `VAPID_SUBJECT` | backend/Vercel | `mailto:` operations contact or an HTTPS origin |
+| `CRON_SECRET` | backend/Vercel | Long random secret used by Vercel Cron authorization |
 
 Production startup fails fast when database, Supabase Auth administration, or
 Cloudinary runtime configuration is missing. Vercel supplies production mode
@@ -136,7 +143,28 @@ Physical-shop sales default to immediate payment. Selecting `বাকি` requi
 customer name, phone, and next follow-up date. The sale still completes and
 deducts FIFO stock immediately; later payments reduce the outstanding balance
 without recording revenue or profit a second time. Due and overdue reminders
-are in-app only in V1.
+remain visible in the application.
+
+An OWNER may additionally enable browser push per device from `/profile`. New
+website orders notify only after the order commit succeeds. At 9 AM Dhaka, the
+scheduled job sends one summary only when at least one credit follow-up is due
+or overdue. An unchanged overdue date is reminded again the next morning;
+moving the follow-up date stops reminders until that date. Browser permission
+is never requested until the owner clicks `নোটিফিকেশন চালু করুন`.
+
+Generate the VAPID pair once and keep the same values across deployments:
+
+```bash
+npx web-push generate-vapid-keys --json
+openssl rand -base64 36
+```
+
+The first command provides `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`; the
+second output can be used as `CRON_SECRET`. Set `VAPID_SUBJECT` to an operations
+email such as `mailto:owner@example.com`. Chrome/Chromium is the primary target.
+On iPhone/iPad, install the PWA to the Home Screen before enabling push. Every
+browser profile or device must opt in separately. Explicit logout removes that
+device subscription best-effort.
 
 If the invitation email already belongs to a CUSTOMER, the profile screen offers
 an explicit, reason-required promotion instead of creating another Supabase

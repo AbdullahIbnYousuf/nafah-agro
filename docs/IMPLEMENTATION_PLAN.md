@@ -96,5 +96,9 @@ Status: local hardening implemented; external staging/production gate remains.
 - Local authorization, strict validation, upload limits, FIFO constraints,
   order dialogs, responsive polish, route/section splitting, safe seed checks,
   recovery notes, and deterministic analytics tests are part of the review.
+- OWNER Web Push is implemented for committed website orders and one 9 AM
+  Dhaka due/overdue credit reminder. Device opt-in, active-owner filtering,
+  delivery deduplication, expired-subscription cleanup, and private payloads are
+  enforced; live Chrome and Vercel Cron acceptance remains.
 - Apply migrations and complete the disposable Supabase/Cloudinary/Vercel
   Preview checklist before approving production. Deployment is not automatic.

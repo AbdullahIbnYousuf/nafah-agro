@@ -43,6 +43,15 @@ import { createUnifiedOrderService, type UnifiedOrderService } from "./services/
 import { createAccountService, type AccountService } from "./services/accounts.js";
 import { createAnalyticsService, type AnalyticsService } from "./services/analytics.js";
 import { createOwnerAuthAdmin } from "./lib/supabaseAdmin.js";
+import { createPushNotificationRouter } from "./routes/pushNotifications.js";
+import {
+  createPushNotificationService,
+  type PushNotificationService,
+} from "./services/pushNotifications.js";
+import {
+  scheduleBackgroundTask,
+  type BackgroundTaskScheduler,
+} from "./lib/backgroundTasks.js";
 
 export interface AppDependencies {
   env: BackendEnv;
@@ -57,6 +66,8 @@ export interface AppDependencies {
   analyticsService?: AnalyticsService;
   writeCustomerProfile?: CustomerProfileWriter;
   uploadImage?: UploadImage;
+  pushService?: PushNotificationService;
+  scheduleBackground?: BackgroundTaskScheduler;
 }
 
 interface HttpError extends Error {
@@ -96,6 +107,7 @@ function getFoundationDependencies(env: BackendEnv) {
       accountService: undefined,
       analyticsService: undefined,
       writeCustomerProfile: undefined,
+      pushService: undefined,
     };
   }
 
@@ -117,6 +129,13 @@ function getFoundationDependencies(env: BackendEnv) {
     accountService: createAccountService(prisma, ownerAuthAdmin),
     analyticsService: createAnalyticsService(prisma),
     writeCustomerProfile: createCustomerProfileWriter(prisma),
+    pushService: env.PUSH_CONFIGURED && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT
+      ? createPushNotificationService(prisma, {
+        publicKey: env.VAPID_PUBLIC_KEY,
+        privateKey: env.VAPID_PRIVATE_KEY,
+        subject: env.VAPID_SUBJECT,
+      })
+      : undefined,
   };
 }
 
@@ -142,6 +161,8 @@ export function createApp(dependencies: AppDependencies) {
   const accountService = dependencies.accountService ?? getDefaults().accountService;
   const analyticsService = dependencies.analyticsService ?? getDefaults().analyticsService;
   const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
+  const pushService = dependencies.pushService ?? getDefaults().pushService;
+  const backgroundScheduler = dependencies.scheduleBackground ?? scheduleBackgroundTask;
   const localDevelopmentOrigins = new Set([
     "http://localhost:8080",
     "http://127.0.0.1:8080",
@@ -458,6 +479,8 @@ export function createApp(dependencies: AppDependencies) {
         authenticate,
         requireOwner,
         protectedRouteLimiter,
+        pushService ? order => pushService.notifyWebsiteOrder(order) : undefined,
+        backgroundScheduler,
       ),
     );
   } else {
@@ -465,6 +488,26 @@ export function createApp(dependencies: AppDependencies) {
       res.status(503).json({
         success: false,
         error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} },
+      });
+    });
+  }
+
+  if (pushService && dependencies.env.CRON_SECRET) {
+    app.use(
+      "/api/v1",
+      createPushNotificationRouter(
+        pushService,
+        authenticate,
+        requireOwner,
+        protectedRouteLimiter,
+        dependencies.env.CRON_SECRET,
+      ),
+    );
+  } else {
+    app.use(["/api/v1/push", "/api/v1/cron/credit-reminders"], (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: { code: "PUSH_NOT_CONFIGURED", message: "Push notifications are not configured.", details: {} },
       });
     });
   }

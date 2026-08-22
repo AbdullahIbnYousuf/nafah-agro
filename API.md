@@ -63,6 +63,15 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `POST` | `/api/v1/credit-sales/:id/payments` | OWNER | Idempotently record a partial or full payment |
 | `POST` | `/api/v1/credit-sales/:id/payments/:paymentId/void` | OWNER | Void an incorrect payment with a required reason |
 | `PATCH` | `/api/v1/credit-sales/:id/follow-up` | OWNER | Move the next follow-up date |
+| `GET` | `/api/v1/push/config` | OWNER | Read the public VAPID key for browser subscription |
+| `POST/DELETE` | `/api/v1/push/subscriptions` | OWNER | Enable or disable the authenticated owner's current browser device |
+| `POST` | `/api/v1/push/test` | OWNER | Send the approved test notification to the current device |
+| `GET` | `/api/v1/cron/credit-reminders` | `CRON_SECRET` | Send the 9 AM Dhaka due/overdue credit reminder summary |
+
+Website-order push is scheduled only after a new non-replayed order transaction
+commits. Push failure does not fail checkout. The credit cron sends nothing when
+the actionable count is zero. Delivery records deduplicate each order or date
+per device. Push endpoints and key material are not exposed through list APIs.
 
 Admin category/product responses include `canDelete`, calculated by the API.
 Deletion is transactional and rechecks eligibility server-side. A deleted

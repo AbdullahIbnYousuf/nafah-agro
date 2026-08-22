@@ -7,6 +7,7 @@ import {
 import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import PushNotificationCard from '@/components/PushNotificationCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -161,6 +162,7 @@ export default function CustomerProfile() {
 
     <Dialog open={passwordDialogOpen} onOpenChange={open => { if (!savingPassword) { setPasswordDialogOpen(open); if (!open) { setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); } } }}><DialogContent><DialogHeader><DialogTitle>{needsPasswordSetup ? 'নিজের পাসওয়ার্ড সেট করুন' : 'পাসওয়ার্ড পরিবর্তন'}</DialogTitle><DialogDescription>{needsPasswordSetup ? 'অ্যাকাউন্ট ব্যবহার শুরু করতে কমপক্ষে ৮ অক্ষরের একটি পাসওয়ার্ড দিন।' : 'পরিবর্তন নিশ্চিত করতে বর্তমান পাসওয়ার্ড এবং নতুন পাসওয়ার্ড দিন।'}</DialogDescription></DialogHeader><form id="password-change-form" className="space-y-4" onSubmit={savePassword}>{!needsPasswordSetup && <div><Label htmlFor="current-password">বর্তমান পাসওয়ার্ড</Label><Input id="current-password" className="mt-1" type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} required /></div>}<div><Label htmlFor="new-password">নতুন পাসওয়ার্ড</Label><Input id="new-password" className="mt-1" type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={8} required /></div><div><Label htmlFor="confirm-password">নতুন পাসওয়ার্ড নিশ্চিত করুন</Label><Input id="confirm-password" className="mt-1" type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={8} required /></div></form><DialogFooter><Button type="button" variant="outline" onClick={() => setPasswordDialogOpen(false)} disabled={savingPassword}>বাতিল</Button><Button type="submit" form="password-change-form" disabled={savingPassword}>{savingPassword ? 'পরিবর্তন হচ্ছে…' : needsPasswordSetup ? 'পাসওয়ার্ড সেট করুন' : 'পরিবর্তন সংরক্ষণ করুন'}</Button></DialogFooter></DialogContent></Dialog>
 
+    {isOwner && <PushNotificationCard />}
     {isOwner ? <OwnerManagement currentOwnerId={user!.id} /> : <CustomerOrders />}
   </main><Footer /></div>;
 }

@@ -26,6 +26,7 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     ],
   },
   workbox: {
+    importScripts: ["/push-handler.js"],
     cleanupOutdatedCaches: true,
     clientsClaim: false,
     skipWaiting: false,
