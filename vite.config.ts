@@ -7,6 +7,9 @@ export const pwaOptions: Partial<VitePWAOptions> = {
   registerType: "prompt",
   injectRegister: null,
   includeManifestIcons: false,
+  devOptions: {
+    enabled: true,
+  },
   manifest: {
     id: "/",
     name: "নাফাহ এগ্রো",

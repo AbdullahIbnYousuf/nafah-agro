@@ -8,9 +8,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/contexts/PwaContext', () => ({ usePwa: () => mocks.pwa }));
 
-describe('homepage PWA installation card', () => {
+describe('profile PWA installation card', () => {
   beforeEach(() => {
-    sessionStorage.clear();
     mocks.pwa.canInstall = true;
     mocks.pwa.install.mockReset();
     mocks.pwa.install.mockResolvedValue('accepted');
@@ -26,14 +25,9 @@ describe('homepage PWA installation card', () => {
     expect(screen.queryByRole('button', { name: 'অ্যাপ ইনস্টল করুন' })).not.toBeInTheDocument();
   });
 
-  it('keeps an explicitly dismissed homepage card hidden for the browser session', () => {
-    const first = render(<InstallAppCard />);
-    fireEvent.click(screen.getByRole('button', { name: 'ইনস্টল বার্তা বন্ধ করুন' }));
-    expect(screen.queryByRole('button', { name: 'অ্যাপ ইনস্টল করুন' })).not.toBeInTheDocument();
-    expect(mocks.pwa.install).not.toHaveBeenCalled();
-
-    first.unmount();
+  it('renders as a separate profile settings card', () => {
     render(<InstallAppCard />);
-    expect(screen.queryByRole('button', { name: 'অ্যাপ ইনস্টল করুন' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'অ্যাপ ইনস্টল' })).toBeInTheDocument();
+    expect(screen.getByText(/এই ফোন বা কম্পিউটারে/)).toBeInTheDocument();
   });
 });

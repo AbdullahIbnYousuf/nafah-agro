@@ -25,9 +25,16 @@ const mocks = vi.hoisted(() => ({
   demoteOwnerToCustomer: vi.fn(),
   setOwnerActive: vi.fn(),
   deleteUnusedOwner: vi.fn(),
+  pwa: {
+    canInstall: true,
+    isInstalled: false,
+    isOffline: false,
+    install: vi.fn(),
+  },
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => mocks.auth }));
+vi.mock('@/contexts/PwaContext', () => ({ usePwa: () => mocks.pwa }));
 vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {
     constructor(
@@ -69,6 +76,8 @@ describe('role-aware profile page', () => {
     mocks.deleteUnusedOwner.mockResolvedValue({ id: 'owner-2' });
     mocks.promoteCustomerToOwner.mockResolvedValue({});
     mocks.demoteOwnerToCustomer.mockResolvedValue({ id: 'owner-2', role: 'CUSTOMER' });
+    mocks.pwa.canInstall = true;
+    mocks.pwa.install.mockResolvedValue('accepted');
   });
 
   it('shows owner management and does not load customer orders for an OWNER', async () => {
@@ -76,6 +85,7 @@ describe('role-aware profile page', () => {
     expect(screen.getByText('পরিচালনা প্যানেল')).toBeInTheDocument();
     expect(await screen.findByText('ওনার অ্যাকাউন্ট')).toBeInTheDocument();
     expect(screen.getByText('নতুন ওনার আমন্ত্রণ')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'অ্যাপ ইনস্টল' })).toBeInTheDocument();
     expect(mocks.getOwners).toHaveBeenCalledOnce();
     expect(mocks.getMyOrders).not.toHaveBeenCalled();
   });
@@ -360,6 +370,7 @@ describe('role-aware profile page', () => {
     mocks.auth.isOwner = false;
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
     expect(await screen.findByText('আমার ওয়েবসাইট অর্ডার')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'অ্যাপ ইনস্টল' })).toBeInTheDocument();
     await waitFor(() => expect(mocks.getMyOrders).toHaveBeenCalledOnce());
     expect(screen.queryByText('নতুন ওনার আমন্ত্রণ')).not.toBeInTheDocument();
     expect(mocks.getOwners).not.toHaveBeenCalled();

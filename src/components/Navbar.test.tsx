@@ -14,34 +14,16 @@ const mocks = vi.hoisted(() => ({
     needsPasswordSetup: false,
     logout: vi.fn(),
   },
-  pwa: {
-    canInstall: false,
-    isInstalled: false,
-    isOffline: false,
-    install: vi.fn(),
-  },
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => mocks.auth }));
 vi.mock('@/contexts/CartContext', () => ({ useCart: () => ({ totalItems: 2 }) }));
-vi.mock('@/contexts/PwaContext', () => ({ usePwa: () => mocks.pwa }));
 
 describe('navbar invited-owner setup state', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.needsPasswordSetup = false;
     mocks.auth.logout.mockResolvedValue(undefined);
-    mocks.pwa.canInstall = false;
-    mocks.pwa.install.mockResolvedValue('accepted');
-  });
-
-  it('offers the shared install action only in the mobile menu when Chrome makes it available', () => {
-    mocks.pwa.canInstall = true;
-    render(<MemoryRouter><Navbar /></MemoryRouter>);
-    fireEvent.click(screen.getByRole('button', { name: 'মেনু খুলুন' }));
-    fireEvent.click(screen.getByRole('button', { name: 'অ্যাপ ইনস্টল করুন' }));
-    expect(mocks.pwa.install).toHaveBeenCalledOnce();
-    expect(screen.queryByRole('button', { name: 'অ্যাপ ইনস্টল করুন' })).not.toBeInTheDocument();
   });
 
   it('keeps the normal owner navigation after account setup', () => {
@@ -49,6 +31,7 @@ describe('navbar invited-owner setup state', () => {
     fireEvent.click(screen.getByRole('button', { name: 'মেনু খুলুন' }));
     expect(screen.getAllByText('পরিচালনা প্যানেল').length).toBeGreaterThan(0);
     expect(screen.getAllByText('হোম').length).toBeGreaterThan(0);
+    expect(screen.queryByText('অ্যাপ ইনস্টল করুন')).not.toBeInTheDocument();
     expect(screen.queryByText('সেটআপ বাকি')).not.toBeInTheDocument();
   });
 

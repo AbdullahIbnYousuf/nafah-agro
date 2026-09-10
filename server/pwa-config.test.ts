@@ -41,6 +41,7 @@ describe('installable PWA configuration', () => {
 
   it('precaches only local build assets and keeps every API request network-only', () => {
     expect(pwaOptions.registerType).toBe('prompt');
+    expect(pwaOptions.devOptions?.enabled).toBe(true);
     expect(pwaOptions.workbox?.globPatterns).not.toContain('**/*.json');
     expect(pwaOptions.workbox?.navigateFallbackDenylist?.some(pattern => pattern.test('/api/v1/health'))).toBe(true);
     expect(pwaOptions.workbox?.importScripts).toContain('/push-handler.js');

@@ -1,21 +1,13 @@
 import { useState } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePwa } from '@/contexts/PwaContext';
 
-const DISMISSED_KEY = 'nafah_pwa_install_card_dismissed';
-
 export default function InstallAppCard() {
   const { canInstall, install } = usePwa();
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(DISMISSED_KEY) === 'true');
   const [installing, setInstalling] = useState(false);
 
-  if (!canInstall || dismissed) return null;
-
-  const dismiss = () => {
-    sessionStorage.setItem(DISMISSED_KEY, 'true');
-    setDismissed(true);
-  };
+  if (!canInstall) return null;
 
   const startInstall = async () => {
     setInstalling(true);
@@ -27,21 +19,20 @@ export default function InstallAppCard() {
   };
 
   return (
-    <section className="container mx-auto px-4 pt-6" aria-label="নাফাহ এগ্রো অ্যাপ ইনস্টল করুন">
-      <div className="relative flex flex-col gap-4 rounded-xl border border-secondary/40 bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <button
-          type="button"
-          aria-label="ইনস্টল বার্তা বন্ধ করুন"
-          onClick={dismiss}
-          className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted"
-        >
-          <X size={18} />
-        </button>
-        <div className="pr-9">
-          <h2 className="font-bold">নাফাহ এগ্রো অ্যাপ হিসেবে ব্যবহার করুন</h2>
-          <p className="mt-1 text-sm text-muted-foreground">দ্রুত খুলতে ফোন বা কম্পিউটারে অ্যাপটি ইনস্টল করুন।</p>
+    <section className="rounded-2xl border bg-card p-6" aria-labelledby="install-app-title">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Download size={20} />
+          </div>
+          <div>
+            <h2 id="install-app-title" className="text-xl font-bold">অ্যাপ ইনস্টল</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+              দ্রুত খুলতে এই ফোন বা কম্পিউটারে নাফাহ এগ্রো অ্যাপটি ইনস্টল করুন।
+            </p>
+          </div>
         </div>
-        <Button className="min-h-11 shrink-0" onClick={() => void startInstall()} disabled={installing}>
+        <Button className="min-h-11 shrink-0 sm:self-start" onClick={() => void startInstall()} disabled={installing}>
           <Download size={17} className="mr-2" />{installing ? 'ইনস্টল হচ্ছে…' : 'অ্যাপ ইনস্টল করুন'}
         </Button>
       </div>
