@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import Admin, {
   AdminCategories,
   AdminDashboard,
@@ -72,7 +73,7 @@ describe('safe catalog deletion controls', () => {
 
   function renderAdmin(path: string) {
     return render(
-      <MemoryRouter initialEntries={[path]}>
+      <TooltipProvider><MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/admin" element={<Admin />}>
             <Route index element={<Navigate to="dashboard" replace />} />
@@ -85,7 +86,7 @@ describe('safe catalog deletion controls', () => {
             <Route path="categories" element={<AdminCategories />} />
           </Route>
         </Routes>
-      </MemoryRouter>,
+      </MemoryRouter></TooltipProvider>,
     );
   }
 
@@ -118,6 +119,8 @@ describe('safe catalog deletion controls', () => {
 
     expect(await screen.findByRole('img', { name: 'Unused Product পণ্যের ছবি' })).toHaveAttribute('src', product.images[0]);
     expect(screen.getByRole('link', { name: /গ্রাহক পেজ/ })).toHaveAttribute('href', '/products/unused-product');
+    expect(screen.getByText('পণ্য সক্রিয়')).toBeInTheDocument();
+    expect(screen.getByText('দোকানে দেখা যাচ্ছে')).toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'প্যাক/সাইজ ও দাম' })).toBeInTheDocument();
 
@@ -132,6 +135,56 @@ describe('safe catalog deletion controls', () => {
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' })).not.toBeChecked());
   });
 
+  it('explains when an active product is hidden by its inactive category', async () => {
+    mocks.getAdminCategories.mockResolvedValueOnce([
+      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, canDelete: false },
+    ]);
+
+    renderAdmin('/admin/products');
+
+    const note = await screen.findByRole('button', { name: 'গ্রাহক পেজ লুকানো' });
+    expect(screen.queryByText('দোকানে দেখা যাচ্ছে না: ক্যাটাগরি নিষ্ক্রিয়')).not.toBeInTheDocument();
+    fireEvent.focus(note);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('পণ্যটি সক্রিয়, কিন্তু এর ক্যাটাগরি নিষ্ক্রিয়।');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('ক্যাটাগরি পেজ থেকে সুইচ চালু করলে পণ্যটি আবার দোকানে দেখা যাবে।');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('নতুন করে পণ্য তৈরি বা সক্রিয় করার দরকার নেই।');
+    fireEvent.blur(note);
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+    expect(screen.queryByRole('link', { name: /গ্রাহক পেজ/ })).not.toBeInTheDocument();
+  });
+
+  it('warns that activation does not override an inactive category', async () => {
+    const inactiveProduct = { ...product, isActive: false };
+    mocks.getAdminProducts.mockResolvedValueOnce({ data: [inactiveProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getAdminCategories.mockResolvedValueOnce([
+      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, canDelete: false },
+    ]);
+    mocks.setProductActive.mockResolvedValueOnce({ ...product, isActive: true });
+
+    renderAdmin('/admin/products');
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' }));
+    const dialog = screen.getByRole('dialog', { name: 'পণ্য সক্রিয় করুন' });
+    expect(dialog).toHaveTextContent('Unused Product সক্রিয় হবে, তবে ক্যাটাগরি নিষ্ক্রিয় থাকায় দোকানে দেখা যাবে না');
+    expect(mocks.setProductActive).not.toHaveBeenCalled();
+  });
+
+  it('marks loose products as physical-shop-only instead of offering a customer page', async () => {
+    mocks.getAdminProducts.mockResolvedValueOnce({
+      data: [{ ...product, kind: 'LOOSE_WEIGHT' }],
+      total: 1,
+      page: 1,
+      limit: 100,
+      totalPages: 1,
+    });
+
+    renderAdmin('/admin/products');
+
+    expect(await screen.findByText('খোলা ওজন')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /গ্রাহক পেজ/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('গ্রাহক পেজ লুকানো')).not.toBeInTheDocument();
+  });
+
   it('shows the category customer URL and affected products before changing state', async () => {
     renderAdmin('/admin/categories');
 
@@ -144,6 +197,19 @@ describe('safe catalog deletion controls', () => {
     expect(mocks.setCategoryActive).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'নিষ্ক্রিয় করুন' }));
     await waitFor(() => expect(mocks.setCategoryActive).toHaveBeenCalledWith(product.categoryId, false));
+  });
+
+  it('explains that an inactive category temporarily hides its active products', async () => {
+    mocks.getAdminCategories.mockResolvedValueOnce([
+      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, canDelete: false },
+    ]);
+
+    renderAdmin('/admin/categories');
+
+    expect(await screen.findByText('Hidden Category')).toBeInTheDocument();
+    expect(screen.getByText('গ্রাহকের দোকানে লুকানো')).toBeInTheDocument();
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /এই ক্যাটাগরির পণ্য দেখুন/ })).not.toBeInTheDocument();
   });
 
   it('opens product workflows from direct URLs and closes back to the list', async () => {
