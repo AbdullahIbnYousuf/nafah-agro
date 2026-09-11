@@ -7,6 +7,8 @@ const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/);
 const positiveMoney = money.refine((value) => Number(value) > 0, "Buying cost must be greater than zero");
 const nonNegativeMoney = money.refine((value) => Number(value) >= 0);
 const reason = z.string().trim().min(3).max(500);
+const optionalReason = (fallback: string) => z.string().trim().max(500).optional()
+  .transform((value) => value || fallback);
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
@@ -103,7 +105,7 @@ export const physicalSaleListSchema = z.object({
 
 export const physicalSaleReturnSchema = z.object({
   condition: z.enum(["SELLABLE", "DAMAGED"]),
-  reason,
+  reason: optionalReason("দোকানের বিক্রি ফেরত"),
   items: z.array(z.object({
     salesOrderItemId: uuid,
     amount,

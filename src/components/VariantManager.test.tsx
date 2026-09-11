@@ -65,7 +65,7 @@ describe('pack/size management', () => {
       sellingPrice: 900,
       lowStockThreshold: 5,
       isDefault: false,
-      priceReason: 'Initial variant price',
+      priceReason: undefined,
     }));
     expect(JSON.stringify(mocks.createVariant.mock.calls)).not.toContain('INTERNAL-SKU');
   });

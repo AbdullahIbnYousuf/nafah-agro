@@ -29,7 +29,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
   const [price, setPrice] = useState('');
   const [threshold, setThreshold] = useState('5');
   const [isDefault, setIsDefault] = useState(false);
-  const [reason, setReason] = useState('Initial variant price');
+  const [reason, setReason] = useState('');
   const [creating, setCreating] = useState(false);
   const [bulkPrices, setBulkPrices] = useState<Record<string, string>>({});
   const [bulkReason, setBulkReason] = useState('');
@@ -59,7 +59,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
         sellingPrice: Number(price),
         lowStockThreshold: Number(threshold) || 0,
         isDefault: isDefault || variants.length === 0,
-        priceReason: reason.trim() || 'Initial variant price',
+        priceReason: reason.trim() || undefined,
       });
       onUpdated(updated);
       setName('');
@@ -83,13 +83,9 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
       toast.error('সব দাম সঠিক হতে হবে');
       return;
     }
-    if (bulkReason.trim().length < 3) {
-      toast.error('দাম পরিবর্তনের কারণ দিন');
-      return;
-    }
     setBulkSaving(true);
     try {
-      const updatedProducts = await bulkChangeSellingPrices(bulkUpdates, bulkReason.trim());
+      const updatedProducts = await bulkChangeSellingPrices(bulkUpdates, bulkReason.trim() || undefined);
       const updated = updatedProducts.find((item) => item.id === product.id);
       if (updated) onUpdated(updated);
       setBulkPrices({});
@@ -124,7 +120,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
               <Field label="দাম"><Input type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></Field>
               <Field label="লো-স্টক সীমা"><Input type="number" min="0" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
             </div>
-            <Field label="প্রাথমিক দামের কারণ"><Input value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
+            <Field label="প্রাথমিক দামের কারণ (ঐচ্ছিক)"><Input value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
             <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
               <label className="flex min-h-11 items-center gap-2 text-sm"><input className="h-5 w-5" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />মূল প্যাক/সাইজ</label>
               <Button className="w-full sm:w-auto" type="submit" disabled={creating || hasUnnamedPackSize}>{creating ? 'যোগ হচ্ছে…' : 'প্যাক/সাইজ যোগ করুন'}</Button>
@@ -152,7 +148,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
                   </Field>
                 ))}
               </div>
-              <Field label="দাম পরিবর্তনের কারণ"><Input value={bulkReason} onChange={(event) => setBulkReason(event.target.value)} /></Field>
+              <Field label="দাম পরিবর্তনের কারণ (ঐচ্ছিক)"><Input value={bulkReason} onChange={(event) => setBulkReason(event.target.value)} /></Field>
               <div className="text-right"><Button type="button" disabled={bulkSaving} onClick={() => void handleBulkPriceUpdate()}>{bulkSaving ? 'আপডেট হচ্ছে…' : 'বাল্ক দাম সংরক্ষণ'}</Button></div>
             </section>
           )}
@@ -197,13 +193,13 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
   }
 
   async function updatePrice() {
-    if (newPrice === '' || priceReason.trim().length < 3) {
-      toast.error('নতুন দাম এবং কারণ দিন');
+    if (newPrice === '') {
+      toast.error('নতুন দাম দিন');
       return;
     }
     setSaving(true);
     try {
-      onUpdated(await changeSellingPrice(variant.id, Number(newPrice), priceReason.trim()));
+      onUpdated(await changeSellingPrice(variant.id, Number(newPrice), priceReason.trim() || undefined));
       setNewPrice('');
       setPriceReason('');
       setHistory(await getSellingPriceHistory(variant.id));
@@ -258,7 +254,7 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 
       <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end border-t pt-4">
         <Field label={`বর্তমান দাম: ৳${variant.sellingPrice} (${rateLabel(product.kind)})`}><Input type="number" min="0" step="0.01" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} placeholder="নতুন দাম" /></Field>
-        <Field label="পরিবর্তনের কারণ"><Input value={priceReason} onChange={(event) => setPriceReason(event.target.value)} /></Field>
+        <Field label="পরিবর্তনের কারণ (ঐচ্ছিক)"><Input value={priceReason} onChange={(event) => setPriceReason(event.target.value)} /></Field>
         <Button type="button" disabled={saving} onClick={() => void updatePrice()}>দাম সংরক্ষণ</Button>
       </div>
 

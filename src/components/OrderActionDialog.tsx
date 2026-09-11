@@ -38,13 +38,13 @@ const copy: Record<OrderAction, { title: string; description: string; button: st
     title: 'অর্ডার বাতিল করুন',
     description: 'অর্ডারটি বাতিল হবে। এর জন্য রাখা স্টক আবার বিক্রির জন্য পাওয়া যাবে।',
     button: 'অর্ডার বাতিল নিশ্চিত করুন',
-    warning: 'এটি একটি গুরুত্বপূর্ণ পরিবর্তন। বাতিলের কারণ রেকর্ডে রাখা হবে।',
+    warning: 'এটি একটি গুরুত্বপূর্ণ পরিবর্তন। কারণ লিখলে সেটি রেকর্ডে রাখা হবে।',
   },
   FAILED_DELIVERY: {
     title: 'ডেলিভারি ব্যর্থ হিসেবে চিহ্নিত করুন',
     description: 'অর্ডার বাতিল হবে এবং সংরক্ষিত স্টক ছেড়ে দেওয়া হবে।',
     button: 'ব্যর্থ ডেলিভারি নিশ্চিত করুন',
-    warning: 'ব্যর্থতার কারণ রেকর্ডে থাকবে। এই অর্ডার বিক্রি বা লাভের হিসাবে যোগ হবে না।',
+    warning: 'কারণ লিখলে সেটি রেকর্ডে থাকবে। এই অর্ডার বিক্রি বা লাভের হিসাবে যোগ হবে না।',
   },
 };
 
@@ -66,7 +66,7 @@ export default function OrderActionDialog({ order, action, onClose, onConfirm }:
   const [submitting, setSubmitting] = useState(false);
   const [confirmUnprofitable, setConfirmUnprofitable] = useState(false);
   const config = action ? copy[action] : null;
-  const reasonRequired = action === 'CANCEL' || action === 'FAILED_DELIVERY';
+  const reasonVisible = action === 'CANCEL' || action === 'FAILED_DELIVERY';
 
   useEffect(() => {
     setReason('');
@@ -81,14 +81,10 @@ export default function OrderActionDialog({ order, action, onClose, onConfirm }:
 
   async function submit() {
     const normalizedReason = reason.trim();
-    if (reasonRequired && normalizedReason.length < 3) {
-      setError('কারণ লিখুন। অন্তত ৩ অক্ষর প্রয়োজন।');
-      return;
-    }
     setSubmitting(true);
     setError('');
     try {
-      await onConfirm(reasonRequired ? normalizedReason : undefined, confirmUnprofitable);
+      await onConfirm(reasonVisible && normalizedReason ? normalizedReason : undefined, confirmUnprofitable);
       onClose();
     } catch (submitError) {
       if (
@@ -115,8 +111,8 @@ export default function OrderActionDialog({ order, action, onClose, onConfirm }:
         <AlertTitle>{confirmUnprofitable ? 'ক্ষতির সতর্কতা' : 'নিশ্চিত করুন'}</AlertTitle>
         <AlertDescription>{confirmUnprofitable ? `${error} তারপরও অর্ডারটি নিশ্চিত করতে আবার বোতাম চাপুন।` : config?.warning}</AlertDescription>
       </Alert>}
-      {reasonRequired && <div>
-        <Label htmlFor="order-action-reason">কারণ *</Label>
+      {reasonVisible && <div>
+        <Label htmlFor="order-action-reason">কারণ (ঐচ্ছিক)</Label>
         <Textarea id="order-action-reason" className="mt-2" value={reason} onChange={(event) => { setReason(event.target.value); setError(''); }} aria-invalid={Boolean(error)} aria-describedby={error ? 'order-action-error' : undefined} />
       </div>}
       {error && !confirmUnprofitable && <p id="order-action-error" role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}

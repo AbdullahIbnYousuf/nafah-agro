@@ -16,18 +16,17 @@ describe('order action dialog', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it('requires a reason for cancellation', () => {
+  it('submits cancellation without requiring a reason', async () => {
     const onConfirm = vi.fn(async () => {});
     render(<OrderActionDialog order={order} action="CANCEL" onClose={vi.fn()} onConfirm={onConfirm} />);
     fireEvent.click(screen.getByRole('button', { name: 'অর্ডার বাতিল নিশ্চিত করুন' }));
-    expect(screen.getByText(/অন্তত ৩ অক্ষর/)).toBeInTheDocument();
-    expect(onConfirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(undefined, false));
   });
 
   it('submits a failed-delivery reason', async () => {
     const onConfirm = vi.fn(async () => {});
     render(<OrderActionDialog order={order} action="FAILED_DELIVERY" onClose={vi.fn()} onConfirm={onConfirm} />);
-    fireEvent.change(screen.getByLabelText('কারণ *'), { target: { value: 'Customer was unavailable' } });
+    fireEvent.change(screen.getByLabelText('কারণ (ঐচ্ছিক)'), { target: { value: 'Customer was unavailable' } });
     fireEvent.click(screen.getByRole('button', { name: 'ব্যর্থ ডেলিভারি নিশ্চিত করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('Customer was unavailable', false));
   });

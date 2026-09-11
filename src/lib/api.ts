@@ -285,7 +285,7 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
         sellingPrice: String(product.price),
         lowStockThreshold: product.initialLowStockThreshold ?? 5,
       },
-      priceReason: 'Initial selling price',
+      priceReason: 'প্রাথমিক দাম',
     }),
   });
 }
@@ -312,7 +312,7 @@ export function changeProductKind(id: string, input: {
   kind: ProductKind;
   sellingPrice: number;
   lowStockThreshold: number;
-  reason: string;
+  reason?: string;
 }): Promise<Product> {
   return requestV1<Product>(`/products/${id}/kind`, {
     method: 'PATCH',
@@ -320,7 +320,7 @@ export function changeProductKind(id: string, input: {
   });
 }
 
-export async function changeSellingPrice(variantId: string, price: number, reason: string): Promise<Product> {
+export async function changeSellingPrice(variantId: string, price: number, reason?: string): Promise<Product> {
   return requestV1<Product>(`/variants/${variantId}/selling-price`, {
     method: 'PATCH',
     body: JSON.stringify({ sellingPrice: String(price), reason }),
@@ -344,7 +344,7 @@ export interface VariantCreateInput {
   sellingPrice: number;
   lowStockThreshold: number;
   isDefault: boolean;
-  priceReason: string;
+  priceReason?: string;
 }
 
 export function createVariant(productId: string, input: VariantCreateInput): Promise<Product> {
@@ -370,7 +370,7 @@ export function getSellingPriceHistory(variantId: string): Promise<SellingPriceH
 
 export function bulkChangeSellingPrices(
   updates: Array<{ variantId: string; sellingPrice: number }>,
-  reason: string,
+  reason?: string,
 ): Promise<Product[]> {
   return requestV1<Product[]>('/variants/selling-prices/bulk', {
     method: 'POST',
@@ -551,7 +551,7 @@ export function getPhysicalSales(input: {
 
 export function returnPhysicalSale(id: string, input: {
   condition: 'SELLABLE' | 'DAMAGED';
-  reason: string;
+  reason?: string;
   items: Array<{ salesOrderItemId: string; amount: string; amountUnit: AmountUnit }>;
 }): Promise<PhysicalSale> {
   return requestV1<PhysicalSale>(`/physical-sales/${id}/returns`, {
@@ -629,8 +629,8 @@ export function transitionOrder(
     | { action: 'CONFIRM'; confirmUnprofitable?: boolean }
     | { action: 'PROCESS' }
     | { action: 'DELIVER' }
-    | { action: 'CANCEL' | 'FAILED_DELIVERY'; reason: string }
-    | { action: 'RETURN'; condition: 'SELLABLE' | 'DAMAGED'; reason: string },
+    | { action: 'CANCEL' | 'FAILED_DELIVERY'; reason?: string }
+    | { action: 'RETURN'; condition: 'SELLABLE' | 'DAMAGED'; reason?: string },
 ): Promise<UnifiedOrder> {
   return requestV1<UnifiedOrder>(`/orders/${id}/status`, {
     method: 'PATCH', body: JSON.stringify(action),

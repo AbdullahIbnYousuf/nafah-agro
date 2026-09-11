@@ -110,13 +110,13 @@ export default function UnifiedOrderManager() {
     if (!pendingAction) return;
     const { order, action } = pendingAction;
     if (action === 'CONFIRM') await transitionOrder(order.id, { action, confirmUnprofitable });
-    else if (action === 'CANCEL' || action === 'FAILED_DELIVERY') await transitionOrder(order.id, { action, reason: reason ?? '' });
+    else if (action === 'CANCEL' || action === 'FAILED_DELIVERY') await transitionOrder(order.id, { action, reason });
     else await transitionOrder(order.id, { action });
     toast.success('অর্ডার আপডেট হয়েছে');
     await loadOrders();
   }
 
-  async function submitReturn(condition: ReturnCondition, reason: string) {
+  async function submitReturn(condition: ReturnCondition, reason?: string) {
     if (!returnOrder) return;
     await transitionOrder(returnOrder.id, { action: 'RETURN', condition, reason });
     toast.success('পুরো অর্ডার ফেরত সম্পন্ন হয়েছে');

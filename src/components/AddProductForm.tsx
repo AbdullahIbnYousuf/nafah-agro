@@ -46,7 +46,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const [lowStockThreshold, setLowStockThreshold] = useState(
     String((editProduct?.kind ?? 'PACKAGED') === 'PACKAGED' ? initialThreshold : initialThreshold / 1_000),
   );
-  const [kindChangeReason, setKindChangeReason] = useState('পণ্যের ধরন সংশোধন');
+  const [kindChangeReason, setKindChangeReason] = useState('');
   const [variantName, setVariantName] = useState(
     editProduct?.variantName && editProduct.variantName.toLowerCase() !== 'default'
       ? editProduct.variantName
@@ -131,8 +131,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
     }
     const thresholdBase = kind === 'PACKAGED' ? Math.round(thresholdNumber) : Math.round(thresholdNumber * 1_000);
     const kindChanged = isEdit && kind !== (editProduct.kind ?? 'PACKAGED');
-    if (kindChanged && kindChangeReason.trim().length < 3) return toast.error('পণ্যের ধরন পরিবর্তনের কারণ দিন');
-
     setSaving(true);
     try {
       let uploadedUrls: string[] = [];
@@ -165,7 +163,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
             kind,
             sellingPrice: Number(price),
             lowStockThreshold: thresholdBase,
-            reason: kindChangeReason.trim(),
+            reason: kindChangeReason.trim() || undefined,
           });
         }
         toast.success(`"${updated.name}" আপডেট হয়েছে`);
@@ -311,7 +309,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               </div>}
 
               {isEdit && kind !== (editProduct?.kind ?? 'PACKAGED') && <div>
-                <Label htmlFor="kind-change-reason">ধরন পরিবর্তনের কারণ *</Label>
+                <Label htmlFor="kind-change-reason">ধরন পরিবর্তনের কারণ (ঐচ্ছিক)</Label>
                 <Input id="kind-change-reason" value={kindChangeReason} onChange={(event) => setKindChangeReason(event.target.value)} className="mt-1 bg-card" />
                 <p className="mt-1 text-xs text-muted-foreground">স্টক, বিক্রি বা দামের পরিবর্তন থাকলে ধরন বদলানো যাবে না।</p>
               </div>}

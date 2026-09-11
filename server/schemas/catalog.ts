@@ -4,6 +4,8 @@ const slug = z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/).refine((value) => Number(value) >= 0);
 const uuid = z.string().uuid();
 const productKind = z.enum(["PACKAGED", "LOOSE_WEIGHT", "LOOSE_VOLUME"]);
+const optionalReason = (fallback: string) => z.string().trim().max(300).optional()
+  .transform((value) => value || fallback);
 
 export const categoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -31,7 +33,7 @@ export const productCreateSchema = z.object({
     sellingPrice: money,
     lowStockThreshold: z.number().int().min(0).max(2_000_000_000).default(5),
   }).strict(),
-  priceReason: z.string().trim().min(3).max(300),
+  priceReason: optionalReason("প্রাথমিক দাম"),
 }).strict();
 
 export const productUpdateSchema = z.object({
@@ -52,7 +54,7 @@ export const productKindChangeSchema = z.object({
   kind: productKind,
   sellingPrice: money,
   lowStockThreshold: z.number().int().min(0).max(2_000_000_000),
-  reason: z.string().trim().min(3).max(300),
+  reason: optionalReason("পণ্যের ধরন পরিবর্তন"),
 }).strict();
 
 export const variantCreateSchema = z.object({
@@ -60,7 +62,7 @@ export const variantCreateSchema = z.object({
   sellingPrice: money,
   lowStockThreshold: z.number().int().min(0).max(2_000_000_000).default(5),
   isDefault: z.boolean().default(false),
-  priceReason: z.string().trim().min(3).max(300),
+  priceReason: optionalReason("প্রাথমিক দাম"),
 }).strict();
 
 export const variantUpdateSchema = z.object({
@@ -77,11 +79,11 @@ export const variantUpdateSchema = z.object({
 
 export const priceChangeSchema = z.object({
   sellingPrice: money,
-  reason: z.string().trim().min(3).max(300),
+  reason: optionalReason("দাম পরিবর্তন"),
 }).strict();
 
 export const bulkPriceChangeSchema = z.object({
-  reason: z.string().trim().min(3).max(300),
+  reason: optionalReason("একসাথে দাম পরিবর্তন"),
   updates: z.array(z.object({
     variantId: uuid,
     sellingPrice: money,

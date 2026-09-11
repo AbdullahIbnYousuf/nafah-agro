@@ -23,7 +23,7 @@ export type ReturnCondition = 'SELLABLE' | 'DAMAGED';
 interface ReturnOrderDialogProps {
   order: UnifiedOrder | null;
   onClose: () => void;
-  onConfirm: (condition: ReturnCondition, reason: string) => Promise<void>;
+  onConfirm: (condition: ReturnCondition, reason?: string) => Promise<void>;
 }
 
 function apiErrorMessage(error: unknown) {
@@ -59,15 +59,10 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
 
   async function submit() {
     const normalizedReason = reason.trim();
-    if (normalizedReason.length < 3) {
-      setError('ফেরতের কারণ লিখুন। অন্তত ৩ অক্ষর প্রয়োজন।');
-      return;
-    }
-
     setSubmitting(true);
     setError('');
     try {
-      await onConfirm(condition, normalizedReason);
+      await onConfirm(condition, normalizedReason || undefined);
       onClose();
     } catch (submitError) {
       setError(apiErrorMessage(submitError));
@@ -120,12 +115,12 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
       </Alert>
 
       <div>
-        <Label htmlFor="return-reason">ফেরতের কারণ *</Label>
+        <Label htmlFor="return-reason">ফেরতের কারণ (ঐচ্ছিক)</Label>
         <Textarea
           id="return-reason"
           value={reason}
           onChange={event => { setReason(event.target.value); if (error) setError(''); }}
-          placeholder="পুরো অর্ডার ফেরতের কারণ লিখুন"
+          placeholder="প্রয়োজন হলে কারণ লিখুন"
           aria-invalid={Boolean(error)}
           aria-describedby={error ? 'return-error' : undefined}
           className="mt-2"

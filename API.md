@@ -79,6 +79,11 @@ unused product also removes its setup variants and price-history rows; normal
 price history remains immutable. Cloudinary image URLs are recorded in the
 audit event, but remote image files are not deleted automatically.
 
+Routine catalog reasons are optional. When omitted, the API records a truthful
+action label such as `প্রাথমিক দাম`, `দাম পরিবর্তন`, or
+`পণ্যের ধরন পরিবর্তন` so immutable price and audit history stays readable.
+Stock adjustments still require an owner-entered reason.
+
 Categories and products expose independent `isActive` and `isVisibleInShop`
 flags. A category is a parent gate: an inactive category blocks its products
 from new purchases, adjustments, physical sales, and delivery orders without
@@ -200,6 +205,14 @@ Status actions:
 { "action": "RETURN", "condition": "SELLABLE", "reason": "Whole order returned" }
 ```
 
+`reason` is optional for `CANCEL`, `FAILED_DELIVERY`, and `RETURN`. If omitted,
+the API stores `অর্ডার বাতিল`, `ডেলিভারি ব্যর্থ`, or `পণ্য ফেরত`
+respectively. Physical-sale returns follow the same rule and store
+`দোকানের বিক্রি ফেরত` when no explanation is supplied. This does not make
+stock-adjustment, incorrect-payment-void, owner-status, promotion, or demotion
+reasons optional; those remain required because they explain sensitive manual
+changes.
+
 - `PENDING` holds no stock.
 - `CONFIRM` reserves oldest available batches and variant totals atomically.
 - `DELIVER` consumes reservations, marks COD paid, and recognizes captured
@@ -209,7 +222,7 @@ Status actions:
   restores no stock. Both return statuses reverse recognition in reporting while
   retaining original snapshots.
 - physical-shop returns must use `/physical-sales/:id/returns`. The request
-  includes `condition`, a required `reason`, and one or more original sale-item
+  includes `condition`, an optional `reason`, and one or more original sale-item
   IDs with `amount` and `amountUnit`. Refund and reversed FIFO cost are calculated
   from captured snapshots. Cumulative returns cannot exceed the sold quantity.
 - delivery-rate and order mutations write append-only audit rows transactionally.

@@ -430,7 +430,8 @@ For a confirmed/processing delivery order:
 3. Restore batch/variant available quantities.
 4. Mark allocations `RELEASED`.
 5. Mark order `CANCELLED`; prefix failed-delivery reasons with `FAILED_DELIVERY:`.
-6. Store the required reason; count no revenue/profit.
+6. Store the owner explanation, or an action-specific fallback when it is blank;
+   count no revenue/profit.
 7. Commit.
 
 A pending order has no allocations to release.

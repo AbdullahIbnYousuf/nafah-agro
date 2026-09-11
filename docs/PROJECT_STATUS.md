@@ -38,6 +38,11 @@ is not approved for production until the external gates in this document and
   voiding, serializable row-locked overpayment protection, and audited follow-up
   rescheduling. Physical returns reduce credit first and expose only the excess
   as a cash refund.
+- Simplified routine forms by making catalog price/type notes and order/return
+  explanations optional. The API supplies action-specific fallback text so
+  existing nonempty audit and history records remain meaningful. Reasons remain
+  required for stock adjustments, payment corrections, and OWNER role/status
+  changes.
 - Migration `202608220001_credit_sales` is checked in but was not applied to an
   external database. Existing physical sales remain `CASH + PAID`; no
   historical sale is converted to credit.
@@ -159,7 +164,8 @@ is not approved for production until the external gates in this document and
   number, exact total, and inclusive Dhaka date range.
 - Added item/quantity returns tied to the original sale and FIFO allocations.
   SELLABLE restores the returned amount at the original buying cost; DAMAGED
-  restores no stock. A required reason and append-only audit record are stored.
+  restores no stock. An optional explanation and append-only audit record are
+  stored; the API supplies a truthful action label when the field is blank.
 - Refund, reversed buying cost, and reversed profit use the original captured
   line discount and allocation snapshots. Row locking and cumulative checks
   prevent excess or repeated returns.

@@ -60,7 +60,7 @@ function setup() {
 
 function selectItemAndReason() {
   fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.change(screen.getByLabelText('ফেরতের কারণ *'), { target: { value: 'প্যাকেট নষ্ট ছিল' } });
+  fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'প্যাকেট নষ্ট ছিল' } });
 }
 
 describe('physical sale return dialog', () => {
@@ -94,11 +94,13 @@ describe('physical sale return dialog', () => {
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ condition: 'DAMAGED' })));
   });
 
-  it('requires a return reason', async () => {
+  it('submits without requiring a return reason', async () => {
     const { onConfirm } = setup();
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
-    expect(await screen.findByText(/ফেরতের কারণ লিখুন/)).toBeInTheDocument();
-    expect(onConfirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      condition: 'SELLABLE',
+      reason: undefined,
+    })));
   });
 });

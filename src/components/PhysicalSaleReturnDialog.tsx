@@ -33,7 +33,7 @@ interface PhysicalSaleReturnDialogProps {
   onClose: () => void;
   onConfirm: (input: {
     condition: ReturnCondition;
-    reason: string;
+    reason?: string;
     items: Array<{ salesOrderItemId: string; amount: string; amountUnit: AmountUnit }>;
   }) => Promise<void>;
 }
@@ -134,16 +134,12 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
       return;
     }
     const normalizedReason = reason.trim();
-    if (normalizedReason.length < 3) {
-      setError('ফেরতের কারণ লিখুন। অন্তত ৩ অক্ষর প্রয়োজন।');
-      return;
-    }
     setSubmitting(true);
     setError('');
     try {
       await onConfirm({
         condition,
-        reason: normalizedReason,
+        reason: normalizedReason || undefined,
         items: selected.map(({ item, line }) => ({
           salesOrderItemId: item.id,
           amount: line.amount,
@@ -245,14 +241,14 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
       </Alert>
 
       <div>
-        <Label htmlFor="physical-return-reason">ফেরতের কারণ *</Label>
+        <Label htmlFor="physical-return-reason">ফেরতের কারণ (ঐচ্ছিক)</Label>
         <Textarea
           id="physical-return-reason"
           className="mt-2"
           value={reason}
           disabled={submitting}
           onChange={(event) => { setReason(event.target.value); setError(''); }}
-          placeholder="পণ্য ফেরতের কারণ লিখুন"
+          placeholder="প্রয়োজন হলে কারণ লিখুন"
           aria-invalid={Boolean(error)}
         />
         {error && <p role="alert" className="mt-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}

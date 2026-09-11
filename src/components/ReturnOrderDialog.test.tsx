@@ -34,7 +34,7 @@ describe('whole-order return dialog', () => {
 
   it('submits a sellable whole-order return', async () => {
     const { onConfirm } = setup();
-    fireEvent.change(screen.getByLabelText('ফেরতের কারণ *'), { target: { value: 'Unopened products returned' } });
+    fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'Unopened products returned' } });
     fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
 
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('SELLABLE', 'Unopened products returned'));
@@ -44,18 +44,17 @@ describe('whole-order return dialog', () => {
     const { onConfirm } = setup();
     fireEvent.click(screen.getByRole('radio', { name: /DAMAGED/ }));
     expect(screen.getByText(/পণ্যগুলো স্টকে যোগ হবে না/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('ফেরতের কারণ *'), { target: { value: 'Package and products damaged' } });
+    fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'Package and products damaged' } });
     fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
 
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('DAMAGED', 'Package and products damaged'));
   });
 
-  it('requires a return reason before submission', () => {
+  it('submits a return without requiring a reason', async () => {
     const { onConfirm } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
 
-    expect(screen.getByText(/অন্তত ৩ অক্ষর/)).toBeInTheDocument();
-    expect(onConfirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('SELLABLE', undefined));
   });
 
   it('shows API validation errors inside the dialog', async () => {
@@ -65,7 +64,7 @@ describe('whole-order return dialog', () => {
       });
     });
     setup(onConfirm);
-    fireEvent.change(screen.getByLabelText('ফেরতের কারণ *'), { target: { value: 'Customer return' } });
+    fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'Customer return' } });
     fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
 
     expect(await screen.findByText('Only a delivered order can be returned.')).toBeInTheDocument();

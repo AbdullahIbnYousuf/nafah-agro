@@ -3,7 +3,8 @@ import { z } from "zod";
 const uuid = z.string().uuid();
 const quantity = z.number().int().min(1).max(1_000_000);
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/).refine((value) => Number(value) >= 0);
-const reason = z.string().trim().min(3).max(500);
+const optionalReason = (fallback: string) => z.string().trim().max(500).optional()
+  .transform((value) => value || fallback);
 const orderItems = z.array(z.object({
   productVariantId: uuid,
   quantity,
@@ -44,9 +45,9 @@ export const orderLifecycleSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("CONFIRM"), confirmUnprofitable: z.boolean().default(false) }).strict(),
   z.object({ action: z.literal("PROCESS") }).strict(),
   z.object({ action: z.literal("DELIVER") }).strict(),
-  z.object({ action: z.literal("CANCEL"), reason }).strict(),
-  z.object({ action: z.literal("FAILED_DELIVERY"), reason }).strict(),
-  z.object({ action: z.literal("RETURN"), condition: z.enum(["SELLABLE", "DAMAGED"]), reason }).strict(),
+  z.object({ action: z.literal("CANCEL"), reason: optionalReason("অর্ডার বাতিল") }).strict(),
+  z.object({ action: z.literal("FAILED_DELIVERY"), reason: optionalReason("ডেলিভারি ব্যর্থ") }).strict(),
+  z.object({ action: z.literal("RETURN"), condition: z.enum(["SELLABLE", "DAMAGED"]), reason: optionalReason("পণ্য ফেরত") }).strict(),
 ]);
 
 export const orderListSchema = z.object({

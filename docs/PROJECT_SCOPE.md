@@ -140,7 +140,9 @@ Order statuses:
 - `RETURNED_SELLABLE`
 - `RETURNED_DAMAGED`
 
-Failed delivery uses `CANCELLED` plus a required `FAILED_DELIVERY:` reason in V1.
+Failed delivery uses `CANCELLED` plus a stored `FAILED_DELIVERY:` explanation in
+V1. The owner may leave the explanation blank; the API then records the
+action-specific default `ডেলিভারি ব্যর্থ`.
 
 ### Website orders
 
