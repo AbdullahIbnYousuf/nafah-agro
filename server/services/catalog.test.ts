@@ -19,6 +19,7 @@ interface CategoryRow {
   name: string;
   slug: string;
   isActive: boolean;
+  isVisibleInShop: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +33,7 @@ interface ProductRow {
   kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME";
   featured: boolean;
   isActive: boolean;
+  isVisibleInShop: boolean;
   tags: string[];
   images: string[];
   youtubeLinks: string[];
@@ -88,6 +90,7 @@ function createInMemoryPrisma() {
       name: "Food",
       slug: "food",
       isActive: true,
+      isVisibleInShop: true,
       createdAt: new Date("2026-08-01T00:00:00.000Z"),
       updatedAt: new Date("2026-08-01T00:00:00.000Z"),
     }],
@@ -127,18 +130,21 @@ function createInMemoryPrisma() {
   const matchesProductWhere = (product: ProductRow, where: Record<string, unknown> | undefined) => {
     if (!where) return true;
     if (where.isActive === true && !product.isActive) return false;
+    if (where.isVisibleInShop === true && !product.isVisibleInShop) return false;
     if (typeof where.kind === "string" && product.kind !== where.kind) return false;
-    const categoryWhere = where.category as { isActive?: boolean; slug?: string } | undefined;
+    const categoryWhere = where.category as { isActive?: boolean; isVisibleInShop?: boolean; slug?: string } | undefined;
     const category = state.categories.find((item) => item.id === product.categoryId);
     if (categoryWhere?.isActive === true && !category?.isActive) return false;
+    if (categoryWhere?.isVisibleInShop === true && !category?.isVisibleInShop) return false;
     if (categoryWhere?.slug && category?.slug !== categoryWhere.slug) return false;
     return true;
   };
 
   const api = {
     category: {
-      findMany: async ({ where }: { where?: { isActive?: boolean } } = {}) => state.categories
-        .filter((category) => where?.isActive !== true || category.isActive)
+      findMany: async ({ where }: { where?: { isActive?: boolean; isVisibleInShop?: boolean } } = {}) => state.categories
+        .filter((category) => (where?.isActive !== true || category.isActive)
+          && (where?.isVisibleInShop !== true || category.isVisibleInShop))
         .map((category) => ({
           ...category,
           _count: { products: state.products.filter((product) => product.categoryId === category.id).length },
@@ -152,7 +158,7 @@ function createInMemoryPrisma() {
       },
       create: async ({ data }: { data: { name: string; slug: string } }) => {
         if (state.categories.some((category) => category.slug === data.slug)) throw duplicate("slug");
-        const row = { ...data, id: id(), isActive: true, createdAt: new Date(), updatedAt: new Date() };
+        const row = { ...data, id: id(), isActive: true, isVisibleInShop: true, createdAt: new Date(), updatedAt: new Date() };
         state.categories.push(row);
         return row;
       },
@@ -199,7 +205,7 @@ function createInMemoryPrisma() {
         }
         return select ? { id: row.id } : hydrateWithCounts(row);
       },
-      findFirst: async ({ where }: { where: { slug?: string; isActive?: boolean; category?: { isActive?: boolean } } }) => {
+      findFirst: async ({ where }: { where: { slug?: string; isActive?: boolean; isVisibleInShop?: boolean; category?: { isActive?: boolean; isVisibleInShop?: boolean } } }) => {
         const row = state.products.find((product) => {
           if (where.slug && product.slug !== where.slug) return false;
           return matchesProductWhere(product, where as Record<string, unknown>);
@@ -218,6 +224,7 @@ function createInMemoryPrisma() {
           kind: (data.kind as ProductRow["kind"] | undefined) ?? "PACKAGED",
           featured: Boolean(data.featured),
           isActive: true,
+          isVisibleInShop: true,
           tags: data.tags as string[],
           images: data.images as string[],
           youtubeLinks: data.youtubeLinks as string[],
@@ -480,6 +487,40 @@ describe("PostgreSQL catalog service", () => {
     await expect(service.getProductBySlug(product.slug)).rejects.toMatchObject({ code: "PRODUCT_NOT_FOUND" });
   });
 
+  it("keeps active and storefront visibility settings independent across category gates", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput(), ACTOR_ID);
+    const query = productListSchema.parse({ limit: 20, page: 1 });
+
+    await service.updateProduct(product.id, { isVisibleInShop: false });
+    expect((await service.listProducts(query)).data).toHaveLength(0);
+    expect((await service.listProducts(query, true)).data[0]).toMatchObject({
+      isActive: true,
+      isVisibleInShop: false,
+    });
+
+    await service.updateCategory(CATEGORY_ID, { isActive: false, isVisibleInShop: false });
+    expect(state.products[0]).toMatchObject({ isActive: true, isVisibleInShop: false });
+    await service.updateCategory(CATEGORY_ID, { isActive: true, isVisibleInShop: true });
+    expect((await service.listProducts(query)).data).toHaveLength(0);
+
+    await service.updateProduct(product.id, { isVisibleInShop: true });
+    expect((await service.listProducts(query)).data).toHaveLength(1);
+  });
+
+  it("excludes hidden categories from storefront filters without deactivating products", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    await service.createProduct({ ...productInput(), tags: ["premium"] }, ACTOR_ID);
+
+    await service.updateCategory(CATEGORY_ID, { isVisibleInShop: false });
+    const filters = await service.listStorefrontFilters();
+    expect(filters.categories).toHaveLength(0);
+    expect(filters.tags).toHaveLength(0);
+    expect(state.products[0]).toMatchObject({ isActive: true, isVisibleInShop: true });
+  });
+
   it("returns compact active storefront filters", async () => {
     const { prisma } = createInMemoryPrisma();
     const service = createCatalogService(prisma);
@@ -610,5 +651,15 @@ describe("PostgreSQL catalog service", () => {
     );
     expect(deletionMigration).toContain("nafah.allow_unused_catalog_delete");
     expect(deletionMigration).toContain("current_setting");
+  });
+
+  it("defaults existing category and product visibility to Show in the migration", () => {
+    const migration = readFileSync(
+      "prisma/migrations/202609110001_catalog_visibility/migration.sql",
+      "utf8",
+    );
+    expect(migration).toContain('ALTER TABLE "categories"\nADD COLUMN "is_visible_in_shop" BOOLEAN NOT NULL DEFAULT true');
+    expect(migration).toContain('ALTER TABLE "products"\nADD COLUMN "is_visible_in_shop" BOOLEAN NOT NULL DEFAULT true');
+    expect(migration.match(/BOOLEAN NOT NULL DEFAULT true/g)).toHaveLength(2);
   });
 });

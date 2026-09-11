@@ -20,7 +20,14 @@ function createMemoryPrisma() {
     variants: [{
       id: VARIANT, productId: PRODUCT, name: "500 g", sku: "HONEY-500",
       currentSellingPrice: "500.00", availableStock: 5, reservedStock: 0, isActive: true,
-      product: { id: PRODUCT, name: "Raw Honey", isActive: true, kind: "PACKAGED" },
+      product: {
+        id: PRODUCT,
+        name: "Raw Honey",
+        isActive: true,
+        isVisibleInShop: true,
+        kind: "PACKAGED",
+        category: { isActive: true, isVisibleInShop: true },
+      },
     }],
     rates: [{ id: RATE, code: "DHAKA", name: "Dhaka", charge: "80.00", isActive: true, updatedByProfileId: null, createdAt: new Date(), updatedAt: new Date() }],
     batches: [
@@ -221,6 +228,34 @@ describe("unified PostgreSQL orders", () => {
     const service = createUnifiedOrderService(prisma);
     await expect(service.createWebsiteOrder(websiteInput())).rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
     await expect(service.createManualOrder(manualInput())).rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
+  });
+
+  it("applies Show to website checkout but not to manual delivery orders", async () => {
+    const hiddenProduct = createMemoryPrisma();
+    hiddenProduct.state.variants[0].product.isVisibleInShop = false;
+    await expect(createUnifiedOrderService(hiddenProduct.prisma).createWebsiteOrder(websiteInput()))
+      .rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
+    await expect(createUnifiedOrderService(hiddenProduct.prisma).createManualOrder(manualInput(), OWNER))
+      .resolves.toMatchObject({ source: "PHONE" });
+
+    const hiddenCategory = createMemoryPrisma();
+    hiddenCategory.state.variants[0].product.category.isVisibleInShop = false;
+    await expect(createUnifiedOrderService(hiddenCategory.prisma).createWebsiteOrder(websiteInput()))
+      .rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
+    await expect(createUnifiedOrderService(hiddenCategory.prisma).createManualOrder(manualInput(), OWNER))
+      .resolves.toMatchObject({ source: "PHONE" });
+  });
+
+  it("blocks both website and manual orders when the parent category is inactive", async () => {
+    const website = createMemoryPrisma();
+    website.state.variants[0].product.category.isActive = false;
+    await expect(createUnifiedOrderService(website.prisma).createWebsiteOrder(websiteInput()))
+      .rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
+
+    const manual = createMemoryPrisma();
+    manual.state.variants[0].product.category.isActive = false;
+    await expect(createUnifiedOrderService(manual.prisma).createManualOrder(manualInput(), OWNER))
+      .rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
   });
 
   it("replays identical idempotent checkout and rejects changed payload", async () => {

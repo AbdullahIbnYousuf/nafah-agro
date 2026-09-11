@@ -68,7 +68,9 @@ export default function PhysicalSaleScreen() {
   useEffect(load, [load]);
 
   const variants = useMemo(() => products.flatMap((product) =>
-    product.isActive === false ? [] : (product.variants ?? []).filter((variant) => variant.isActive).map((variant) => ({ product, variant }))), [products]);
+    product.isActive === false || product.category?.isActive === false
+      ? []
+      : (product.variants ?? []).filter((variant) => variant.isActive).map((variant) => ({ product, variant }))), [products]);
   const matches = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return variants.slice(0, 12);

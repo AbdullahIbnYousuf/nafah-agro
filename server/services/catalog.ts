@@ -14,7 +14,7 @@ import type {
 } from "../schemas/catalog.js";
 
 const publicProductInclude = {
-  category: { select: { id: true, name: true, slug: true, isActive: true } },
+  category: { select: { id: true, name: true, slug: true, isActive: true, isVisibleInShop: true } },
   variants: {
     where: { isActive: true },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -22,7 +22,7 @@ const publicProductInclude = {
 } satisfies Prisma.ProductInclude;
 
 const adminProductInclude = {
-  category: { select: { id: true, name: true, slug: true, isActive: true } },
+  category: { select: { id: true, name: true, slug: true, isActive: true, isVisibleInShop: true } },
   variants: {
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     include: {
@@ -99,6 +99,7 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
     category: product.category,
     featured: product.featured,
     isActive: product.isActive,
+    isVisibleInShop: product.isVisibleInShop,
     tags: product.tags,
     images: product.images,
     youtubeLinks: product.youtubeLinks,
@@ -133,7 +134,7 @@ export function createCatalogService(prisma: PrismaClient) {
   return {
     async listCategories(includeInactive = false) {
       const categories = await prisma.category.findMany({
-        where: includeInactive ? undefined : { isActive: true },
+        where: includeInactive ? undefined : { isActive: true, isVisibleInShop: true },
         orderBy: { name: "asc" },
         include: { _count: { select: { products: true } } },
       });
@@ -145,12 +146,17 @@ export function createCatalogService(prisma: PrismaClient) {
     async listStorefrontFilters() {
       const [categories, products] = await Promise.all([
         prisma.category.findMany({
-          where: { isActive: true },
+          where: { isActive: true, isVisibleInShop: true },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, slug: true, isActive: true },
+          select: { id: true, name: true, slug: true, isActive: true, isVisibleInShop: true },
         }),
         prisma.product.findMany({
-          where: { kind: "PACKAGED", isActive: true, category: { isActive: true } },
+          where: {
+            kind: "PACKAGED",
+            isActive: true,
+            isVisibleInShop: true,
+            category: { isActive: true, isVisibleInShop: true },
+          },
           select: { tags: true },
         }),
       ]);
@@ -204,8 +210,9 @@ export function createCatalogService(prisma: PrismaClient) {
     },
     async listProducts(input: ProductList, includeInactive = false) {
       const where: Prisma.ProductWhereInput = {
-        ...(includeInactive ? {} : { kind: "PACKAGED", isActive: true, category: {
+        ...(includeInactive ? {} : { kind: "PACKAGED", isActive: true, isVisibleInShop: true, category: {
           isActive: true,
+          isVisibleInShop: true,
           ...(input.category ? { slug: input.category } : {}),
         } }),
         ...(includeInactive && input.category ? { category: { slug: input.category } } : {}),
@@ -249,7 +256,13 @@ export function createCatalogService(prisma: PrismaClient) {
     },
     async getProductBySlug(slug: string) {
       const product = await prisma.product.findFirst({
-        where: { slug, kind: "PACKAGED", isActive: true, category: { isActive: true } },
+        where: {
+          slug,
+          kind: "PACKAGED",
+          isActive: true,
+          isVisibleInShop: true,
+          category: { isActive: true, isVisibleInShop: true },
+        },
         include: publicProductInclude,
       });
       if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
@@ -388,6 +401,7 @@ export function createCatalogService(prisma: PrismaClient) {
               name: true,
               slug: true,
               isActive: true,
+              isVisibleInShop: true,
               images: true,
               variants: {
                 select: {
@@ -434,6 +448,7 @@ export function createCatalogService(prisma: PrismaClient) {
               name: product.name,
               slug: product.slug,
               isActive: product.isActive,
+              isVisibleInShop: product.isVisibleInShop,
               variants: product.variants.map((variant) => ({
                 id: variant.id,
                 name: variant.name,

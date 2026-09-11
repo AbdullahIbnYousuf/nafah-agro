@@ -12,6 +12,7 @@ export const categoryCreateSchema = z.object({
 
 export const categoryUpdateSchema = categoryCreateSchema.partial().extend({
   isActive: z.boolean().optional(),
+  isVisibleInShop: z.boolean().optional(),
 }).refine((value) => Object.keys(value).length > 0);
 
 export const productCreateSchema = z.object({
@@ -40,6 +41,7 @@ export const productUpdateSchema = z.object({
   categoryId: uuid.optional(),
   featured: z.boolean().optional(),
   isActive: z.boolean().optional(),
+  isVisibleInShop: z.boolean().optional(),
   tags: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
   images: z.array(z.string().url()).max(12).optional(),
   youtubeLinks: z.array(z.string().url()).max(8).optional(),

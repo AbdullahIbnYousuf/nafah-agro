@@ -332,11 +332,14 @@ export function createInventoryService(prisma: PrismaClient) {
         batchIds = await prisma.$transaction(async (transaction) => {
         const variantIds = input.items.map((item) => item.productVariantId);
         const variants = await transaction.productVariant.findMany({
-          where: { id: { in: variantIds } },
-          select: { id: true, product: { select: { kind: true } } },
+          where: { id: { in: variantIds }, isActive: true },
+          select: {
+            id: true,
+            product: { select: { kind: true, isActive: true, category: { select: { isActive: true } } } },
+          },
         });
-        if (variants.length !== variantIds.length) {
-          throw inventoryError(404, "VARIANT_NOT_FOUND", "One or more purchase variants were not found.");
+        if (variants.length !== variantIds.length || variants.some(({ product }) => !product.isActive || product.category?.isActive === false)) {
+          throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "One or more purchase products are inactive or missing.");
         }
         const byId = new Map(variants.map((variant) => [variant.id, variant]));
         const ids: string[] = [];
@@ -378,9 +381,15 @@ export function createInventoryService(prisma: PrismaClient) {
         await prisma.$transaction(async (transaction) => {
         const variant = await transaction.productVariant.findUnique({
           where: { id: input.productVariantId },
-          select: { id: true, product: { select: { kind: true } } },
+          select: {
+            id: true,
+            isActive: true,
+            product: { select: { kind: true, isActive: true, category: { select: { isActive: true } } } },
+          },
         });
-        if (!variant) throw inventoryError(404, "VARIANT_NOT_FOUND", "Variant not found.");
+        if (!variant || !variant.isActive || !variant.product.isActive || variant.product.category?.isActive === false) {
+          throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "The selected product is inactive or missing.");
+        }
 
         const quantity = toBaseQuantity(input.amount, input.amountUnit, variant.product.kind);
         if (input.direction === "INCREASE") {
@@ -426,9 +435,13 @@ export function createInventoryService(prisma: PrismaClient) {
           left.productVariantId.localeCompare(right.productVariantId));
         const variants = await transaction.productVariant.findMany({
           where: { id: { in: sortedItems.map((item) => item.productVariantId) }, isActive: true },
-          include: { product: { select: { id: true, name: true, isActive: true, kind: true } } },
+          include: {
+            product: {
+              select: { id: true, name: true, isActive: true, kind: true, category: { select: { isActive: true } } },
+            },
+          },
         });
-        if (variants.length !== sortedItems.length || variants.some((variant) => !variant.product.isActive)) {
+        if (variants.length !== sortedItems.length || variants.some((variant) => !variant.product.isActive || variant.product.category?.isActive === false)) {
           throw inventoryError(404, "SELLABLE_VARIANT_NOT_FOUND", "One or more variants are inactive or missing.");
         }
         const byId = new Map(variants.map((variant) => [variant.id, variant]));

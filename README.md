@@ -9,6 +9,9 @@ orders, returns, analytics, and Cloudinary uploads.
 
 - Public catalog with categories, products, sellable pack/size options, search/filtering,
   a local cart, and guest cash-on-delivery checkout.
+- Independent Active and Show controls for categories and packaged products.
+  Category controls gate all children without erasing individual product choices;
+  Hide affects the online shop while active hidden products remain usable in-store.
 - Optional CUSTOMER registration, profile maintenance, shared OWNER/CUSTOMER
   email password recovery, and website-order history.
 - Controlled multiple-OWNER access, new-email invitations, existing-customer

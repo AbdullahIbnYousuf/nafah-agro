@@ -41,13 +41,13 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 
 | Method | Endpoint | Access | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/categories` | Public | Active categories |
+| `GET` | `/api/v1/categories` | Public | Active categories set to Show |
 | `GET` | `/api/v1/admin/categories` | OWNER | All categories |
-| `POST/PATCH` | `/api/v1/categories`, `/categories/:id` | OWNER | Create/edit/activate category |
+| `POST/PATCH` | `/api/v1/categories`, `/categories/:id` | OWNER | Create/edit category and independently set Active or Show |
 | `DELETE` | `/api/v1/categories/:id` | OWNER | Permanently delete an empty category only |
-| `GET` | `/api/v1/products`, `/products/:slug` | Public | Active storefront catalog |
+| `GET` | `/api/v1/products`, `/products/:slug` | Public | Active packaged storefront catalog set to Show |
 | `GET` | `/api/v1/admin/products`, `/admin/products/:id` | OWNER | Full catalog list and direct product lookup, including inactive records |
-| `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product |
+| `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product and independently set Active or Show |
 | `PATCH` | `/api/v1/products/:id/kind` | OWNER | Correct an entirely unused product type |
 | `DELETE` | `/api/v1/products/:id` | OWNER | Delete only a product with no stock, adjustment, order, or price-update history |
 | `POST/PATCH` | `/api/v1/products/:id/variants`, `/variants/:id` | OWNER | Create/edit a pack/size; SKU is generated internally |
@@ -78,6 +78,13 @@ Deletion is transactional and rechecks eligibility server-side. A deleted
 unused product also removes its setup variants and price-history rows; normal
 price history remains immutable. Cloudinary image URLs are recorded in the
 audit event, but remote image files are not deleted automatically.
+
+Categories and products expose independent `isActive` and `isVisibleInShop`
+flags. A category is a parent gate: an inactive category blocks its products
+from new purchases, adjustments, physical sales, and delivery orders without
+overwriting the products' own flags. Hide affects only the public storefront
+and website checkout. Manual and physical sales may use hidden records while
+they remain operationally active.
 
 Catalog write clients do not submit or edit SKU values. Express generates an
 immutable internal SKU for each new variant. Existing SKU columns and historical

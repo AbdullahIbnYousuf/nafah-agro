@@ -29,7 +29,13 @@ interface VariantRow {
   availableStock: number;
   reservedStock: number;
   isActive: boolean;
-  product: { id: string; name: string; isActive: boolean; kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME" };
+  product: {
+    id: string;
+    name: string;
+    isActive: boolean;
+    kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME";
+    category: { isActive: boolean };
+  };
 }
 
 interface BatchRow {
@@ -191,12 +197,12 @@ function createInMemoryPrisma() {
       {
         id: VARIANT_A, productId: PRODUCT_A, name: "500 g", sku: "HONEY-500",
         currentSellingPrice: "500.00", availableStock: 0, reservedStock: 0, isActive: true,
-        product: { id: PRODUCT_A, name: "Raw Honey", isActive: true, kind: "PACKAGED" },
+        product: { id: PRODUCT_A, name: "Raw Honey", isActive: true, kind: "PACKAGED", category: { isActive: true } },
       },
       {
         id: VARIANT_B, productId: PRODUCT_B, name: "1 kg", sku: "RICE-1KG",
         currentSellingPrice: "300.00", availableStock: 0, reservedStock: 0, isActive: true,
-        product: { id: PRODUCT_B, name: "Red Rice", isActive: true, kind: "PACKAGED" },
+        product: { id: PRODUCT_B, name: "Red Rice", isActive: true, kind: "PACKAGED", category: { isActive: true } },
       },
     ],
     batches: [], adjustments: [], sales: [], saleItems: [], allocations: [],
@@ -623,6 +629,27 @@ describe("Milestone 3 inventory and physical sales", () => {
       purchaseDate: "2026-08-01",
       items: [{ productVariantId: VARIANT_A, quantity: 0, unitBuyingCost: "0" }],
     })).toThrow();
+  });
+
+  it("rejects new inventory activity when the parent category is inactive", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    state.variants[0].product.category.isActive = false;
+    const service = createInventoryService(prisma);
+
+    await expect(service.createPurchase(purchase([
+      { productVariantId: VARIANT_A, quantity: 1, unitBuyingCost: "100" },
+    ]), OWNER_ID))
+      .rejects.toMatchObject({ code: "ACTIVE_VARIANT_NOT_FOUND" });
+    await expect(service.adjustStock(stockAdjustmentSchema.parse({
+      productVariantId: VARIANT_A,
+      direction: "INCREASE",
+      amount: "1",
+      amountUnit: "PIECE",
+      unitBuyingCost: "100",
+      purchaseDate: "2026-08-01",
+      reason: "Count correction",
+    }), OWNER_ID)).rejects.toMatchObject({ code: "ACTIVE_VARIANT_NOT_FOUND" });
+    expect(state.batches).toHaveLength(0);
   });
 
   it("rolls back every item when a later purchase batch fails", async () => {

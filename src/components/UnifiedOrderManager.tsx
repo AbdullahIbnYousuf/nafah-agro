@@ -80,7 +80,12 @@ export default function UnifiedOrderManager() {
     }).catch(() => toast.error('ম্যানুয়াল অর্ডারের সহায়ক তথ্য লোড হয়নি'));
   }, []);
 
-  const variants = useMemo(() => products.flatMap(product => (product.kind ?? 'PACKAGED') !== 'PACKAGED' ? [] : (product.variants ?? []).filter(variant => product.isActive !== false && variant.isActive).map(variant => ({ ...variant, productName: product.name }))), [products]);
+  const variants = useMemo(() => products.flatMap(product =>
+    (product.kind ?? 'PACKAGED') !== 'PACKAGED'
+      ? []
+      : (product.variants ?? []).filter(variant =>
+        product.isActive !== false && product.category?.isActive !== false && variant.isActive)
+        .map(variant => ({ ...variant, productName: product.name }))), [products]);
   const manualSubtotal = useMemo(() => manualItems.reduce((total, item) => {
     const variant = variants.find(candidate => candidate.id === item.productVariantId);
     return total + (variant ? variant.sellingPrice * item.quantity : 0);

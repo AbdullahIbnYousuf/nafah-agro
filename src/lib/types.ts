@@ -3,6 +3,7 @@ export interface Category {
   name: string;
   slug: string;
   isActive?: boolean;
+  isVisibleInShop?: boolean;
   canDelete?: boolean;
 }
 
@@ -189,12 +190,14 @@ export interface Product {
   kind?: ProductKind;
   price: number;
   categoryId: string;
+  category?: Category;
   images: string[];
   youtubeLinks: string[];
   stock: number;
   featured: boolean;
   tags: string[];
   isActive?: boolean;
+  isVisibleInShop?: boolean;
   canDelete?: boolean;
   variants?: ProductVariant[];
   defaultVariantId?: string;

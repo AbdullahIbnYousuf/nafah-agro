@@ -126,7 +126,7 @@ describe('analytics dashboard date controls', () => {
   it('keeps editable dates visible, syncs presets, and validates manual ranges', async () => {
     render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
 
-    expect(await screen.findByLabelText('তারিখ থেকে')).toHaveValue('2026-08-01');
+    await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-01'));
     expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-31');
     expect(screen.queryByRole('button', { name: 'নিজস্ব সময়সীমা' })).not.toBeInTheDocument();
     expect(screen.getByTestId('graph-date')).toHaveTextContent('৭ আগস্ট');

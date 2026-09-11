@@ -303,6 +303,7 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
       images: data.images,
       youtubeLinks: data.youtubeLinks,
       isActive: data.isActive,
+      isVisibleInShop: data.isVisibleInShop,
     }),
   });
 }
@@ -328,6 +329,10 @@ export async function changeSellingPrice(variantId: string, price: number, reaso
 
 export function setProductActive(id: string, isActive: boolean): Promise<Product> {
   return updateProduct(id, { isActive });
+}
+
+export function setProductVisibleInShop(id: string, isVisibleInShop: boolean): Promise<Product> {
+  return updateProduct(id, { isVisibleInShop });
 }
 
 export function deleteUnusedProduct(id: string): Promise<{ id: string }> {
@@ -416,6 +421,10 @@ export function updateCategory(id: string, data: Partial<Category>): Promise<Cat
 
 export function setCategoryActive(id: string, isActive: boolean): Promise<Category> {
   return updateCategory(id, { isActive });
+}
+
+export function setCategoryVisibleInShop(id: string, isVisibleInShop: boolean): Promise<Category> {
+  return updateCategory(id, { isVisibleInShop });
 }
 
 export function deleteUnusedCategory(id: string): Promise<{ id: string }> {

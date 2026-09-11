@@ -54,15 +54,15 @@ export default function InventoryManager() {
   }, []);
   useEffect(load, [load]);
 
-  const variants = useMemo(() => flattenVariants(products), [products]);
+  const variants = useMemo(() => flattenVariants(products).filter(({ product, variant }) =>
+    product.isActive !== false && product.category?.isActive !== false && variant.isActive), [products]);
   const variantById = useMemo(() => new Map(variants.map((item) => [item.variant.id, item])), [variants]);
   const availableByVariant = useMemo(() => new Map(variants.map(({ variant }) => [variant.id, variant.availableStock])), [variants]);
   const stockAlerts = useMemo(() => {
-    const activeVariants = variants.filter(({ product, variant }) => product.isActive !== false && variant.isActive);
-    const outOfStock = activeVariants
+    const outOfStock = variants
       .filter(({ variant }) => variant.availableStock === 0)
       .sort((left, right) => productPackLabel(left.product.name, left.variant.name).localeCompare(productPackLabel(right.product.name, right.variant.name), 'bn-BD'));
-    const lowStock = activeVariants
+    const lowStock = variants
       .filter(({ variant }) => variant.availableStock > 0 && variant.availableStock <= variant.lowStockThreshold)
       .sort((left, right) => {
         const leftUrgency = left.variant.lowStockThreshold > 0 ? left.variant.availableStock / left.variant.lowStockThreshold : 1;

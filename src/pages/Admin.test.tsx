@@ -18,7 +18,10 @@ const mocks = vi.hoisted(() => ({
   deleteUnusedProduct: vi.fn(),
   deleteUnusedCategory: vi.fn(),
   setProductActive: vi.fn(),
+  setProductVisibleInShop: vi.fn(),
   setCategoryActive: vi.fn(),
+  setCategoryVisibleInShop: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 vi.mock('@/lib/api', async (importOriginal) => ({
@@ -29,7 +32,9 @@ vi.mock('@/lib/api', async (importOriginal) => ({
   deleteUnusedProduct: mocks.deleteUnusedProduct,
   deleteUnusedCategory: mocks.deleteUnusedCategory,
   setProductActive: mocks.setProductActive,
+  setProductVisibleInShop: mocks.setProductVisibleInShop,
   setCategoryActive: mocks.setCategoryActive,
+  setCategoryVisibleInShop: mocks.setCategoryVisibleInShop,
 }));
 vi.mock('@/components/AnalyticsDashboard', () => ({ default: () => <div>Analytics</div> }));
 vi.mock('@/components/AddProductForm', () => ({
@@ -39,6 +44,7 @@ vi.mock('@/components/VariantManager', () => ({
   default: ({ product, onClose }: { product: { name: string }; onClose: () => void }) => <div role="dialog"><span>{`Variants ${product.name}`}</span><button onClick={onClose}>Close variants</button></div>,
 }));
 vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }));
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } }));
 
 const product = {
   id: '10000000-0000-4000-8000-000000000001',
@@ -53,6 +59,7 @@ const product = {
   featured: false,
   tags: [],
   isActive: true,
+  isVisibleInShop: true,
   canDelete: true,
   variants: [],
 };
@@ -63,12 +70,14 @@ describe('safe catalog deletion controls', () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
     mocks.getAdminProduct.mockResolvedValue(product);
     mocks.getAdminCategories.mockResolvedValue([
-      { id: product.categoryId, name: 'Empty Category', slug: 'empty-category', isActive: true, canDelete: true },
+      { id: product.categoryId, name: 'Empty Category', slug: 'empty-category', isActive: true, isVisibleInShop: true, canDelete: true },
     ]);
     mocks.deleteUnusedProduct.mockResolvedValue({ id: product.id });
     mocks.deleteUnusedCategory.mockResolvedValue({ id: product.categoryId });
     mocks.setProductActive.mockResolvedValue({ ...product, isActive: false });
-    mocks.setCategoryActive.mockResolvedValue({ id: product.categoryId, name: 'Empty Category', slug: 'empty-category', isActive: false, canDelete: true });
+    mocks.setProductVisibleInShop.mockResolvedValue({ ...product, isVisibleInShop: false });
+    mocks.setCategoryActive.mockResolvedValue({ id: product.categoryId, name: 'Empty Category', slug: 'empty-category', isActive: false, isVisibleInShop: true, canDelete: true });
+    mocks.setCategoryVisibleInShop.mockResolvedValue({ id: product.categoryId, name: 'Empty Category', slug: 'empty-category', isActive: true, isVisibleInShop: false, canDelete: true });
   });
 
   function renderAdmin(path: string) {
@@ -119,54 +128,84 @@ describe('safe catalog deletion controls', () => {
 
     expect(await screen.findByRole('img', { name: 'Unused Product পণ্যের ছবি' })).toHaveAttribute('src', product.images[0]);
     expect(screen.getByRole('link', { name: /গ্রাহক পেজ/ })).toHaveAttribute('href', '/products/unused-product');
-    expect(screen.getByText('পণ্য সক্রিয়')).toBeInTheDocument();
-    expect(screen.getByText('দোকানে দেখা যাচ্ছে')).toBeInTheDocument();
+    expect(screen.getAllByText('অ্যাকটিভ').length).toBeGreaterThan(0);
+    expect(screen.getByText('শো')).toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'প্যাক/সাইজ ও দাম' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' }));
-    expect(screen.getByRole('dialog', { name: 'পণ্য নিষ্ক্রিয় করুন' })).toHaveTextContent('স্টক, দাম, অর্ডার ও ইতিহাস মুছে যাবে না');
+    fireEvent.click(screen.getByRole('switch', { name: 'Unused Product অ্যাকটিভ' }));
+    expect(screen.getByRole('dialog', { name: 'Unused Product ইনঅ্যাকটিভ করুন' })).toHaveTextContent('আগের তথ্য মুছে যাবে না');
     expect(mocks.setProductActive).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'নিষ্ক্রিয় করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ইনঅ্যাকটিভ করুন' }));
     await waitFor(() => expect(mocks.setProductActive).toHaveBeenCalledWith(product.id, false));
-    expect(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা', hidden: true })).toBeDisabled();
-    expect(screen.getByLabelText('অবস্থা সংরক্ষণ হচ্ছে')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Unused Product অ্যাকটিভ', hidden: true })).toBeDisabled();
+    expect(screen.getByLabelText('পরিবর্তন হচ্ছে')).toBeInTheDocument();
     await act(async () => resolveChange({ ...product, isActive: false }));
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' })).not.toBeChecked());
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Unused Product অ্যাকটিভ' })).not.toBeChecked());
+  });
+
+  it('hides a packaged product online without making it inactive', async () => {
+    renderAdmin('/admin/products');
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Unused Product অনলাইন শপ' }));
+    expect(screen.getByRole('dialog', { name: 'Unused Product হাইড করুন' })).toHaveTextContent('ক্রয়, ইনভেন্টরি ও দোকানের বিক্রিতে ব্যবহার করা যাবে');
+    fireEvent.click(screen.getByRole('button', { name: 'হাইড করুন' }));
+
+    await waitFor(() => expect(mocks.setProductVisibleInShop).toHaveBeenCalledWith(product.id, false));
+    expect(mocks.setProductActive).not.toHaveBeenCalled();
   });
 
   it('explains when an active product is hidden by its inactive category', async () => {
     mocks.getAdminCategories.mockResolvedValueOnce([
-      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, canDelete: false },
+      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, isVisibleInShop: true, canDelete: false },
     ]);
 
     renderAdmin('/admin/products');
 
     const note = await screen.findByRole('button', { name: 'গ্রাহক পেজ লুকানো' });
-    expect(screen.queryByText('দোকানে দেখা যাচ্ছে না: ক্যাটাগরি নিষ্ক্রিয়')).not.toBeInTheDocument();
     fireEvent.focus(note);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('পণ্যটি সক্রিয়, কিন্তু এর ক্যাটাগরি নিষ্ক্রিয়।');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('ক্যাটাগরি পেজ থেকে সুইচ চালু করলে পণ্যটি আবার দোকানে দেখা যাবে।');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('নতুন করে পণ্য তৈরি বা সক্রিয় করার দরকার নেই।');
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('পণ্যটির ক্যাটাগরি ইনঅ্যাকটিভ');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('ক্যাটাগরি পেজ থেকে ক্যাটাগরিটি অ্যাকটিভ করলে');
     fireEvent.blur(note);
     await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
     expect(screen.queryByRole('link', { name: /গ্রাহক পেজ/ })).not.toBeInTheDocument();
   });
 
-  it('warns that activation does not override an inactive category', async () => {
+  it('blocks individual activation until the parent category is active', async () => {
     const inactiveProduct = { ...product, isActive: false };
     mocks.getAdminProducts.mockResolvedValueOnce({ data: [inactiveProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
     mocks.getAdminCategories.mockResolvedValueOnce([
-      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, canDelete: false },
+      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, isVisibleInShop: true, canDelete: false },
     ]);
     mocks.setProductActive.mockResolvedValueOnce({ ...product, isActive: true });
 
     renderAdmin('/admin/products');
 
-    fireEvent.click(await screen.findByRole('switch', { name: 'Unused Product সক্রিয় অবস্থা' }));
-    const dialog = screen.getByRole('dialog', { name: 'পণ্য সক্রিয় করুন' });
-    expect(dialog).toHaveTextContent('Unused Product সক্রিয় হবে, তবে ক্যাটাগরি নিষ্ক্রিয় থাকায় দোকানে দেখা যাবে না');
+    const activeSwitch = await screen.findByRole('switch', { name: 'Unused Product অ্যাকটিভ' });
+    expect(activeSwitch).toBeEnabled();
+    expect(screen.getByText('Unused Product').closest('td')).toHaveClass('opacity-60');
+    expect(activeSwitch.closest('td')).not.toHaveClass('opacity-60');
+    expect(screen.queryByText('আগে ক্যাটাগরি অ্যাকটিভ করুন')).not.toBeInTheDocument();
+    fireEvent.click(activeSwitch);
+    expect(mocks.toastError).toHaveBeenCalledWith('প্রথমে ক্যাটাগরিটি অ্যাকটিভ করুন');
     expect(mocks.setProductActive).not.toHaveBeenCalled();
+  });
+
+  it('explains category activation only when its Show switch is pressed', async () => {
+    mocks.getAdminCategories.mockResolvedValueOnce([
+      { id: product.categoryId, name: 'Inactive Category', slug: 'inactive-category', isActive: false, isVisibleInShop: true, canDelete: false },
+    ]);
+
+    renderAdmin('/admin/categories');
+
+    const showSwitch = await screen.findByRole('switch', { name: 'Inactive Category অনলাইন শপ' });
+    expect(showSwitch).toBeEnabled();
+    expect(screen.getByText('Inactive Category').parentElement).toHaveClass('opacity-60');
+    expect(showSwitch.parentElement).not.toHaveClass('opacity-60');
+    expect(screen.queryByText('আগে ক্যাটাগরি অ্যাকটিভ করুন')).not.toBeInTheDocument();
+    fireEvent.click(showSwitch);
+    expect(mocks.toastError).toHaveBeenCalledWith('প্রথমে ক্যাটাগরিটি অ্যাকটিভ করুন');
+    expect(mocks.setCategoryVisibleInShop).not.toHaveBeenCalled();
   });
 
   it('marks loose products as physical-shop-only instead of offering a customer page', async () => {
@@ -181,6 +220,8 @@ describe('safe catalog deletion controls', () => {
     renderAdmin('/admin/products');
 
     expect(await screen.findByText('খোলা ওজন')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Unused Product অ্যাকটিভ' })).toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: 'Unused Product অনলাইন শপ' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /গ্রাহক পেজ/ })).not.toBeInTheDocument();
     expect(screen.queryByText('গ্রাহক পেজ লুকানো')).not.toBeInTheDocument();
   });
@@ -189,19 +230,31 @@ describe('safe catalog deletion controls', () => {
     renderAdmin('/admin/categories');
 
     expect(await screen.findByRole('link', { name: /এই ক্যাটাগরির পণ্য দেখুন/ })).toHaveAttribute('href', '/shop?category=empty-category');
-    fireEvent.click(screen.getByRole('switch', { name: 'Empty Category সক্রিয় অবস্থা' }));
-    const dialog = await screen.findByRole('dialog', { name: 'ক্যাটাগরি নিষ্ক্রিয় করুন' });
+    fireEvent.click(screen.getByRole('switch', { name: 'Empty Category অ্যাকটিভ' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Empty Category ইনঅ্যাকটিভ করুন' });
     expect(dialog).toHaveTextContent('Unused Product');
-    expect(dialog).toHaveTextContent('সব পণ্য গ্রাহকের দোকান থেকে লুকানো হবে');
+    expect(dialog).toHaveTextContent('নতুন ক্রয়, স্টক সমন্বয় ও বিক্রিতে বন্ধ হবে');
     expect(mocks.getAdminProducts).toHaveBeenCalledWith({ category: 'empty-category', limit: 100 });
     expect(mocks.setCategoryActive).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'নিষ্ক্রিয় করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ইনঅ্যাকটিভ করুন' }));
     await waitFor(() => expect(mocks.setCategoryActive).toHaveBeenCalledWith(product.categoryId, false));
+  });
+
+  it('hides a category online without changing its active state', async () => {
+    renderAdmin('/admin/categories');
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Empty Category অনলাইন শপ' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Empty Category হাইড করুন' });
+    expect(dialog).toHaveTextContent('ক্রয়, ইনভেন্টরি ও দোকানের বিক্রিতে কোনো পরিবর্তন হবে না');
+    fireEvent.click(screen.getByRole('button', { name: 'হাইড করুন' }));
+
+    await waitFor(() => expect(mocks.setCategoryVisibleInShop).toHaveBeenCalledWith(product.categoryId, false));
+    expect(mocks.setCategoryActive).not.toHaveBeenCalled();
   });
 
   it('explains that an inactive category temporarily hides its active products', async () => {
     mocks.getAdminCategories.mockResolvedValueOnce([
-      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, canDelete: false },
+      { id: product.categoryId, name: 'Hidden Category', slug: 'hidden-category', isActive: false, isVisibleInShop: true, canDelete: false },
     ]);
 
     renderAdmin('/admin/categories');

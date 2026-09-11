@@ -182,9 +182,25 @@ async function createOrderBase(
   const sortedItems = [...input.items].sort((a, b) => a.productVariantId.localeCompare(b.productVariantId));
   const variants = await transaction.productVariant.findMany({
     where: { id: { in: sortedItems.map((item) => item.productVariantId) }, isActive: true },
-    include: { product: { select: { id: true, name: true, isActive: true, kind: true } } },
+    include: {
+      product: {
+        select: {
+          id: true,
+          name: true,
+          isActive: true,
+          isVisibleInShop: true,
+          kind: true,
+          category: { select: { isActive: true, isVisibleInShop: true } },
+        },
+      },
+    },
   });
-  if (variants.length !== sortedItems.length || variants.some((variant) => !variant.product.isActive || (variant.product.kind ?? "PACKAGED") !== "PACKAGED")) {
+  const invalidVariant = variants.some((variant) =>
+    !variant.product.isActive
+    || variant.product.category?.isActive === false
+    || (variant.product.kind ?? "PACKAGED") !== "PACKAGED"
+    || (input.source === "WEBSITE" && (variant.product.isVisibleInShop === false || variant.product.category?.isVisibleInShop === false)));
+  if (variants.length !== sortedItems.length || invalidVariant) {
     throw orderError(404, "SELLABLE_VARIANT_NOT_FOUND", "One or more variants are inactive or missing.");
   }
   const byId = new Map(variants.map((variant) => [variant.id, variant]));

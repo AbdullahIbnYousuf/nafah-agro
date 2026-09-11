@@ -124,13 +124,14 @@ model Profile {
 }
 
 model Category {
-  id        String    @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String    @unique
-  isActive  Boolean   @default(true) @map("is_active")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  products  Product[]
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  slug            String    @unique
+  isActive        Boolean   @default(true) @map("is_active")
+  isVisibleInShop Boolean   @default(true) @map("is_visible_in_shop")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  products        Product[]
 
   @@map("categories")
 }
@@ -144,6 +145,7 @@ model Product {
   kind         ProductKind      @default(PACKAGED)
   featured     Boolean          @default(false)
   isActive     Boolean          @default(true) @map("is_active")
+  isVisibleInShop Boolean       @default(true) @map("is_visible_in_shop")
   tags         String[]         @default([])
   images       String[]         @default([])
   youtubeLinks String[]         @default([]) @map("youtube_links")
@@ -154,6 +156,7 @@ model Product {
   variants     ProductVariant[]
 
   @@index([categoryId, isActive])
+  @@index([categoryId, isActive, isVisibleInShop])
   @@map("products")
 }
 

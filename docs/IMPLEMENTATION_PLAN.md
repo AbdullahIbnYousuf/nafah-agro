@@ -26,6 +26,9 @@ Status: complete in code; real Supabase/Cloudinary acceptance remains.
 
 - Category → product → optional visible pack/size → internally generated SKU → selling price →
   immutable history → PostgreSQL storefront/admin UI.
+- Category and product Active/Show controls remain independent. Category gates
+  preserve each product's saved choice; storefront and website checkout require
+  both levels to be Active and Show.
 - Empty categories and products with no inventory, adjustment, order, or
   selling-price update history have an OWNER-only, audited permanent-delete
   path. Used records remain

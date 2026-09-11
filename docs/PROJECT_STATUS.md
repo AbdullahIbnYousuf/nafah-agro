@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-08-22
+Last updated: 2026-09-11
 
 ## Summary
 
@@ -60,6 +60,9 @@ is not approved for production until the external gates in this document and
   uses `প্যাক/সাইজ`, accepts an optional initial option name, hides internal
   default names, and no longer exposes or accepts manual SKU values. Express
   generates immutable internal SKUs; existing schema and historical data remain unchanged.
+- Added independent Active and Show settings for categories and packaged
+  products. Category state acts as a reversible parent gate, inactive categories
+  block new operations, and hidden records stay available for physical/manual use.
 - Added separate packaged, loose-weight, and loose-volume product types. Loose
   products keep one hidden internal option, are physical-shop-only, store exact
   gram/millilitre stock, and use per-kg/per-litre FIFO rates. Public and manual
@@ -223,6 +226,9 @@ cross-origin-frontend, and separate-backend variables are not used.
   Chrome, place one website order, run one authorized reminder request, and
   confirm expired-device cleanup. Vercel Hobby cron may start at any point in
   the scheduled 9:00 to 9:59 AM Dhaka hour.
+- Apply `202609110001_catalog_visibility` before using the new category and
+  product Show controls. It adds two default-true flags and does not rewrite
+  stock, prices, orders, or historical records.
 - Perform a real authorized Cloudinary upload and render, plus invalid MIME,
   oversize, over-count, and CUSTOMER-denial checks.
 - Enter client-approved Dhaka and Outside-Dhaka charges, approved opening stock
