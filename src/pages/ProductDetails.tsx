@@ -257,8 +257,8 @@ const ProductDetails = () => {
               <Button
                 onClick={handleAddToCart}
                 size="lg"
-                className="min-h-12 flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90 md:min-h-11"
-                disabled={!selectedVariant}
+                className={`min-h-12 flex-1 md:min-h-11 ${selectedVariant ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : 'border border-amber-600 bg-amber-50 text-amber-950 hover:bg-amber-100'}`}
+                aria-disabled={!selectedVariant}
               >
                 <ShoppingCart className="mr-2" size={20} />
                 {quantityInCart > 0 ? `আরও যোগ করুন (${quantityInCart})` : 'কার্টে যোগ করুন'}
@@ -266,8 +266,8 @@ const ProductDetails = () => {
               <Button
                 onClick={handleBuyNow}
                 size="lg"
-                className="min-h-12 flex-1 md:min-h-11"
-                disabled={!selectedVariant}
+                className={`min-h-12 flex-1 md:min-h-11 ${selectedVariant ? '' : 'border border-amber-600 bg-amber-50 text-amber-950 hover:bg-amber-100'}`}
+                aria-disabled={!selectedVariant}
               >
                 <CreditCard className="mr-2" size={20} />
                 এখনই কিনুন

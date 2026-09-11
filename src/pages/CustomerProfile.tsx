@@ -201,6 +201,13 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
     return 'পরিচালনার কাজ করেছেন, তাই এখন আর কাস্টমার করা যাবে না।';
   }
 
+  function ownerDeleteBlockedMessage(owner: OwnerAccount) {
+    if (owner.id === currentOwnerId) return 'নিজের লগইন করা অ্যাকাউন্ট নিজে মুছতে পারবেন না।';
+    if (owner.promotedFromCustomer) return 'এই অ্যাকাউন্টটি আগে কাস্টমার ছিল। মুছে না ফেলে কাস্টমার করুন।';
+    if (!owner.email) return 'এই ওনারের লগইন তথ্য পাওয়া যায়নি। ডেভেলপারের সহায়তা নিন।';
+    return 'এই ওনারের ব্যবসা বা অডিট রেকর্ড আছে। তাই অ্যাকাউন্ট মুছতে পারবেন না। প্রয়োজনে ইনঅ্যাকটিভ করুন।';
+  }
+
   const load = useCallback(() => {
     setLoading(true);
     void getOwners().then(result => { setOwners(result.owners); setInvitationsConfigured(result.invitationsConfigured); }).catch(error => toast.error(getErrorMessage(error, 'ওনার তালিকা লোড হয়নি'))).finally(() => setLoading(false));
@@ -320,8 +327,8 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
             </div>
             {owner.id !== currentOwnerId && <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => { setStatusTarget(owner); setStatusReason(''); }}>{owner.isActive ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</Button>
-              {owner.canDemote && <Button size="sm" variant="outline" onClick={() => { setDemotionTarget(owner); setDemotionReason(''); setDemotionError(''); }}>কাস্টমার করুন</Button>}
-              {owner.canDelete && <Button size="sm" variant="destructive" onClick={() => { setDeleteError(''); setDeleteTarget(owner); }}><Trash2 size={15} className="mr-1" />অ্যাকাউন্ট মুছুন</Button>}
+              {owner.promotedFromCustomer && <Button size="sm" variant="outline" aria-disabled={!owner.canDemote} onClick={() => { if (!owner.canDemote) { toast.error(demotionBlockedMessage(owner) ?? 'এই ওনারকে এখন কাস্টমার করা যাবে না।'); return; } setDemotionTarget(owner); setDemotionReason(''); setDemotionError(''); }}>কাস্টমার করুন</Button>}
+              <Button size="sm" variant={owner.canDelete ? 'destructive' : 'outline'} aria-disabled={!owner.canDelete} onClick={() => { if (!owner.canDelete) { toast.error(ownerDeleteBlockedMessage(owner)); return; } setDeleteError(''); setDeleteTarget(owner); }}><Trash2 size={15} className="mr-1" />অ্যাকাউন্ট মুছুন</Button>
             </div>}
           </div>
         </article>)}

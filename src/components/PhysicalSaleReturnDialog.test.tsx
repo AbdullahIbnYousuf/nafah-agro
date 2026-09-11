@@ -103,4 +103,16 @@ describe('physical sale return dialog', () => {
       reason: undefined,
     })));
   });
+
+  it('explains that a product must be selected before confirmation', async () => {
+    const { onConfirm } = setup();
+    const confirm = screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' });
+    expect(confirm).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(confirm);
+    expect(await screen.findByText('ফেরত নেওয়ার জন্য অন্তত একটি পণ্য বেছে নিন।')).toHaveAttribute(
+      'role',
+      'alert',
+    );
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
 });

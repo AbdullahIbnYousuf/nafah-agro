@@ -121,6 +121,24 @@ describe('safe catalog deletion controls', () => {
     await waitFor(() => expect(mocks.deleteUnusedCategory).toHaveBeenCalledWith(product.categoryId));
   });
 
+  it('explains why used products and non-empty categories cannot be deleted', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [{ ...product, canDelete: false }], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getAdminCategories.mockResolvedValue([
+      { id: product.categoryId, name: 'Used Category', slug: 'used-category', isActive: true, isVisibleInShop: true, canDelete: false },
+    ]);
+
+    const productView = renderAdmin('/admin/products');
+    fireEvent.click(await screen.findByRole('button', { name: 'মুছুন' }));
+    expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining('তাই এটি মুছতে পারবেন না'));
+    expect(mocks.deleteUnusedProduct).not.toHaveBeenCalled();
+    productView.unmount();
+
+    renderAdmin('/admin/categories');
+    fireEvent.click(await screen.findByRole('button', { name: 'মুছুন' }));
+    expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining('এই ক্যাটাগরিতে পণ্য আছে'));
+    expect(mocks.deleteUnusedCategory).not.toHaveBeenCalled();
+  });
+
   it('shows product thumbnails, customer URLs, and confirms state changes', async () => {
     let resolveChange!: (value: typeof product) => void;
     mocks.setProductActive.mockImplementationOnce(() => new Promise((resolve) => { resolveChange = resolve; }));

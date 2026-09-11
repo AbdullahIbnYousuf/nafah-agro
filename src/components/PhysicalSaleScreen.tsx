@@ -99,7 +99,10 @@ export default function PhysicalSaleScreen() {
   const total = subtotal - discountNumber;
 
   function toggleProductSelection(product: Product, variant: ProductVariant) {
-    if (variant.availableStock <= 0) return;
+    if (variant.availableStock <= 0) {
+      toast.error('এই পণ্যের স্টক নেই। আগে ক্রয় ও ইনভেন্টরি থেকে স্টক যোগ করুন।');
+      return;
+    }
     setSelectionError('');
     setSelectionDraft((current) => {
       if (current?.variant.id === variant.id) return null;
@@ -220,11 +223,11 @@ export default function PhysicalSaleScreen() {
               <button
                 type="button"
                 onClick={() => toggleProductSelection(product, variant)}
-                disabled={variant.availableStock <= 0}
+                aria-disabled={variant.availableStock <= 0}
                 aria-expanded={isOpen}
                 aria-controls={`physical-sale-selection-${variant.id}`}
                 aria-label={`${title} পরিমাণ বেছে নিন`}
-                className="w-full p-3 text-left disabled:cursor-not-allowed"
+                className="w-full p-3 text-left"
               >
                 <div className="flex items-start justify-between gap-2"><div className="font-medium">{title}</div><ChevronDown size={17} className={`mt-0.5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
                 <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{productKindLabel(product.kind)}</span>{isInSale && <span className="rounded-full bg-secondary/15 px-2 py-0.5 font-medium text-secondary">তালিকায় আছে</span>}</div>

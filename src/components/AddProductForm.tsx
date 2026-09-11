@@ -25,20 +25,19 @@ interface Props {
 }
 
 function slugify(text: string) {
-  return text
+  const slug = text
     .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^\w\u0980-\u09FF-]/g, '')
+    .replace(/[^a-z0-9-]/g, '')
     .replace(/--+/g, '-')
     .replace(/^-+|-+$/g, '');
+  return slug || `product-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) => {
   const isEdit = !!editProduct;
 
   const [name, setName] = useState(editProduct?.name ?? '');
-  const [slug, setSlug] = useState(editProduct?.slug ?? '');
-  const [slugTouched, setSlugTouched] = useState(isEdit);
   const [description, setDescription] = useState(editProduct?.description ?? '');
   const [kind, setKind] = useState<ProductKind>(editProduct?.kind ?? 'PACKAGED');
   const [price, setPrice] = useState(editProduct ? String(editProduct.price) : '');
@@ -73,11 +72,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   useEffect(() => {
     getProductTags().then(setAllTags).catch(() => {});
   }, []);
-
-  function handleNameChange(val: string) {
-    setName(val);
-    if (!slugTouched) setSlug(slugify(val));
-  }
 
   function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -142,7 +136,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
       const cleanYoutubeLinks = youtubeLinks.filter(l => l.trim() !== '');
       const payload = {
         name: name.trim(),
-        slug: slug.trim() || slugify(name.trim()),
+        slug: isEdit ? editProduct.slug : slugify(name.trim()),
         description: description.trim(),
         price: Number(price),
         stock: editProduct?.stock ?? 0,
@@ -219,24 +213,10 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                 <Input
                   id="name"
                   value={name}
-                  onChange={e => handleNameChange(e.target.value)}
+                  onChange={e => setName(e.target.value)}
                   placeholder="যেমন: দেশি গরুর দুধ"
                   className="mt-1 bg-card"
                 />
-              </div>
-
-              <div>
-                <Label htmlFor="slug">স্লাগ (URL)</Label>
-                <Input
-                  id="slug"
-                  value={slug}
-                  onChange={e => { setSlugTouched(true); setSlug(e.target.value); }}
-                  placeholder="deshi-gorur-dudh"
-                  className="mt-1 bg-card font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  URL: /products/{slug || '...'}
-                </p>
               </div>
 
               <div>

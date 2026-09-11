@@ -256,7 +256,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close} disabled={submitting}>বন্ধ করুন</Button>
-        <Button type="button" onClick={() => void submit()} disabled={submitting || selected.length === 0}>
+        <Button type="button" onClick={() => void submit()} disabled={submitting} aria-disabled={selected.length === 0}>
           {submitting ? 'ফেরত নিশ্চিত হচ্ছে…' : 'ফেরত নিশ্চিত করুন'}
         </Button>
       </DialogFooter>

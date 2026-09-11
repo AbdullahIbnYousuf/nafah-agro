@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
     isOffline: false,
     install: vi.fn(),
   },
+  toastError: vi.fn(),
 }));
 
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => mocks.auth }));
@@ -57,6 +58,7 @@ vi.mock('@/lib/api', () => ({
 }));
 vi.mock('@/components/Navbar', () => ({ default: () => <nav>Navbar</nav> }));
 vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }));
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } }));
 
 describe('role-aware profile page', () => {
   beforeEach(() => {
@@ -363,6 +365,25 @@ describe('role-aware profile page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'অ্যাকাউন্ট মুছুন' }));
     fireEvent.click(screen.getByRole('button', { name: 'স্থায়ীভাবে মুছুন' }));
     await waitFor(() => expect(mocks.deleteUnusedOwner).toHaveBeenCalledWith('owner-2'));
+  });
+
+  it('explains why an owner account cannot be deleted or demoted', async () => {
+    mocks.getOwners.mockResolvedValue({
+      invitationsConfigured: true,
+      owners: [{
+        id: 'owner-2', role: 'OWNER', fullName: 'Working Owner', phoneNumber: '01800000000',
+        email: 'working@example.com', isActive: true, invitedAt: null,
+        lastSignInAt: '2026-08-03T00:00:00Z', createdAt: '2026-08-02T00:00:00Z',
+        canDelete: false, promotedFromCustomer: true, canDemote: false, demotionBlockedReason: 'OWNER_HISTORY',
+      }],
+    });
+    render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'কাস্টমার করুন' }));
+    expect(mocks.toastError).toHaveBeenCalledWith('পরিচালনার কাজ করেছেন, তাই এখন আর কাস্টমার করা যাবে না।');
+    fireEvent.click(screen.getByRole('button', { name: 'অ্যাকাউন্ট মুছুন' }));
+    expect(mocks.toastError).toHaveBeenCalledWith('এই অ্যাকাউন্টটি আগে কাস্টমার ছিল। মুছে না ফেলে কাস্টমার করুন।');
+    expect(mocks.deleteUnusedOwner).not.toHaveBeenCalled();
   });
 
   it('shows order history and hides owner controls for a CUSTOMER', async () => {

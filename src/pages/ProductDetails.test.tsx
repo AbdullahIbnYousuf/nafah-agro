@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   addItem: vi.fn(),
   updateQuantity: vi.fn(),
   removeItem: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 const product: Product = {
@@ -51,6 +52,7 @@ vi.mock('@/contexts/CartContext', () => ({
 
 vi.mock('@/components/Navbar', () => ({ default: () => <nav>Navbar</nav> }));
 vi.mock('@/components/Footer', () => ({ default: () => <footer>Footer</footer> }));
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } }));
 
 describe('product pack/size selection', () => {
   it('uses one pack/size selector for package, price, and cart identity without exposing SKU', async () => {
@@ -93,5 +95,23 @@ describe('product pack/size selection', () => {
       </MemoryRouter>,
     );
     expect(await screen.findByRole('link', { name: 'পিছনে যান' })).toHaveAttribute('href', '/shop');
+  });
+
+  it('explains why a product without an active pack cannot be purchased', async () => {
+    const originalVariants = product.variants;
+    product.variants = originalVariants?.map((variant) => ({ ...variant, isActive: false }));
+    try {
+      render(
+        <MemoryRouter initialEntries={['/products/premium-miniket-rice']}>
+          <Routes><Route path="/products/:slug" element={<ProductDetails />} /></Routes>
+        </MemoryRouter>,
+      );
+      const addButton = await screen.findByRole('button', { name: 'কার্টে যোগ করুন' });
+      expect(addButton).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(addButton);
+      expect(mocks.toastError).toHaveBeenCalledWith('এই পণ্যের কোনো সক্রিয় প্যাক/সাইজ নেই');
+    } finally {
+      product.variants = originalVariants;
+    }
   });
 });

@@ -21,6 +21,8 @@ describe('product creation form', () => {
     expect(screen.getByText('প্যাক/সাইজ (ঐচ্ছিক)')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('যেমন: ১ কেজি')).not.toBeRequired();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('স্লাগ (URL)')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^URL:/)).not.toBeInTheDocument();
   });
 
   it('uses a rate and stock threshold instead of pack/size for loose products', () => {

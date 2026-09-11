@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
   getAdminProducts: vi.fn(),
   getPhysicalSales: vi.fn(),
   returnPhysicalSale: vi.fn(),
+  toastError: vi.fn(),
 }));
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } }));
 
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/api')>(),
@@ -156,6 +158,21 @@ describe('physical sale history', () => {
     expect(screen.queryByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' })).not.toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' })).toHaveValue(2.5);
     expect(screen.getByText('তালিকায় আছে')).toBeInTheDocument();
+  });
+
+  it('explains how to make an out-of-stock product available', async () => {
+    const emptyProduct = {
+      ...packagedProduct,
+      stock: 0,
+      variants: packagedProduct.variants!.map((variant) => ({ ...variant, availableStock: 0 })),
+    };
+    mocks.getAdminProducts.mockResolvedValue({ data: [emptyProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    renderScreen();
+
+    const productButton = await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' });
+    expect(productButton).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(productButton);
+    expect(mocks.toastError).toHaveBeenCalledWith('এই পণ্যের স্টক নেই। আগে ক্রয় ও ইনভেন্টরি থেকে স্টক যোগ করুন।');
   });
 
   it('closes an expanded product without adding when the owner clicks elsewhere', async () => {
