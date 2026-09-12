@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import PhysicalSaleReturnDialog from '@/components/PhysicalSaleReturnDialog';
-import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales, returnPhysicalSale } from '@/lib/api';
-import type { AmountUnit, PhysicalSale, Product, ProductVariant } from '@/lib/types';
+import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales, returnPhysicalSale, suggestCreditCustomers } from '@/lib/api';
+import type { AmountUnit, CreditCustomerSuggestion, PhysicalSale, Product, ProductVariant } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
 import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
 import { amountUnitsForKind, defaultAmountUnit, formatQuantity, productKindLabel, quantityUnitForKind, rateLabel, toBaseQuantity } from '@/lib/quantity';
@@ -21,6 +21,40 @@ interface SaleLine {
   amountUnit: AmountUnit;
 }
 
+interface PhysicalSaleHistoryFilters {
+  product: string;
+  query: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
+const PHYSICAL_SALE_HISTORY_FILTERS_KEY = 'nafah_physical_sale_history_filters_v1';
+
+function readPhysicalSaleHistoryFilters(): PhysicalSaleHistoryFilters {
+  const fallback = { product: '', query: '', dateFrom: '', dateTo: '' };
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(PHYSICAL_SALE_HISTORY_FILTERS_KEY) ?? '{}') as Record<string, unknown>;
+    const date = (candidate: unknown) => typeof candidate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : '';
+    return {
+      product: typeof value.product === 'string' ? value.product : '',
+      query: typeof value.query === 'string' ? value.query : '',
+      dateFrom: date(value.dateFrom),
+      dateTo: date(value.dateTo),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function savePhysicalSaleHistoryFilters(filters: PhysicalSaleHistoryFilters | null) {
+  try {
+    if (filters) window.sessionStorage.setItem(PHYSICAL_SALE_HISTORY_FILTERS_KEY, JSON.stringify(filters));
+    else window.sessionStorage.removeItem(PHYSICAL_SALE_HISTORY_FILTERS_KEY);
+  } catch {
+    // The filters still work when browser storage is unavailable.
+  }
+}
+
 function dhakaDate(offsetDays = 0) {
   const value = new Date(Date.now() + 6 * 60 * 60 * 1_000);
   value.setUTCDate(value.getUTCDate() + offsetDays);
@@ -28,6 +62,7 @@ function dhakaDate(offsetDays = 0) {
 }
 
 export default function PhysicalSaleScreen() {
+  const [initialHistoryFilters] = useState(readPhysicalSaleHistoryFilters);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [recentSales, setRecentSales] = useState<PhysicalSale[]>([]);
@@ -37,6 +72,11 @@ export default function PhysicalSaleScreen() {
   const [query, setQuery] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [selectedCreditCustomer, setSelectedCreditCustomer] = useState<CreditCustomerSuggestion | null>(null);
+  const [creditCustomerSuggestions, setCreditCustomerSuggestions] = useState<CreditCustomerSuggestion[]>([]);
+  const [loadingCustomerSuggestions, setLoadingCustomerSuggestions] = useState(false);
+  const [customerSuggestionError, setCustomerSuggestionError] = useState('');
+  const [newCreditCustomerConfirmed, setNewCreditCustomerConfirmed] = useState(false);
   const [discount, setDiscount] = useState('0');
   const [paymentMode, setPaymentMode] = useState<'PAID_NOW' | 'CREDIT'>('PAID_NOW');
   const [nextFollowUpDate, setNextFollowUpDate] = useState('');
@@ -44,12 +84,12 @@ export default function PhysicalSaleScreen() {
   const [completed, setCompleted] = useState<PhysicalSale | null>(null);
   const [projectedLoss, setProjectedLoss] = useState<unknown>(null);
   const [returnSale, setReturnSale] = useState<PhysicalSale | null>(null);
-  const [historyProduct, setHistoryProduct] = useState('');
-  const [historyQuery, setHistoryQuery] = useState('');
-  const [historyDateFrom, setHistoryDateFrom] = useState('');
-  const [historyDateTo, setHistoryDateTo] = useState('');
-  const [historyFilters, setHistoryFilters] = useState({ product: '', query: '', dateFrom: '', dateTo: '' });
-  const [errors, setErrors] = useState<{ items?: string; customerName?: string; phone?: string; followUp?: string; discount?: string; submit?: string }>({});
+  const [historyProduct, setHistoryProduct] = useState(initialHistoryFilters.product);
+  const [historyQuery, setHistoryQuery] = useState(initialHistoryFilters.query);
+  const [historyDateFrom, setHistoryDateFrom] = useState(initialHistoryFilters.dateFrom);
+  const [historyDateTo, setHistoryDateTo] = useState(initialHistoryFilters.dateTo);
+  const [historyFilters, setHistoryFilters] = useState(initialHistoryFilters);
+  const [errors, setErrors] = useState<{ items?: string; customerName?: string; customerSelection?: string; phone?: string; followUp?: string; discount?: string; submit?: string }>({});
   const productGridRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -66,6 +106,25 @@ export default function PhysicalSaleScreen() {
       .finally(() => setLoadingProducts(false));
   }, [historyFilters]);
   useEffect(load, [load]);
+
+  useEffect(() => {
+    if (paymentMode !== 'CREDIT' || selectedCreditCustomer || newCreditCustomerConfirmed || !customerName.trim()) {
+      setCreditCustomerSuggestions([]);
+      setLoadingCustomerSuggestions(false);
+      setCustomerSuggestionError('');
+      return;
+    }
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      setLoadingCustomerSuggestions(true);
+      setCustomerSuggestionError('');
+      void suggestCreditCustomers(customerName.trim())
+        .then((values) => { if (active) setCreditCustomerSuggestions(values); })
+        .catch(() => { if (active) { setCreditCustomerSuggestions([]); setCustomerSuggestionError('ক্রেতার তালিকা দেখা যায়নি। আবার চেষ্টা করুন।'); } })
+        .finally(() => { if (active) setLoadingCustomerSuggestions(false); });
+    }, 200);
+    return () => { active = false; window.clearTimeout(timeout); };
+  }, [customerName, newCreditCustomerConfirmed, paymentMode, selectedCreditCustomer]);
 
   const variants = useMemo(() => products.flatMap((product) =>
     product.isActive === false || product.category?.isActive === false
@@ -147,7 +206,7 @@ export default function PhysicalSaleScreen() {
     })) nextErrors.items = 'প্রতিটি পণ্যের সঠিক পরিমাণ দিন এবং বর্তমান স্টকের মধ্যে রাখুন।';
     if (customerPhone.trim() && (customerPhone.trim().length < 7 || customerPhone.trim().length > 30)) nextErrors.phone = 'ফোন নম্বর ৭ থেকে ৩০ অক্ষরের মধ্যে লিখুন।';
     if (paymentMode === 'CREDIT' && !customerName.trim()) nextErrors.customerName = 'বাকি বিক্রির জন্য ক্রেতার নাম দিন।';
-    if (paymentMode === 'CREDIT' && !customerPhone.trim()) nextErrors.phone = 'বাকি বিক্রির জন্য ফোন নম্বর দিন।';
+    if (paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed) nextErrors.customerSelection = 'তালিকা থেকে ক্রেতা বেছে নিন অথবা নতুন ক্রেতা হিসেবে যোগ করুন।';
     if (paymentMode === 'CREDIT' && (!nextFollowUpDate || nextFollowUpDate < dhakaDate())) nextErrors.followUp = 'আজ বা পরের কোনো যোগাযোগের তারিখ দিন।';
     if (!Number.isFinite(discountNumber) || discountNumber < 0 || discountNumber > subtotal) nextErrors.discount = 'ডিসকাউন্ট শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
     if (Object.keys(nextErrors).length > 0) { setErrors(nextErrors); return; }
@@ -158,19 +217,23 @@ export default function PhysicalSaleScreen() {
         items: lines.map((line) => ({ productVariantId: line.variant.id, amount: line.amount, amountUnit: line.amountUnit })),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
+        creditCustomerId: paymentMode === 'CREDIT' ? selectedCreditCustomer?.id : undefined,
+        createCreditCustomer: paymentMode === 'CREDIT' ? newCreditCustomerConfirmed : undefined,
         discountTotal: discountNumber,
         paymentMode,
         nextFollowUpDate: paymentMode === 'CREDIT' ? nextFollowUpDate : undefined,
         confirmUnprofitable,
       });
       setCompleted(result);
-      setLines([]); setCustomerName(''); setCustomerPhone(''); setDiscount('0'); setPaymentMode('PAID_NOW'); setNextFollowUpDate('');
+      setLines([]); setCustomerName(''); setCustomerPhone(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setDiscount('0'); setPaymentMode('PAID_NOW'); setNextFollowUpDate('');
       setProjectedLoss(null);
       toast.success(`বিক্রয় ${result.orderNumber} সম্পন্ন হয়েছে`);
       load();
     } catch (error) {
       if (!confirmUnprofitable && error instanceof ApiError && error.code === 'UNPROFITABLE_SALE_CONFIRMATION_REQUIRED') {
         setProjectedLoss(error.details?.projectedGrossProfit ?? 'ক্ষতি হবে');
+      } else if (error instanceof ApiError && error.code === 'DUPLICATE_CREDIT_CUSTOMER_NAME') {
+        setErrors({ customerSelection: 'এই নামে একজন ক্রেতা আগে থেকেই আছেন। নাম লিখে তালিকা থেকে তাকে বেছে নিন।' });
       } else if (confirmUnprofitable) {
         throw error;
       } else {
@@ -192,7 +255,9 @@ export default function PhysicalSaleScreen() {
 
   function applyHistoryFilters(event: React.FormEvent) {
     event.preventDefault();
-    setHistoryFilters({ product: historyProduct.trim(), query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo });
+    const next = { product: historyProduct.trim(), query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo };
+    setHistoryFilters(next);
+    savePhysicalSaleHistoryFilters(next);
   }
 
   function clearHistoryFilters() {
@@ -201,6 +266,7 @@ export default function PhysicalSaleScreen() {
     setHistoryDateFrom('');
     setHistoryDateTo('');
     setHistoryFilters({ product: '', query: '', dateFrom: '', dateTo: '' });
+    savePhysicalSaleHistoryFilters(null);
   }
 
   return <div className="space-y-8">
@@ -252,8 +318,41 @@ export default function PhysicalSaleScreen() {
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
         <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{line.variant.sellingPrice} {rateLabel(line.product.kind)} · স্টক {formatQuantity(line.variant.availableStock, quantityUnitForKind(line.product.kind))}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
-        <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setErrors((current) => ({ ...current, customerName: undefined, phone: undefined, followUp: undefined })); }}>এখন পরিশোধ</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
-        <div className="grid sm:grid-cols-2 gap-3"><Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName}><Input aria-label="ক্রেতার নাম" value={customerName} onChange={(event) => { setCustomerName(event.target.value); setErrors((current) => ({ ...current, customerName: undefined })); }} aria-invalid={Boolean(errors.customerName)} /></Field><Field label={`ফোন${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.phone}><Input aria-label="ক্রেতার ফোন" value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field></div>
+        <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পরিশোধ</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
+        <div className="grid items-start gap-3 sm:grid-cols-2">
+          <Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName ?? errors.customerSelection}>
+            <div className="relative">
+              <Input aria-label="ক্রেতার নাম" autoComplete="off" value={customerName} onChange={(event) => {
+                setCustomerName(event.target.value);
+                setSelectedCreditCustomer(null);
+                setNewCreditCustomerConfirmed(false);
+                setCustomerSuggestionError('');
+                setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined }));
+              }} aria-invalid={Boolean(errors.customerName ?? errors.customerSelection)} />
+              {paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed && customerName.trim() && <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-lg">
+                {loadingCustomerSuggestions && <div className="px-3 py-2 text-sm text-muted-foreground">খোঁজা হচ্ছে...</div>}
+                {!loadingCustomerSuggestions && customerSuggestionError && <div className="px-3 py-2 text-sm text-destructive">{customerSuggestionError}</div>}
+                {!loadingCustomerSuggestions && creditCustomerSuggestions.map((customer) => <button key={customer.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => {
+                  setSelectedCreditCustomer(customer);
+                  setCustomerName(customer.name);
+                  setCustomerPhone(customer.phone ?? '');
+                  setNextFollowUpDate(customer.nextFollowUpDate ?? dhakaDate(7));
+                  setCreditCustomerSuggestions([]);
+                  setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined }));
+                }}>{customer.name}</button>)}
+                {!loadingCustomerSuggestions && !customerSuggestionError && creditCustomerSuggestions.length === 0 && <button type="button" className="block w-full px-3 py-2 text-left text-sm font-medium text-secondary hover:bg-muted" onClick={() => { setNewCreditCustomerConfirmed(true); setNextFollowUpDate((current) => current || dhakaDate(7)); setErrors((current) => ({ ...current, customerSelection: undefined })); }}>“{customerName.trim()}” নতুন ক্রেতা হিসেবে যোগ করুন</button>}
+              </div>}
+              {selectedCreditCustomer && <button type="button" className="mt-1 text-xs font-medium text-secondary hover:underline" onClick={() => { setSelectedCreditCustomer(null); setCustomerName(''); setCustomerPhone(''); }}>অন্য ক্রেতা বেছে নিন</button>}
+              {newCreditCustomerConfirmed && <div className="mt-1 text-xs font-medium text-secondary">নতুন ক্রেতা যোগ হবে</div>}
+            </div>
+          </Field>
+          <Field label="ফোন (ঐচ্ছিক)" error={errors.phone}><Input aria-label="ক্রেতার ফোন" value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field>
+        </div>
+        {paymentMode === 'CREDIT' && selectedCreditCustomer && <div className="grid gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:grid-cols-3">
+          <Metric label="আগের বাকি" value={money(selectedCreditCustomer.outstandingAmount)} />
+          <Metric label="এই বিক্রির পর" value={money(selectedCreditCustomer.outstandingAmount + Math.max(total, 0))} />
+          <Metric label="যোগাযোগের তারিখ" value={nextFollowUpDate || 'তারিখ দিন'} />
+        </div>}
         {paymentMode === 'CREDIT' && <Field label="পরবর্তী যোগাযোগের তারিখ" error={errors.followUp}><div className="relative"><CalendarClock className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="পরবর্তী যোগাযোগের তারিখ" className="pl-10" type="date" min={dhakaDate()} value={nextFollowUpDate} onChange={(event) => { setNextFollowUpDate(event.target.value); setErrors((current) => ({ ...current, followUp: undefined })); }} aria-invalid={Boolean(errors.followUp)} /></div></Field>}
         <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
@@ -273,7 +372,9 @@ export default function PhysicalSaleScreen() {
           onChange={setHistoryProduct}
           onSelect={(value) => {
             setHistoryProduct(value);
-            setHistoryFilters({ product: value, query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo });
+            const next = { product: value, query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo };
+            setHistoryFilters(next);
+            savePhysicalSaleHistoryFilters(next);
           }}
         /></Field>
         <Field label="অন্য তথ্য"><Input

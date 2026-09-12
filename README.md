@@ -118,6 +118,13 @@ DATABASE_URL="postgresql://...pooler..." DIRECT_URL="postgresql://...direct..." 
 demo reset is destructive, refuses to start without its explicit confirmation
 token, and must never be run against production.
 
+To discard all disposable showcase data, including legacy per-sale dues, and
+recreate the complete demo dataset in a development or Preview database only:
+
+```bash
+CONFIRM_DEMO_RESET=RESET_NAFAH_AGRO_DEMO npm run seed:demo
+```
+
 For an existing showcase dataset, refresh only the three known demo sales into
 the current dashboard period without creating, deleting, or repricing anything:
 
@@ -143,10 +150,12 @@ or audit references; used accounts remain available for deactivation only.
 Public registration can only create CUSTOMER profiles.
 
 Physical-shop sales default to immediate payment. Selecting `বাকি` requires a
-customer name, phone, and next follow-up date. The sale still completes and
-deducts FIFO stock immediately; later payments reduce the outstanding balance
-without recording revenue or profit a second time. Due and overdue reminders
-remain visible in the application.
+unique customer name and next follow-up date; phone is optional. Type the name
+to select an existing customer or explicitly create a new one. The form shows
+the previous balance and projected balance before completing the sale. One
+customer-level payment is allocated to the oldest outstanding sales, without
+recording revenue or profit again. Customer details, payments, returns, and
+contact-date changes remain available together in `/admin/dues`.
 
 An OWNER may additionally enable browser push per device from `/profile`. New
 website orders notify only after the order commit succeeds. At 9 AM Dhaka, the

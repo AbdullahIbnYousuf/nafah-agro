@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 ## Summary
 
@@ -12,9 +12,10 @@ returns, OWNER analytics, Cloudinary uploads,
 and a single-project Vercel layout. No deployment, external migration, or
 production-data change was performed during the final review.
 
-Physical-shop বাকি sales are now complete in local code. They consume FIFO and
-recognize the sale immediately while an independent append-only ledger tracks
-partial/full collection, outstanding balances, due dates, and payment corrections.
+Physical-shop বাকি sales now use reusable customer ledgers in local code. Each
+customer has a unique editable name, optional phone, one contact date, total
+balance, and combined records. A single payment is allocated oldest-sale-first
+while FIFO, revenue, returns, and individual sale history remain intact.
 
 Opt-in OWNER Web Push is complete in local code for newly committed website
 orders and one due/overdue credit reminder at 9 AM Dhaka. Subscriptions are
@@ -28,14 +29,15 @@ is not approved for production until the external gates in this document and
 
 ## Milestone 6 completed in code
 
-- Added OWNER-only physical-shop বাকি sales with required customer contact and
-  follow-up date. Credit sales remain completed sales; later payments do not
+- Added OWNER-only physical-shop বাকি sales with a required unique customer name,
+  optional phone, and follow-up date. Credit sales remain completed sales; later payments do not
   record revenue or profit again.
-- Added `/admin/dues`, customer-grouped open/settled lists, direct call links,
+- Added `/admin/dues`, customer-level open/settled lists, optional call links,
   due/overdue filters, payment and follow-up dialogs, dashboard/sales-page entry
   points, and a session-dismissible reminder across owner pages.
-- Added immutable idempotent credit-payment records, reason-required payment
-  voiding, serializable row-locked overpayment protection, and audited follow-up
+- Added immutable idempotent customer-payment records, oldest-sale-first
+  allocations, reason-required payment voiding, serializable row-locked
+  overpayment protection, unique-name editing, and audited follow-up
   rescheduling. Physical returns reduce credit first and expose only the excess
   as a cash refund.
 - Simplified routine forms by making catalog price/type notes and order/return
@@ -46,9 +48,12 @@ is not approved for production until the external gates in this document and
 - Migration `202608220001_credit_sales` is checked in but was not applied to an
   external database. Existing physical sales remain `CASH + PAID`; no
   historical sale is converted to credit.
-- Migration `202608220002_push_notifications` is checked in and is the only
-  migration currently pending on the configured Supabase database. It was not
-  applied by this task.
+- Migration `202608220002_push_notifications` is checked in and still requires
+  verification against the configured Supabase database. It was not applied by
+  this task.
+- Migration `202609120001_customer_credit_ledgers` adds the non-destructive
+  customer ledger and payment allocation foundation. It has not been applied to
+  an external database by this task. Legacy per-sale credit rows remain intact.
 
 - Added shared OWNER/CUSTOMER password recovery through Supabase email links.
 - Added OWNER-controlled promotion for an email already registered as CUSTOMER.

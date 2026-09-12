@@ -229,14 +229,16 @@ export function createPushNotificationService(
     async sendCreditReminders(now = new Date()) {
       const date = dhakaDate(now);
       const dayStart = new Date(`${date}T00:00:00.000+06:00`);
-      const creditWhere = {
-        source: "PHYSICAL_SHOP" as const,
-        paymentMethod: "CREDIT" as const,
-        paymentStatus: { in: [...OPEN_CREDIT_STATUSES] },
+      const openCustomerWhere = {
+        sales: { some: {
+          source: "PHYSICAL_SHOP" as const,
+          paymentMethod: "CREDIT" as const,
+          paymentStatus: { in: [...OPEN_CREDIT_STATUSES] },
+        } },
       };
       const [totalOpenCount, actionableCount] = await Promise.all([
-        prisma.salesOrder.count({ where: creditWhere }),
-        prisma.salesOrder.count({ where: { ...creditWhere, nextFollowUpDate: { lte: dayStart } } }),
+        prisma.creditCustomer.count({ where: openCustomerWhere }),
+        prisma.creditCustomer.count({ where: { ...openCustomerWhere, nextFollowUpDate: { lte: dayStart } } }),
       ]);
       if (actionableCount === 0) {
         return { date, actionableCount, totalOpenCount, sent: 0, failed: 0, expired: 0, skipped: 0 };

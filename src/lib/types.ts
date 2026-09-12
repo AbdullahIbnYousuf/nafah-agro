@@ -121,6 +121,7 @@ export interface PhysicalSale {
   status: 'COMPLETED';
   paymentMethod: 'CASH' | 'CREDIT';
   paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+  creditCustomerId?: string | null;
   nextFollowUpDate: string | null;
   customerName: string | null;
   customerPhone: string | null;
@@ -161,6 +162,7 @@ export interface CreditPayment {
   voidedAt: string | null;
   voidReason: string | null;
   voidedBy: { fullName: string; role: Role } | null;
+  allocations?: Array<{ salesOrderId: string; amount: number }>;
 }
 
 export type CreditSaleState = 'OPEN' | 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'SETTLED' | 'ALL';
@@ -180,6 +182,42 @@ export interface CreditSummary {
   overdueCount: number;
   dueTodayCount: number;
   upcomingCount: number;
+}
+
+export interface CreditCustomerSuggestion {
+  id: string;
+  name: string;
+  phone: string | null;
+  nextFollowUpDate: string | null;
+  outstandingAmount: number;
+}
+
+export interface CreditCustomer extends CreditCustomerSuggestion {
+  totalSaleAmount: number;
+  collectedAmount: number;
+  saleCount: number;
+  createdBy: { fullName: string; role: Role };
+  createdAt: string;
+  updatedAt: string;
+  payments: CreditPayment[];
+  sales?: PhysicalSale[];
+  history?: Array<{
+    id: string;
+    action: string;
+    previousData: unknown;
+    newData: unknown;
+    reason: string | null;
+    createdAt: string;
+    actor: { fullName: string; role: Role } | null;
+  }>;
+}
+
+export interface CreditCustomersPage {
+  data: CreditCustomer[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface Product {
@@ -349,6 +387,13 @@ export interface ComparedAnalyticsMetric {
   percentChange: number | null;
 }
 
+export interface AnalyticsTrendBucket {
+  from: string;
+  to: string;
+  recognizedSales: number;
+  grossProfit: number;
+}
+
 export interface AnalyticsProductRow {
   productId: string;
   productVariantId: string;
@@ -403,7 +448,11 @@ export interface AnalyticsDashboardData {
     lowStockVariantCount: number;
     outOfStockVariantCount: number;
   };
-  trend: Array<{ date: string; recognizedSales: number; grossProfit: number }>;
+  trendGranularity: 'DAY' | 'MONTH';
+  trend: Array<{
+    current: AnalyticsTrendBucket;
+    previous: AnalyticsTrendBucket | null;
+  }>;
   salesBySource: Array<{ source: OrderSource; orderCount: number; recognizedSales: number }>;
   bestSelling: AnalyticsProductRow[];
   mostProfitable: AnalyticsProductRow[];

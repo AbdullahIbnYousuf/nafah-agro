@@ -39,7 +39,7 @@ Status: complete in code; real Supabase/Cloudinary acceptance remains.
 Status: complete in code; real PostgreSQL concurrency acceptance remains.
 
 - Multi-item purchases, costed batches, cached variant totals, FIFO allocation,
-  reason-required adjustments, immediate paid or বাকি physical sales,
+  reason-required adjustments, immediate paid or customer-ledger বাকি physical sales,
   preserved price/cost snapshots, discount/loss confirmation, and profit visibility.
 - Credit sales complete and consume FIFO immediately while an append-only
   payment ledger tracks partial/full collection separately. Required customer
@@ -82,7 +82,8 @@ Acceptance gate before Milestone 5:
 Status: complete in local code; migration and live-data acceptance remain.
 
 - One OWNER-only `/api/v1/analytics/dashboard` response provides preset/custom
-  Dhaka ranges, equivalent-period comparisons, summary metrics, daily trend,
+  Dhaka elapsed-period ranges, equivalent-period comparisons, summary metrics,
+  daily or monthly sales/profit comparison trends,
   sales by source, product/variant rankings, FIFO inventory value/alerts, and
   open COD counts.
 - Delivered delivery orders and completed physical sales create positive events.
@@ -100,7 +101,7 @@ Status: local hardening implemented; external staging/production gate remains.
   order dialogs, responsive polish, route/section splitting, safe seed checks,
   recovery notes, and deterministic analytics tests are part of the review.
 - OWNER Web Push is implemented for committed website orders and one 9 AM
-  Dhaka due/overdue credit reminder. Device opt-in, active-owner filtering,
+  Dhaka customer-level due/overdue credit reminder. Device opt-in, active-owner filtering,
   delivery deduplication, expired-subscription cleanup, and private payloads are
   enforced; live Chrome and Vercel Cron acceptance remains.
 - Apply migrations and complete the disposable Supabase/Cloudinary/Vercel

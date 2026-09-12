@@ -765,6 +765,14 @@ describe("GET /api/v1/foundation", () => {
         recordCreditPayment: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
         voidCreditPayment: vi.fn(),
         rescheduleCreditFollowUp: vi.fn(),
+        suggestCreditCustomers: vi.fn(async () => []),
+        listCreditCustomers: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 30, totalPages: 0 })),
+        getCreditCustomerSummary: vi.fn(async () => ({ totalOutstanding: 0, openSaleCount: 0, customerCount: 0, overdueCount: 0, dueTodayCount: 0, upcomingCount: 0 })),
+        getCreditCustomer: vi.fn(),
+        updateCreditCustomer: vi.fn(),
+        recordCreditCustomerPayment: vi.fn(async () => ({ id: "60000000-0000-4000-8000-000000000001" })),
+        voidCreditCustomerPayment: vi.fn(),
+        rescheduleCreditCustomerFollowUp: vi.fn(),
       } as unknown as InventoryService;
     }
 
@@ -806,7 +814,7 @@ describe("GET /api/v1/foundation", () => {
         .set("Authorization", "Bearer valid-token")
         .send({});
       const creditResponse = await request(app)
-        .get("/api/v1/credit-sales")
+        .get("/api/v1/credit-customers")
         .set("Authorization", "Bearer valid-token");
 
       expect(purchaseResponse.status).toBe(403);
@@ -816,7 +824,7 @@ describe("GET /api/v1/foundation", () => {
       expect(inventory.createPurchase).not.toHaveBeenCalled();
       expect(inventory.createPhysicalSale).not.toHaveBeenCalled();
       expect(inventory.returnPhysicalSale).not.toHaveBeenCalled();
-      expect(inventory.listCreditSales).not.toHaveBeenCalled();
+      expect(inventory.listCreditCustomers).not.toHaveBeenCalled();
     });
 
     it("allows an OWNER to record a validated credit payment", async () => {
@@ -834,6 +842,24 @@ describe("GET /api/v1/foundation", () => {
       expect(inventory.recordCreditPayment).toHaveBeenCalledWith(
         "50000000-0000-4000-8000-000000000001",
         expect.objectContaining({ amount: "250.00" }),
+        ownerProfile.id,
+      );
+    });
+
+    it("allows an OWNER to record one validated customer-level credit payment", async () => {
+      const inventory = inventoryStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, undefined, inventory))
+        .post("/api/v1/credit-customers/60000000-0000-4000-8000-000000000001/payments")
+        .set("Authorization", "Bearer valid-token")
+        .send({
+          idempotencyKey: "70000000-0000-4000-8000-000000000002",
+          amount: "500.00",
+          paidOn: "2026-08-22",
+        });
+      expect(response.status).toBe(201);
+      expect(inventory.recordCreditCustomerPayment).toHaveBeenCalledWith(
+        "60000000-0000-4000-8000-000000000001",
+        expect.objectContaining({ amount: "500.00" }),
         ownerProfile.id,
       );
     });

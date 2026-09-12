@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type {
+  CreditCustomerList,
+  CreditCustomerSuggestion,
+  CreditCustomerUpdate,
   CreditFollowUp,
   CreditPaymentCreate,
   CreditPaymentVoid,
@@ -47,11 +50,23 @@ const moneyNumber = (value: Prisma.Decimal | null) => value === null ? null : Nu
 
 const saleInclude = {
   createdBy: { select: { fullName: true, role: true } },
+  creditCustomer: { select: { id: true, name: true, phone: true, nextFollowUpDate: true } },
   creditPayments: {
     orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }],
     include: {
       createdBy: { select: { fullName: true, role: true } },
       voidedBy: { select: { fullName: true, role: true } },
+    },
+  },
+  creditPaymentAllocations: {
+    orderBy: { createdAt: "asc" },
+    include: {
+      creditPayment: {
+        include: {
+          createdBy: { select: { fullName: true, role: true } },
+          voidedBy: { select: { fullName: true, role: true } },
+        },
+      },
     },
   },
   physicalSaleReturns: {
@@ -101,7 +116,11 @@ function saleDto(sale: SaleRecord) {
     (total, value) => total.plus(value.reversedGrossProfit),
     new Prisma.Decimal(0),
   );
-  const creditPayments = sale.creditPayments ?? [];
+  const legacyCreditPayments = sale.creditPayments ?? [];
+  const allocatedCreditPayments = (sale.creditPaymentAllocations ?? [])
+    .filter(({ creditPayment }) => !creditPayment.voidedAt)
+    .map(({ amount, creditPayment }) => ({ ...creditPayment, amount }));
+  const creditPayments = [...legacyCreditPayments, ...allocatedCreditPayments];
   const collectedAmount = creditPayments.reduce(
     (total, payment) => payment.voidedAt ? total : total.plus(payment.amount),
     new Prisma.Decimal(0),
@@ -115,9 +134,10 @@ function saleDto(sale: SaleRecord) {
     status: sale.status,
     paymentMethod: sale.paymentMethod,
     paymentStatus: sale.paymentStatus,
-    nextFollowUpDate: sale.nextFollowUpDate?.toISOString().slice(0, 10) ?? null,
-    customerName: sale.customerName,
-    customerPhone: sale.customerPhone,
+    creditCustomerId: sale.creditCustomerId,
+    nextFollowUpDate: (sale.creditCustomer?.nextFollowUpDate ?? sale.nextFollowUpDate)?.toISOString().slice(0, 10) ?? null,
+    customerName: sale.creditCustomer?.name ?? sale.customerName,
+    customerPhone: sale.creditCustomer?.phone ?? sale.customerPhone,
     subtotal: moneyNumber(sale.subtotal),
     discountTotal: moneyNumber(sale.discountTotal),
     grandTotal: moneyNumber(sale.grandTotal),
@@ -229,6 +249,18 @@ function dhakaDateOnly(now = new Date()) {
   return new Date(now.getTime() + 6 * 60 * 60 * 1_000).toISOString().slice(0, 10);
 }
 
+function cleanCreditCustomerName(value: string) {
+  return value.trim().replace(/\s+/gu, " ").normalize("NFKC");
+}
+
+function normalizeCreditCustomerName(value: string) {
+  return cleanCreditCustomerName(value).toLocaleLowerCase("bn-BD");
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
 function activeCreditTotal(sale: {
   grandTotal: Prisma.Decimal;
   physicalSaleReturns?: Array<{ refundAmount: Prisma.Decimal }>;
@@ -306,6 +338,157 @@ export function createInventoryService(prisma: PrismaClient) {
     createdBy: { select: { fullName: true, role: true } },
   } satisfies Prisma.StockBatchInclude;
 
+  const creditCustomerBalanceInclude = {
+    createdBy: { select: { fullName: true, role: true } },
+    sales: {
+      where: { source: "PHYSICAL_SHOP", paymentMethod: "CREDIT" },
+      orderBy: [{ completedAt: "asc" }, { createdAt: "asc" }],
+      include: {
+        physicalSaleReturns: { select: { refundAmount: true, cashRefundAmount: true } },
+        creditPaymentAllocations: {
+          include: { creditPayment: { select: { voidedAt: true } } },
+        },
+      },
+    },
+    payments: {
+      orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }],
+      include: {
+        createdBy: { select: { fullName: true, role: true } },
+        voidedBy: { select: { fullName: true, role: true } },
+        allocations: { select: { salesOrderId: true, amount: true } },
+      },
+    },
+  } satisfies Prisma.CreditCustomerInclude;
+
+  type CreditCustomerBalanceRecord = Prisma.CreditCustomerGetPayload<{
+    include: typeof creditCustomerBalanceInclude;
+  }>;
+
+  function customerBalance(customer: CreditCustomerBalanceRecord) {
+    const currentSalesTotal = customer.sales.reduce((total, sale) => {
+      const returned = sale.physicalSaleReturns.reduce((sum, value) => sum.plus(value.refundAmount), new Prisma.Decimal(0));
+      return total.plus(Prisma.Decimal.max(sale.grandTotal.minus(returned), 0));
+    }, new Prisma.Decimal(0));
+    const cashRefunded = customer.sales.reduce((total, sale) => total.plus(
+      sale.physicalSaleReturns.reduce((sum, value) => sum.plus(value.cashRefundAmount), new Prisma.Decimal(0)),
+    ), new Prisma.Decimal(0));
+    const grossPayments = customer.payments.reduce(
+      (total, payment) => payment.voidedAt ? total : total.plus(payment.amount),
+      new Prisma.Decimal(0),
+    );
+    const netCollected = grossPayments.minus(cashRefunded);
+    const collected = Prisma.Decimal.max(netCollected, 0);
+    return {
+      currentSalesTotal,
+      grossPayments,
+      cashRefunded,
+      collected,
+      outstanding: Prisma.Decimal.max(currentSalesTotal.minus(netCollected), 0),
+    };
+  }
+
+  function creditCustomerDto(customer: CreditCustomerBalanceRecord) {
+    const balance = customerBalance(customer);
+    return {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      nextFollowUpDate: customer.nextFollowUpDate?.toISOString().slice(0, 10) ?? null,
+      totalSaleAmount: Number(balance.currentSalesTotal),
+      collectedAmount: Number(balance.collected),
+      outstandingAmount: Number(balance.outstanding),
+      saleCount: customer.sales.length,
+      createdBy: customer.createdBy,
+      createdAt: customer.createdAt,
+      updatedAt: customer.updatedAt,
+      payments: customer.payments.map((payment) => ({
+        id: payment.id,
+        amount: Number(payment.amount),
+        paidOn: payment.paidOn.toISOString().slice(0, 10),
+        note: payment.note,
+        createdBy: payment.createdBy,
+        createdAt: payment.createdAt,
+        voidedAt: payment.voidedAt,
+        voidReason: payment.voidReason,
+        voidedBy: payment.voidedBy,
+        allocations: payment.allocations.map((allocation) => ({
+          salesOrderId: allocation.salesOrderId,
+          amount: Number(allocation.amount),
+        })),
+      })),
+    };
+  }
+
+  async function readCreditCustomer(id: string, client: PrismaClient | Prisma.TransactionClient = prisma) {
+    const customer = await client.creditCustomer.findUnique({
+      where: { id },
+      include: creditCustomerBalanceInclude,
+    });
+    if (!customer) throw inventoryError(404, "CREDIT_CUSTOMER_NOT_FOUND", "Credit customer not found.");
+    return customer;
+  }
+
+  async function lockCreditCustomer(transaction: Prisma.TransactionClient, id: string) {
+    const locked = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "credit_customers" WHERE "id" = ${id}::uuid FOR UPDATE
+    `);
+    if (locked.length === 0) throw inventoryError(404, "CREDIT_CUSTOMER_NOT_FOUND", "Credit customer not found.");
+  }
+
+  async function rebuildCustomerPaymentAllocations(transaction: Prisma.TransactionClient, customerId: string) {
+    const customer = await readCreditCustomer(customerId, transaction);
+    const balance = customerBalance(customer);
+    const activePayments = customer.payments.filter((payment) => !payment.voidedAt);
+    await transaction.creditCustomerPaymentAllocation.deleteMany({
+      where: { creditPayment: { creditCustomerId: customerId } },
+    });
+
+    const saleRemaining = new Map<string, Prisma.Decimal>();
+    for (const sale of customer.sales) {
+      const returned = sale.physicalSaleReturns.reduce((sum, value) => sum.plus(value.refundAmount), new Prisma.Decimal(0));
+      saleRemaining.set(sale.id, Prisma.Decimal.max(sale.grandTotal.minus(returned), 0));
+    }
+
+    let allocationBudget = balance.collected;
+    for (const payment of activePayments) {
+      let paymentRemaining = Prisma.Decimal.min(payment.amount, allocationBudget);
+      for (const sale of customer.sales) {
+        if (paymentRemaining.lte(0)) break;
+        const remaining = saleRemaining.get(sale.id) ?? new Prisma.Decimal(0);
+        if (remaining.lte(0)) continue;
+        const allocated = Prisma.Decimal.min(paymentRemaining, remaining);
+        await transaction.creditCustomerPaymentAllocation.create({ data: {
+          creditPaymentId: payment.id,
+          salesOrderId: sale.id,
+          amount: allocated,
+        } });
+        saleRemaining.set(sale.id, remaining.minus(allocated));
+        paymentRemaining = paymentRemaining.minus(allocated);
+        allocationBudget = allocationBudget.minus(allocated);
+      }
+      if (allocationBudget.lte(0)) break;
+    }
+
+    for (const sale of customer.sales) {
+      const outstanding = saleRemaining.get(sale.id) ?? new Prisma.Decimal(0);
+      const returned = sale.physicalSaleReturns.reduce((sum, value) => sum.plus(value.refundAmount), new Prisma.Decimal(0));
+      const currentValue = Prisma.Decimal.max(sale.grandTotal.minus(returned), 0);
+      const collected = currentValue.minus(outstanding);
+      await transaction.salesOrder.update({
+        where: { id: sale.id },
+        data: {
+          paymentStatus: creditPaymentStatus(collected, outstanding),
+          nextFollowUpDate: outstanding.gt(0) ? customer.nextFollowUpDate : null,
+        },
+      });
+    }
+
+    if (balance.outstanding.isZero() && customer.nextFollowUpDate) {
+      await transaction.creditCustomer.update({ where: { id: customerId }, data: { nextFollowUpDate: null } });
+    }
+    return balance;
+  }
+
   async function readSale(id: string) {
     const sale = await prisma.salesOrder.findUnique({ where: { id }, include: saleInclude });
     if (!sale) throw inventoryError(404, "PHYSICAL_SALE_NOT_FOUND", "Physical sale not found.");
@@ -320,6 +503,31 @@ export function createInventoryService(prisma: PrismaClient) {
       take: input.limit,
     });
     return batches.map(purchaseBatchDto);
+  }
+
+  async function creditCustomerDetail(id: string) {
+    const customer = await readCreditCustomer(id);
+    const [sales, history] = await Promise.all([
+      prisma.salesOrder.findMany({
+        where: { creditCustomerId: id, source: "PHYSICAL_SHOP", paymentMethod: "CREDIT" },
+        include: saleInclude,
+        orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+      }),
+      prisma.auditLog.findMany({
+        where: { entityType: "CREDIT_CUSTOMER", entityId: id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          action: true,
+          previousData: true,
+          newData: true,
+          reason: true,
+          createdAt: true,
+          actor: { select: { fullName: true, role: true } },
+        },
+      }),
+    ]);
+    return { ...creditCustomerDto(customer), sales: sales.map(saleDto), history };
   }
 
   return {
@@ -431,6 +639,43 @@ export function createInventoryService(prisma: PrismaClient) {
       let saleId: string;
       try {
         saleId = await prisma.$transaction(async (transaction) => {
+        let creditCustomer: { id: string; name: string; phone: string | null; nextFollowUpDate: Date | null } | null = null;
+        let previousCustomerFollowUpDate: string | null = null;
+        if (input.paymentMode === "CREDIT") {
+          if (input.creditCustomerId) {
+            await lockCreditCustomer(transaction, input.creditCustomerId);
+            creditCustomer = await transaction.creditCustomer.findUnique({
+              where: { id: input.creditCustomerId },
+              select: { id: true, name: true, phone: true, nextFollowUpDate: true },
+            });
+            if (!creditCustomer) throw inventoryError(404, "CREDIT_CUSTOMER_NOT_FOUND", "Credit customer not found.");
+          } else if (input.createCreditCustomer) {
+            const name = cleanCreditCustomerName(input.customerName!);
+            creditCustomer = await transaction.creditCustomer.create({ data: {
+              name,
+              normalizedName: normalizeCreditCustomerName(name),
+              phone: input.customerPhone || null,
+              nextFollowUpDate: asDate(input.nextFollowUpDate!),
+              createdByProfileId: actorId,
+            }, select: { id: true, name: true, phone: true, nextFollowUpDate: true } });
+          }
+          if (creditCustomer) {
+          previousCustomerFollowUpDate = creditCustomer.nextFollowUpDate?.toISOString().slice(0, 10) ?? null;
+          const nextPhone = input.customerPhone || creditCustomer.phone;
+          if ((input.nextFollowUpDate && previousCustomerFollowUpDate !== input.nextFollowUpDate) || nextPhone !== creditCustomer.phone) {
+            creditCustomer = await transaction.creditCustomer.update({
+              where: { id: creditCustomer.id },
+              data: {
+                ...(input.nextFollowUpDate && previousCustomerFollowUpDate !== input.nextFollowUpDate
+                  ? { nextFollowUpDate: asDate(input.nextFollowUpDate) }
+                  : {}),
+                ...(nextPhone !== creditCustomer.phone ? { phone: nextPhone } : {}),
+              },
+              select: { id: true, name: true, phone: true, nextFollowUpDate: true },
+            });
+          }
+          }
+        }
         const sortedItems = [...input.items].sort((left, right) =>
           left.productVariantId.localeCompare(right.productVariantId));
         const variants = await transaction.productVariant.findMany({
@@ -508,8 +753,9 @@ export function createInventoryService(prisma: PrismaClient) {
         const completedAt = new Date();
         const sale = await transaction.salesOrder.create({ data: {
           orderNumber: `PS-${completedAt.toISOString().slice(0, 10).replaceAll("-", "")}-${randomUUID().slice(0, 8).toUpperCase()}`,
-          customerName: input.customerName,
-          customerPhone: input.customerPhone,
+          customerName: creditCustomer?.name ?? input.customerName,
+          customerPhone: creditCustomer?.phone ?? input.customerPhone,
+          creditCustomerId: creditCustomer?.id,
           subtotal,
           discountTotal: discount,
           grandTotal,
@@ -567,11 +813,29 @@ export function createInventoryService(prisma: PrismaClient) {
             paymentMethod: input.paymentMode === "CREDIT" ? "CREDIT" : "CASH",
             paymentStatus: input.paymentMode === "CREDIT" ? "UNPAID" : "PAID",
             nextFollowUpDate: input.paymentMode === "CREDIT" ? input.nextFollowUpDate : null,
+            creditCustomerId: creditCustomer?.id ?? null,
           },
         } });
+        if (creditCustomer && previousCustomerFollowUpDate !== input.nextFollowUpDate) {
+          await transaction.salesOrder.updateMany({
+            where: { creditCustomerId: creditCustomer.id, paymentStatus: { in: ["UNPAID", "PARTIALLY_PAID"] } },
+            data: { nextFollowUpDate: asDate(input.nextFollowUpDate!) },
+          });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_CUSTOMER_FOLLOW_UP_CHANGED",
+            entityType: "CREDIT_CUSTOMER",
+            entityId: creditCustomer.id,
+            previousData: { nextFollowUpDate: previousCustomerFollowUpDate },
+            newData: { nextFollowUpDate: input.nextFollowUpDate, sourceSaleId: sale.id },
+          } });
+        }
         return sale.id;
         }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {
+        if (isUniqueConstraintError(error)) {
+          throw inventoryError(409, "DUPLICATE_CREDIT_CUSTOMER_NAME", "A credit customer with this name already exists.");
+        }
         rethrowInventoryTransactionError(error);
       }
 
@@ -581,6 +845,8 @@ export function createInventoryService(prisma: PrismaClient) {
     async returnPhysicalSale(id: string, input: PhysicalSaleReturnInput, actorId: string) {
       try {
         await prisma.$transaction(async (transaction) => {
+          const target = await transaction.salesOrder.findUnique({ where: { id }, select: { creditCustomerId: true } });
+          if (target?.creditCustomerId) await lockCreditCustomer(transaction, target.creditCustomerId);
           const locked = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
             SELECT "id" FROM "sales_orders" WHERE "id" = ${id}::uuid FOR UPDATE
           `);
@@ -694,7 +960,10 @@ export function createInventoryService(prisma: PrismaClient) {
           const refundAmount = prepared.reduce((total, value) => total.plus(value.refundAmount), new Prisma.Decimal(0));
           const reversedBuyingCost = prepared.reduce((total, value) => total.plus(value.reversedBuyingCost), new Prisma.Decimal(0));
           const reversedGrossProfit = refundAmount.minus(reversedBuyingCost);
-          const creditBeforeReturn = activeCreditTotal(sale);
+          const creditCustomerBeforeReturn = sale.creditCustomerId
+            ? customerBalance(await readCreditCustomer(sale.creditCustomerId, transaction))
+            : null;
+          const creditBeforeReturn = creditCustomerBeforeReturn ?? activeCreditTotal(sale);
           const creditOffsetAmount = sale.paymentMethod === "CREDIT"
             ? Prisma.Decimal.min(refundAmount, creditBeforeReturn.outstanding)
             : new Prisma.Decimal(0);
@@ -755,7 +1024,9 @@ export function createInventoryService(prisma: PrismaClient) {
             }
           }
 
-          if (sale.paymentMethod === "CREDIT") {
+          if (sale.creditCustomerId) {
+            await rebuildCustomerPaymentAllocations(transaction, sale.creditCustomerId);
+          } else if (sale.paymentMethod === "CREDIT") {
             const outstandingAfter = Prisma.Decimal.max(creditBeforeReturn.outstanding.minus(creditOffsetAmount), 0);
             await transaction.salesOrder.update({
               where: { id: sale.id },
@@ -821,6 +1092,216 @@ export function createInventoryService(prisma: PrismaClient) {
         take: input.limit,
       });
       return sales.map(saleDto);
+    },
+
+    async suggestCreditCustomers(input: CreditCustomerSuggestion) {
+      const customers = await prisma.creditCustomer.findMany({
+        where: { name: { contains: input.query, mode: "insensitive" } },
+        include: creditCustomerBalanceInclude,
+        orderBy: { name: "asc" },
+        take: input.limit,
+      });
+      return customers.map((customer) => {
+        const value = creditCustomerDto(customer);
+        return {
+          id: value.id,
+          name: value.name,
+          phone: value.phone,
+          nextFollowUpDate: value.nextFollowUpDate,
+          outstandingAmount: value.outstandingAmount,
+        };
+      });
+    },
+
+    async listCreditCustomers(input: CreditCustomerList) {
+      const query = input.query?.trim();
+      const customers = await prisma.creditCustomer.findMany({
+        where: query ? { OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { phone: { contains: query } },
+        ] } : undefined,
+        include: creditCustomerBalanceInclude,
+        orderBy: [{ nextFollowUpDate: "asc" }, { name: "asc" }],
+      });
+      const today = dhakaDateOnly();
+      const filtered = customers.map(creditCustomerDto).filter((customer) => {
+        const open = customer.outstandingAmount > 0;
+        if (input.state === "ALL") return true;
+        if (input.state === "SETTLED") return !open;
+        if (!open) return false;
+        if (input.state === "OVERDUE") return Boolean(customer.nextFollowUpDate && customer.nextFollowUpDate < today);
+        if (input.state === "TODAY") return customer.nextFollowUpDate === today;
+        if (input.state === "UPCOMING") return Boolean(customer.nextFollowUpDate && customer.nextFollowUpDate > today);
+        return true;
+      });
+      const start = (input.page - 1) * input.limit;
+      return {
+        data: filtered.slice(start, start + input.limit),
+        total: filtered.length,
+        page: input.page,
+        limit: input.limit,
+        totalPages: Math.ceil(filtered.length / input.limit),
+      };
+    },
+
+    async getCreditCustomerSummary() {
+      const customers = await prisma.creditCustomer.findMany({ include: creditCustomerBalanceInclude });
+      const today = dhakaDateOnly();
+      const open = customers.map(creditCustomerDto).filter((customer) => customer.outstandingAmount > 0);
+      return {
+        totalOutstanding: open.reduce((sum, customer) => sum + customer.outstandingAmount, 0),
+        openSaleCount: open.reduce((sum, customer) => sum + customer.saleCount, 0),
+        customerCount: open.length,
+        overdueCount: open.filter((customer) => customer.nextFollowUpDate && customer.nextFollowUpDate < today).length,
+        dueTodayCount: open.filter((customer) => customer.nextFollowUpDate === today).length,
+        upcomingCount: open.filter((customer) => customer.nextFollowUpDate && customer.nextFollowUpDate > today).length,
+      };
+    },
+
+    async getCreditCustomer(id: string) {
+      return creditCustomerDetail(id);
+    },
+
+    async updateCreditCustomer(id: string, input: CreditCustomerUpdate, actorId: string) {
+      const name = cleanCreditCustomerName(input.name);
+      try {
+        await prisma.$transaction(async (transaction) => {
+          await lockCreditCustomer(transaction, id);
+          const current = await transaction.creditCustomer.findUnique({ where: { id } });
+          if (!current) throw inventoryError(404, "CREDIT_CUSTOMER_NOT_FOUND", "Credit customer not found.");
+          await transaction.creditCustomer.update({
+            where: { id },
+            data: {
+              name,
+              normalizedName: normalizeCreditCustomerName(name),
+              ...(input.phone !== undefined ? { phone: input.phone || null } : {}),
+            },
+          });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_CUSTOMER_UPDATED",
+            entityType: "CREDIT_CUSTOMER",
+            entityId: id,
+            previousData: { name: current.name, phone: current.phone },
+            newData: { name, phone: input.phone === undefined ? current.phone : input.phone || null },
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        if (isUniqueConstraintError(error)) {
+          throw inventoryError(409, "DUPLICATE_CREDIT_CUSTOMER_NAME", "A credit customer with this name already exists.");
+        }
+        rethrowInventoryTransactionError(error);
+      }
+      return creditCustomerDto(await readCreditCustomer(id));
+    },
+
+    async recordCreditCustomerPayment(id: string, input: CreditPaymentCreate, actorId: string) {
+      if (input.paidOn > dhakaDateOnly()) {
+        throw inventoryError(400, "FUTURE_PAYMENT_DATE", "Payment date cannot be in the future.");
+      }
+      try {
+        await prisma.$transaction(async (transaction) => {
+          await lockCreditCustomer(transaction, id);
+          const duplicate = await transaction.creditCustomerPayment.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+          if (duplicate) {
+            if (duplicate.creditCustomerId !== id) {
+              throw inventoryError(409, "PAYMENT_REQUEST_CONFLICT", "This payment request belongs to another customer.");
+            }
+            return;
+          }
+          const customer = await readCreditCustomer(id, transaction);
+          const balance = customerBalance(customer);
+          const amount = asMoney(input.amount);
+          if (balance.outstanding.isZero()) throw inventoryError(409, "CREDIT_ALREADY_SETTLED", "This customer has no outstanding balance.");
+          if (amount.gt(balance.outstanding)) {
+            throw inventoryError(400, "PAYMENT_EXCEEDS_BALANCE", "Payment cannot exceed the outstanding balance.", {
+              outstandingAmount: Number(balance.outstanding),
+            });
+          }
+          const payment = await transaction.creditCustomerPayment.create({ data: {
+            creditCustomerId: id,
+            idempotencyKey: input.idempotencyKey,
+            amount,
+            paidOn: asDate(input.paidOn),
+            note: input.note,
+            createdByProfileId: actorId,
+          } });
+          await rebuildCustomerPaymentAllocations(transaction, id);
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_CUSTOMER_PAYMENT_RECORDED",
+            entityType: "CREDIT_CUSTOMER",
+            entityId: id,
+            newData: { paymentId: payment.id, amount: amount.toString(), paidOn: input.paidOn, note: input.note ?? null },
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        rethrowInventoryTransactionError(error);
+      }
+      return creditCustomerDetail(id);
+    },
+
+    async voidCreditCustomerPayment(id: string, paymentId: string, input: CreditPaymentVoid, actorId: string) {
+      try {
+        await prisma.$transaction(async (transaction) => {
+          await lockCreditCustomer(transaction, id);
+          const payment = await transaction.creditCustomerPayment.findUnique({ where: { id: paymentId } });
+          if (!payment || payment.creditCustomerId !== id) throw inventoryError(404, "CREDIT_PAYMENT_NOT_FOUND", "Credit payment not found.");
+          if (payment.voidedAt) throw inventoryError(409, "CREDIT_PAYMENT_ALREADY_VOIDED", "This credit payment is already voided.");
+          await transaction.creditCustomerPayment.update({
+            where: { id: paymentId },
+            data: { voidedAt: new Date(), voidedByProfileId: actorId, voidReason: input.reason },
+          });
+          const afterVoid = await readCreditCustomer(id, transaction);
+          if (customerBalance(afterVoid).outstanding.gt(0) && !afterVoid.nextFollowUpDate) {
+            await transaction.creditCustomer.update({ where: { id }, data: { nextFollowUpDate: asDate(dhakaDateOnly()) } });
+          }
+          await rebuildCustomerPaymentAllocations(transaction, id);
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_CUSTOMER_PAYMENT_VOIDED",
+            entityType: "CREDIT_CUSTOMER",
+            entityId: id,
+            previousData: { paymentId, amount: payment.amount.toString() },
+            reason: input.reason,
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        rethrowInventoryTransactionError(error);
+      }
+      return creditCustomerDetail(id);
+    },
+
+    async rescheduleCreditCustomerFollowUp(id: string, input: CreditFollowUp, actorId: string) {
+      if (input.nextFollowUpDate < dhakaDateOnly()) {
+        throw inventoryError(400, "INVALID_FOLLOW_UP_DATE", "Follow-up date must be today or later.");
+      }
+      try {
+        await prisma.$transaction(async (transaction) => {
+          await lockCreditCustomer(transaction, id);
+          const customer = await readCreditCustomer(id, transaction);
+          if (customerBalance(customer).outstanding.isZero()) {
+            throw inventoryError(409, "CREDIT_ALREADY_SETTLED", "A settled customer does not need a follow-up date.");
+          }
+          const previous = customer.nextFollowUpDate?.toISOString().slice(0, 10) ?? null;
+          await transaction.creditCustomer.update({ where: { id }, data: { nextFollowUpDate: asDate(input.nextFollowUpDate) } });
+          await transaction.salesOrder.updateMany({
+            where: { creditCustomerId: id, paymentStatus: { in: ["UNPAID", "PARTIALLY_PAID"] } },
+            data: { nextFollowUpDate: asDate(input.nextFollowUpDate) },
+          });
+          await transaction.auditLog.create({ data: {
+            actorProfileId: actorId,
+            action: "CREDIT_CUSTOMER_FOLLOW_UP_CHANGED",
+            entityType: "CREDIT_CUSTOMER",
+            entityId: id,
+            previousData: { nextFollowUpDate: previous },
+            newData: { nextFollowUpDate: input.nextFollowUpDate, note: input.note ?? null },
+          } });
+        }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      } catch (error) {
+        rethrowInventoryTransactionError(error);
+      }
+      return creditCustomerDto(await readCreditCustomer(id));
     },
 
     async listCreditSales(input: CreditSaleList) {

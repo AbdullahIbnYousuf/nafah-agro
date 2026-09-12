@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getAdminProducts: vi.fn(),
   getPhysicalSales: vi.fn(),
   returnPhysicalSale: vi.fn(),
+  suggestCreditCustomers: vi.fn(),
   toastError: vi.fn(),
 }));
 vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } }));
@@ -19,6 +20,7 @@ vi.mock('@/lib/api', async (importOriginal) => ({
   getAdminProducts: mocks.getAdminProducts,
   getPhysicalSales: mocks.getPhysicalSales,
   returnPhysicalSale: mocks.returnPhysicalSale,
+  suggestCreditCustomers: mocks.suggestCreditCustomers,
 }));
 
 const sale: PhysicalSale = {
@@ -121,9 +123,29 @@ const packagedProduct: Product = {
 describe('physical sale history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.removeItem('nafah_physical_sale_history_filters_v1');
     mocks.getAdminProducts.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
     mocks.getPhysicalSales.mockResolvedValue([sale]);
+    mocks.suggestCreditCustomers.mockResolvedValue([]);
     mocks.createPhysicalSale.mockResolvedValue(sale);
+  });
+
+  it('restores applied sale-history filters after refresh', async () => {
+    window.sessionStorage.setItem('nafah_physical_sale_history_filters_v1', JSON.stringify({
+      product: 'মিনিকেট', query: '01300000000', dateFrom: '2026-08-01', dateTo: '2026-08-31',
+    }));
+
+    renderScreen();
+
+    await waitFor(() => expect(mocks.getPhysicalSales).toHaveBeenCalledWith({
+      limit: 50,
+      product: 'মিনিকেট',
+      query: '01300000000',
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-31',
+    }));
+    expect(screen.getByRole('combobox', { name: 'পণ্য বেছে নিন' })).toHaveValue('মিনিকেট');
+    expect(screen.getByRole('textbox', { name: 'ক্রেতা বা বিক্রির তথ্য' })).toHaveValue('01300000000');
   });
 
   it('shows the frequently used dues page as a prominent primary action', async () => {
@@ -279,7 +301,7 @@ describe('physical sale history', () => {
     expect(mocks.createPhysicalSale).not.toHaveBeenCalled();
   });
 
-  it('requires identifiable customer details and submits the seven-day credit follow-up', async () => {
+  it('requires a selected or explicitly new customer and keeps phone optional', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
     renderScreen();
     fireEvent.click(await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' }));
@@ -287,16 +309,40 @@ describe('physical sale history', () => {
     fireEvent.click(screen.getByRole('button', { name: 'বাকি' }));
     fireEvent.click(screen.getByRole('button', { name: 'বাকি বিক্রি সম্পন্ন করুন' }));
     expect(screen.getByText('বাকি বিক্রির জন্য ক্রেতার নাম দিন।')).toBeInTheDocument();
-    expect(screen.getByText('বাকি বিক্রির জন্য ফোন নম্বর দিন।')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('ক্রেতার নাম'), { target: { value: 'করিম' } });
-    fireEvent.change(screen.getByLabelText('ক্রেতার ফোন'), { target: { value: '01300000001' } });
+    fireEvent.click(await screen.findByRole('button', { name: /করিম.*নতুন ক্রেতা হিসেবে যোগ করুন/ }));
     const followUp = screen.getByLabelText('পরবর্তী যোগাযোগের তারিখ');
     expect((followUp as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     fireEvent.click(screen.getByRole('button', { name: 'বাকি বিক্রি সম্পন্ন করুন' }));
 
     await waitFor(() => expect(mocks.createPhysicalSale).toHaveBeenCalledWith(expect.objectContaining({
-      paymentMode: 'CREDIT', customerName: 'করিম', customerPhone: '01300000001', nextFollowUpDate: expect.any(String),
+      paymentMode: 'CREDIT', customerName: 'করিম', customerPhone: undefined, createCreditCustomer: true, nextFollowUpDate: expect.any(String),
+    })));
+  });
+
+  it('selects an existing customer by name and fills saved credit details', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.suggestCreditCustomers.mockResolvedValue([{
+      id: '70000000-0000-4000-8000-000000000001', name: 'রহিম', phone: '01300000000',
+      nextFollowUpDate: '2099-09-20', outstandingAmount: 700,
+    }]);
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রয় তালিকায় যোগ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি' }));
+    fireEvent.change(screen.getByLabelText('ক্রেতার নাম'), { target: { value: 'রহ' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'রহিম' }));
+
+    expect(screen.getByLabelText('ক্রেতার ফোন')).toHaveValue('01300000000');
+    expect(screen.getByLabelText('পরবর্তী যোগাযোগের তারিখ')).toHaveValue('2099-09-20');
+    expect(screen.getByText('আগের বাকি')).toBeInTheDocument();
+    expect(screen.getByText('৳700.00')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি বিক্রি সম্পন্ন করুন' }));
+    await waitFor(() => expect(mocks.createPhysicalSale).toHaveBeenCalledWith(expect.objectContaining({
+      creditCustomerId: '70000000-0000-4000-8000-000000000001', createCreditCustomer: false,
+      customerName: 'রহিম', customerPhone: '01300000000', nextFollowUpDate: '2099-09-20',
     })));
   });
 });

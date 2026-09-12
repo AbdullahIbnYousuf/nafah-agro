@@ -25,7 +25,7 @@ function setup(counts: number[] = [5, 3]) {
       update: vi.fn(async () => ({ id: "delivery-1" })),
       updateMany: vi.fn(async () => ({ count: 0 })),
     },
-    salesOrder: { count: vi.fn().mockImplementation(async () => counts.shift() ?? 0) },
+    creditCustomer: { count: vi.fn().mockImplementation(async () => counts.shift() ?? 0) },
     $transaction: vi.fn(async (operations: unknown[]) => Promise.all(operations)),
   } as unknown as PrismaClient;
   const transport = { send: vi.fn(async () => undefined) };

@@ -58,11 +58,13 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `POST` | `/api/v1/purchases` | OWNER | Atomic multi-item purchase |
 | `POST` | `/api/v1/stock-adjustments` | OWNER | Reason-required increase/decrease |
 | `POST/GET` | `/api/v1/physical-sales` | OWNER | Immediate FIFO paid or credit sale/list |
-| `GET` | `/api/v1/credit-sales`, `/credit-sales/:id` | OWNER | Filter/search credit sales and read exact repayment/return history |
-| `GET` | `/api/v1/credit-sales/summary` | OWNER | Outstanding, overdue, due-today, upcoming, and customer counts |
-| `POST` | `/api/v1/credit-sales/:id/payments` | OWNER | Idempotently record a partial or full payment |
-| `POST` | `/api/v1/credit-sales/:id/payments/:paymentId/void` | OWNER | Void an incorrect payment with a required reason |
-| `PATCH` | `/api/v1/credit-sales/:id/follow-up` | OWNER | Move the next follow-up date |
+| `GET` | `/api/v1/credit-customers/suggestions` | OWNER | Find existing বাকি customers by name for physical-sale selection |
+| `GET` | `/api/v1/credit-customers`, `/credit-customers/:id` | OWNER | Customer-level balances and combined sale/payment/return records |
+| `GET` | `/api/v1/credit-customers/summary` | OWNER | Customer-level outstanding and reminder counts |
+| `PATCH` | `/api/v1/credit-customers/:id` | OWNER | Edit the unique customer name and optional phone |
+| `POST` | `/api/v1/credit-customers/:id/payments` | OWNER | Record one payment and allocate it to the oldest outstanding sales |
+| `POST` | `/api/v1/credit-customers/:id/payments/:paymentId/void` | OWNER | Void a customer payment with a required reason and rebuild allocations |
+| `PATCH` | `/api/v1/credit-customers/:id/follow-up` | OWNER | Move the customer's single next-contact date |
 | `GET` | `/api/v1/push/config` | OWNER | Read the public VAPID key for browser subscription |
 | `POST/DELETE` | `/api/v1/push/subscriptions` | OWNER | Enable or disable the authenticated owner's current browser device |
 | `POST` | `/api/v1/push/test` | OWNER | Send the approved test notification to the current device |
@@ -72,6 +74,9 @@ Website-order push is scheduled only after a new non-replayed order transaction
 commits. Push failure does not fail checkout. The credit cron sends nothing when
 the actionable count is zero. Delivery records deduplicate each order or date
 per device. Push endpoints and key material are not exposed through list APIs.
+
+The older `/credit-sales/*` endpoints remain temporarily for unlinked legacy
+credit records, but the active frontend uses only `/credit-customers/*`.
 
 Admin category/product responses include `canDelete`, calculated by the API.
 Deletion is transactional and rechecks eligibility server-side. A deleted
@@ -246,9 +251,16 @@ the full dashboard in one response. Supported query forms:
 
 Custom dates are inclusive, validated `YYYY-MM-DD` values, must be ordered, and
 may span at most 366 days. All boundaries use `Asia/Dhaka`; weeks run Sunday
-through Saturday. The response contains current/previous ranges, compared
-summary metrics, daily trend, all six sources, best-selling and most-profitable
-variants, current inventory/alerts, and pending COD counts.
+through Saturday. Week, month, and year presets use the elapsed period through
+today and compare it with the equivalent elapsed period. Custom ranges compare
+with the immediately preceding range of the same length. The response contains
+current/previous ranges, compared summary metrics, all six sources, best-selling
+and most-profitable variants, current inventory/alerts, and pending COD counts.
+
+`trendGranularity` is `DAY` for ranges up to 62 days and `MONTH` for longer
+ranges. Each `trend` item contains a `current` bucket and its paired `previous`
+bucket. Every bucket includes `from`, `to`, `recognizedSales`, and `grossProfit`,
+so the frontend can compare either metric while showing the actual date ranges.
 
 Financial rules:
 

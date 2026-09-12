@@ -1,6 +1,9 @@
 import { Router, type RequestHandler } from "express";
 import { z, ZodError } from "zod";
 import {
+  creditCustomerListSchema,
+  creditCustomerSuggestionSchema,
+  creditCustomerUpdateSchema,
   creditFollowUpSchema,
   creditPaymentCreateSchema,
   creditPaymentVoidSchema,
@@ -105,6 +108,83 @@ export function createInventoryRouter(
   router.get("/credit-sales/summary", ...protectedRoute, async (_req, res, next) => {
     try {
       res.json({ success: true, data: await service.getCreditSummary() });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/credit-customers/suggestions", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.suggestCreditCustomers(validate(creditCustomerSuggestionSchema, req.query)) });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/credit-customers/summary", ...protectedRoute, async (_req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.getCreditCustomerSummary() });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/credit-customers", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.listCreditCustomers(validate(creditCustomerListSchema, req.query)) });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/credit-customers/:id", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.getCreditCustomer(validate(z.string().uuid(), req.params.id)) });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/credit-customers/:id", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        data: await service.updateCreditCustomer(
+          validate(z.string().uuid(), req.params.id),
+          validate(creditCustomerUpdateSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/credit-customers/:id/payments", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await service.recordCreditCustomerPayment(
+          validate(z.string().uuid(), req.params.id),
+          validate(creditPaymentCreateSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/credit-customers/:id/payments/:paymentId/void", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        data: await service.voidCreditCustomerPayment(
+          validate(z.string().uuid(), req.params.id),
+          validate(z.string().uuid(), req.params.paymentId),
+          validate(creditPaymentVoidSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/credit-customers/:id/follow-up", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        data: await service.rescheduleCreditCustomerFollowUp(
+          validate(z.string().uuid(), req.params.id),
+          validate(creditFollowUpSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
+      });
     } catch (error) { next(error); }
   });
 

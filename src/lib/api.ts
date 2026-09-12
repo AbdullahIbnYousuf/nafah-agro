@@ -2,6 +2,9 @@ import type {
   Category,
   CustomerPromotionCandidate,
   CreditSalesPage,
+  CreditCustomer,
+  CreditCustomersPage,
+  CreditCustomerSuggestion,
   CreditSaleState,
   CreditSummary,
   AmountUnit,
@@ -474,6 +477,8 @@ export function createPhysicalSale(input: {
   items: Array<{ productVariantId: string; amount: string; amountUnit: AmountUnit }>;
   customerName?: string;
   customerPhone?: string;
+  creditCustomerId?: string;
+  createCreditCustomer?: boolean;
   discountTotal: number;
   paymentMode?: 'PAID_NOW' | 'CREDIT';
   nextFollowUpDate?: string;
@@ -482,6 +487,68 @@ export function createPhysicalSale(input: {
   return requestV1<PhysicalSale>('/physical-sales', {
     method: 'POST',
     body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal) }),
+  });
+}
+
+export function suggestCreditCustomers(query: string): Promise<CreditCustomerSuggestion[]> {
+  const params = new URLSearchParams({ query, limit: '8' });
+  return requestV1<CreditCustomerSuggestion[]>(`/credit-customers/suggestions?${params}`);
+}
+
+export function getCreditCustomers(input: {
+  state?: CreditSaleState;
+  query?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<CreditCustomersPage> {
+  const query = new URLSearchParams();
+  Object.entries({ state: 'OPEN', page: 1, limit: 30, ...input }).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<CreditCustomersPage>(`/credit-customers?${query}`);
+}
+
+export function getCreditCustomerSummary(): Promise<CreditSummary> {
+  return requestV1<CreditSummary>('/credit-customers/summary');
+}
+
+export function getCreditCustomer(id: string): Promise<CreditCustomer> {
+  return requestV1<CreditCustomer>(`/credit-customers/${id}`);
+}
+
+export function updateCreditCustomer(id: string, input: { name: string; phone: string | null }): Promise<CreditCustomer> {
+  return requestV1<CreditCustomer>(`/credit-customers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function recordCreditCustomerPayment(id: string, input: {
+  idempotencyKey: string;
+  amount: number;
+  paidOn: string;
+  note?: string;
+}): Promise<CreditCustomer> {
+  return requestV1<CreditCustomer>(`/credit-customers/${id}/payments`, {
+    method: 'POST',
+    body: JSON.stringify({ ...input, amount: String(input.amount) }),
+  });
+}
+
+export function voidCreditCustomerPayment(id: string, paymentId: string, reason: string): Promise<CreditCustomer> {
+  return requestV1<CreditCustomer>(`/credit-customers/${id}/payments/${paymentId}/void`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function rescheduleCreditCustomerFollowUp(id: string, input: {
+  nextFollowUpDate: string;
+  note?: string;
+}): Promise<CreditCustomer> {
+  return requestV1<CreditCustomer>(`/credit-customers/${id}/follow-up`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
   });
 }
 
@@ -499,7 +566,7 @@ export function getCreditSales(input: {
 }
 
 export function getCreditSummary(): Promise<CreditSummary> {
-  return requestV1<CreditSummary>('/credit-sales/summary');
+  return requestV1<CreditSummary>('/credit-customers/summary');
 }
 
 export function getCreditSale(id: string): Promise<PhysicalSale> {

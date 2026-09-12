@@ -68,6 +68,8 @@ export const physicalSaleCreateSchema = z.object({
   }).strict()).min(1).max(100),
   customerName: z.string().trim().min(1).max(120).optional(),
   customerPhone: z.string().trim().min(7).max(30).optional(),
+  creditCustomerId: uuid.optional(),
+  createCreditCustomer: z.boolean().default(false),
   discountTotal: nonNegativeMoney.default("0"),
   paymentMode: z.enum(["PAID_NOW", "CREDIT"]).default("PAID_NOW"),
   nextFollowUpDate: dateOnly.optional(),
@@ -80,11 +82,11 @@ export const physicalSaleCreateSchema = z.object({
     }
     return;
   }
-  if (!value.customerName) {
-    context.addIssue({ code: "custom", path: ["customerName"], message: "Customer name is required for a credit sale" });
+  if (value.creditCustomerId && value.createCreditCustomer) {
+    context.addIssue({ code: "custom", path: ["createCreditCustomer"], message: "An existing customer cannot also be created again" });
   }
-  if (!value.customerPhone) {
-    context.addIssue({ code: "custom", path: ["customerPhone"], message: "Customer phone is required for a credit sale" });
+  if (value.createCreditCustomer && !value.customerName) {
+    context.addIssue({ code: "custom", path: ["customerName"], message: "Customer name is required for a credit sale" });
   }
   if (!value.nextFollowUpDate) {
     context.addIssue({ code: "custom", path: ["nextFollowUpDate"], message: "Follow-up date is required for a credit sale" });
@@ -125,6 +127,18 @@ export const creditSaleListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
 }).strict();
 
+export const creditCustomerSuggestionSchema = z.object({
+  query: z.string().trim().min(1).max(120),
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+}).strict();
+
+export const creditCustomerListSchema = creditSaleListSchema;
+
+export const creditCustomerUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  phone: z.string().trim().min(7).max(30).nullable().optional(),
+}).strict();
+
 export const creditPaymentCreateSchema = z.object({
   idempotencyKey: uuid,
   amount: positiveMoney,
@@ -146,6 +160,9 @@ export type PhysicalSaleCreate = z.infer<typeof physicalSaleCreateSchema>;
 export type PhysicalSaleList = z.infer<typeof physicalSaleListSchema>;
 export type PhysicalSaleReturnInput = z.infer<typeof physicalSaleReturnSchema>;
 export type CreditSaleList = z.infer<typeof creditSaleListSchema>;
+export type CreditCustomerSuggestion = z.infer<typeof creditCustomerSuggestionSchema>;
+export type CreditCustomerList = z.infer<typeof creditCustomerListSchema>;
+export type CreditCustomerUpdate = z.infer<typeof creditCustomerUpdateSchema>;
 export type CreditPaymentCreate = z.infer<typeof creditPaymentCreateSchema>;
 export type CreditPaymentVoid = z.infer<typeof creditPaymentVoidSchema>;
 export type CreditFollowUp = z.infer<typeof creditFollowUpSchema>;

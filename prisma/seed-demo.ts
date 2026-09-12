@@ -247,11 +247,18 @@ async function main() {
       await transaction.$executeRawUnsafe(`
         TRUNCATE TABLE
           "audit_logs",
+          "credit_customer_payment_allocations",
+          "credit_customer_payments",
+          "credit_payments",
+          "physical_sale_return_allocations",
+          "physical_sale_return_items",
+          "physical_sale_returns",
           "order_allocations",
           "stock_adjustments",
           "stock_batches",
           "sales_order_items",
           "sales_orders",
+          "credit_customers",
           "selling_price_history",
           "delivery_rates",
           "product_variants",
