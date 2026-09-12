@@ -27,6 +27,7 @@ export interface AnalyticsOrderRecord {
   id: string;
   source: Source;
   status: OrderStatus;
+  paymentMethod: "CASH" | "CASH_ON_DELIVERY" | "CREDIT";
   subtotal: MoneyValue;
   discountTotal: MoneyValue;
   deliveryCharge: MoneyValue;
@@ -60,6 +61,7 @@ export interface AnalyticsPhysicalSaleReturnRecord {
   refundAmount: MoneyValue;
   reversedBuyingCost: MoneyValue;
   reversedGrossProfit: MoneyValue;
+  salesOrder: { paymentMethod: "CASH" | "CREDIT" };
   items: Array<{
     quantity: number;
     refundAmount: MoneyValue;
@@ -120,6 +122,21 @@ function addDays(value: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function shiftMonths(value: string, months: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const firstOfTarget = new Date(Date.UTC(year, month - 1 + months, 1));
+  const targetYear = firstOfTarget.getUTCFullYear();
+  const targetMonth = firstOfTarget.getUTCMonth();
+  const lastTargetDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(targetYear, targetMonth, Math.min(day, lastTargetDay))).toISOString().slice(0, 10);
+}
+
+function shiftYears(value: string, years: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const lastTargetDay = new Date(Date.UTC(year + years, month, 0)).getUTCDate();
+  return new Date(Date.UTC(year + years, month - 1, Math.min(day, lastTargetDay))).toISOString().slice(0, 10);
+}
+
 function inclusiveDays(from: string, to: string) {
   return Math.floor((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / DAY_MS) + 1;
 }
@@ -148,15 +165,14 @@ export function resolveAnalyticsRange(query: AnalyticsDashboardQuery, now = new 
   } else if (query.preset === "week") {
     const weekday = new Date(`${today}T00:00:00.000Z`).getUTCDay();
     from = addDays(today, -weekday);
-    to = addDays(from, 6);
+    to = today;
   } else if (query.preset === "month") {
     from = `${today.slice(0, 7)}-01`;
-    const [year, month] = today.split("-").map(Number);
-    to = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    to = today;
   } else if (query.preset === "year") {
     const year = today.slice(0, 4);
     from = `${year}-01-01`;
-    to = `${year}-12-31`;
+    to = today;
   } else if (query.preset === "custom") {
     if (!query.from || !query.to) throw new Error("Custom analytics ranges require from and to dates");
     from = query.from;
@@ -164,12 +180,21 @@ export function resolveAnalyticsRange(query: AnalyticsDashboardQuery, now = new 
   }
 
   const days = inclusiveDays(from, to);
-  const previousTo = query.preset === "year"
-    ? `${Number(from.slice(0, 4)) - 1}-12-31`
-    : addDays(from, -1);
-  const previousFrom = query.preset === "year"
-    ? `${Number(from.slice(0, 4)) - 1}-01-01`
-    : addDays(previousTo, -(days - 1));
+  let previousFrom: string;
+  let previousTo: string;
+  if (query.preset === "week") {
+    previousFrom = addDays(from, -7);
+    previousTo = addDays(to, -7);
+  } else if (query.preset === "month") {
+    previousFrom = shiftMonths(from, -1);
+    previousTo = shiftMonths(to, -1);
+  } else if (query.preset === "year") {
+    previousFrom = shiftYears(from, -1);
+    previousTo = shiftYears(to, -1);
+  } else {
+    previousTo = addDays(from, -1);
+    previousFrom = addDays(previousTo, -(days - 1));
+  }
   return {
     preset: query.preset,
     current: period(from, to),
@@ -213,6 +238,8 @@ interface FinancialEvent {
   source: Source;
   recognizedSales: Prisma.Decimal;
   productRevenue: Prisma.Decimal;
+  cashProductRevenue: Prisma.Decimal;
+  creditProductRevenue: Prisma.Decimal;
   deliveryCharges: Prisma.Decimal;
   fifoCost: Prisma.Decimal;
   grossProfit: Prisma.Decimal;
@@ -254,6 +281,7 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
   const quantities = emptyQuantities();
   for (const item of order.items) addQuantity(quantities, item.quantityUnit, item.quantity * quantityDirection);
   const productRevenue = decimal(order.subtotal).minus(decimal(order.discountTotal)).mul(direction);
+  const isCredit = order.paymentMethod === "CREDIT";
   const fifoCost = order.items.reduce(
     (total, item) => total.plus(itemCost(item)),
     new Prisma.Decimal(0),
@@ -265,6 +293,8 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
     source: order.source,
     recognizedSales: decimal(order.grandTotal).mul(direction),
     productRevenue,
+    cashProductRevenue: isCredit ? new Prisma.Decimal(0) : productRevenue,
+    creditProductRevenue: isCredit ? productRevenue : new Prisma.Decimal(0),
     deliveryCharges: decimal(order.deliveryCharge).mul(direction),
     fifoCost,
     grossProfit: productRevenue.minus(fifoCost),
@@ -292,13 +322,17 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
 function physicalSaleReturnEvent(value: AnalyticsPhysicalSaleReturnRecord): FinancialEvent {
   const quantities = emptyQuantities();
   for (const item of value.items) addQuantity(quantities, item.salesOrderItem.quantityUnit, -item.quantity);
+  const productRevenue = decimal(value.refundAmount).negated();
+  const isCredit = value.salesOrder.paymentMethod === "CREDIT";
   return {
     kind: "RETURN",
     date: value.createdAt,
     day: dhakaDate(value.createdAt),
     source: "PHYSICAL_SHOP",
     recognizedSales: decimal(value.refundAmount).negated(),
-    productRevenue: decimal(value.refundAmount).negated(),
+    productRevenue,
+    cashProductRevenue: isCredit ? new Prisma.Decimal(0) : productRevenue,
+    creditProductRevenue: isCredit ? productRevenue : new Prisma.Decimal(0),
     deliveryCharges: new Prisma.Decimal(0),
     fifoCost: decimal(value.reversedBuyingCost).negated(),
     grossProfit: decimal(value.reversedGrossProfit).negated(),
@@ -344,6 +378,8 @@ function sumEvents(events: FinancialEvent[]) {
   return events.reduce((totals, event) => {
     totals.recognizedSales = totals.recognizedSales.plus(event.recognizedSales);
     totals.productRevenue = totals.productRevenue.plus(event.productRevenue);
+    totals.cashProductRevenue = totals.cashProductRevenue.plus(event.cashProductRevenue);
+    totals.creditProductRevenue = totals.creditProductRevenue.plus(event.creditProductRevenue);
     totals.deliveryCharges = totals.deliveryCharges.plus(event.deliveryCharges);
     totals.fifoCost = totals.fifoCost.plus(event.fifoCost);
     totals.grossProfit = totals.grossProfit.plus(event.grossProfit);
@@ -355,6 +391,8 @@ function sumEvents(events: FinancialEvent[]) {
   }, {
     recognizedSales: new Prisma.Decimal(0),
     productRevenue: new Prisma.Decimal(0),
+    cashProductRevenue: new Prisma.Decimal(0),
+    creditProductRevenue: new Prisma.Decimal(0),
     deliveryCharges: new Prisma.Decimal(0),
     fifoCost: new Prisma.Decimal(0),
     grossProfit: new Prisma.Decimal(0),
@@ -391,6 +429,59 @@ function daySeries(from: string, to: string) {
   const values: string[] = [];
   for (let value = from; value <= to; value = addDays(value, 1)) values.push(value);
   return values;
+}
+
+type TrendGranularity = "DAY" | "MONTH";
+
+interface TrendBucket {
+  from: string;
+  to: string;
+  recognizedSales: Prisma.Decimal;
+  grossProfit: Prisma.Decimal;
+}
+
+function trendBuckets(periodValue: AnalyticsPeriod, granularity: TrendGranularity) {
+  const buckets = new Map<string, TrendBucket>();
+  for (const day of daySeries(periodValue.from, periodValue.to)) {
+    const key = granularity === "DAY" ? day : day.slice(0, 7);
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.to = day;
+      continue;
+    }
+    buckets.set(key, {
+      from: day,
+      to: day,
+      recognizedSales: new Prisma.Decimal(0),
+      grossProfit: new Prisma.Decimal(0),
+    });
+  }
+  return buckets;
+}
+
+function trendForPeriod(
+  periodValue: AnalyticsPeriod,
+  events: FinancialEvent[],
+  granularity: TrendGranularity,
+) {
+  const buckets = trendBuckets(periodValue, granularity);
+  for (const event of events) {
+    const key = granularity === "DAY" ? event.day : event.day.slice(0, 7);
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+    bucket.recognizedSales = bucket.recognizedSales.plus(event.recognizedSales);
+    bucket.grossProfit = bucket.grossProfit.plus(event.grossProfit);
+  }
+  return [...buckets.values()];
+}
+
+function trendBucketDto(bucket: TrendBucket) {
+  return {
+    from: bucket.from,
+    to: bucket.to,
+    recognizedSales: decimalNumber(bucket.recognizedSales),
+    grossProfit: decimalNumber(bucket.grossProfit),
+  };
 }
 
 interface ProductAggregate {
@@ -476,17 +567,11 @@ export function buildAnalyticsDashboard(input: {
     ? null
     : previous.recognizedSales.div(previous.orderCount);
 
-  const trendMap = new Map(daySeries(range.current.from, range.current.to).map((day) => [day, {
-    date: day,
-    recognizedSales: new Prisma.Decimal(0),
-    grossProfit: new Prisma.Decimal(0),
-  }]));
-  for (const event of currentEvents) {
-    const point = trendMap.get(event.day);
-    if (!point) continue;
-    point.recognizedSales = point.recognizedSales.plus(event.recognizedSales);
-    point.grossProfit = point.grossProfit.plus(event.grossProfit);
-  }
+  const trendGranularity: TrendGranularity = inclusiveDays(range.current.from, range.current.to) > 62
+    ? "MONTH"
+    : "DAY";
+  const currentTrend = trendForPeriod(range.current, currentEvents, trendGranularity);
+  const previousTrend = trendForPeriod(range.previous, previousEvents, trendGranularity);
 
   const sourceMap = new Map(SOURCES.map((source) => [source, {
     source,
@@ -571,6 +656,8 @@ export function buildAnalyticsDashboard(input: {
     summary: {
       recognizedSales: compared(current.recognizedSales, previous.recognizedSales),
       productRevenue: compared(current.productRevenue, previous.productRevenue),
+      cashProductRevenue: compared(current.cashProductRevenue, previous.cashProductRevenue),
+      creditProductRevenue: compared(current.creditProductRevenue, previous.creditProductRevenue),
       deliveryCharges: compared(current.deliveryCharges, previous.deliveryCharges),
       grossProfit: compared(current.grossProfit, previous.grossProfit),
       grossMargin: compared(currentMargin, previousMargin, 2),
@@ -585,10 +672,10 @@ export function buildAnalyticsDashboard(input: {
       lowStockVariantCount: lowStock.length,
       outOfStockVariantCount: outOfStock.length,
     },
-    trend: [...trendMap.values()].map((point) => ({
-      date: point.date,
-      recognizedSales: decimalNumber(point.recognizedSales),
-      grossProfit: decimalNumber(point.grossProfit),
+    trendGranularity,
+    trend: currentTrend.map((point, index) => ({
+      current: trendBucketDto(point),
+      previous: previousTrend[index] ? trendBucketDto(previousTrend[index]) : null,
     })),
     salesBySource: [...sourceMap.values()].map((source) => ({
       source: source.source,
@@ -629,6 +716,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
             id: true,
             source: true,
             status: true,
+            paymentMethod: true,
             subtotal: true,
             discountTotal: true,
             deliveryCharge: true,
@@ -659,6 +747,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
             refundAmount: true,
             reversedBuyingCost: true,
             reversedGrossProfit: true,
+            salesOrder: { select: { paymentMethod: true } },
             items: {
               select: {
                 quantity: true,

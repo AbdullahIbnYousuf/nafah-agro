@@ -16,6 +16,7 @@ function order(overrides: Partial<AnalyticsOrderRecord> & { id: string }): Analy
     id: overrides.id,
     source: "PHYSICAL_SHOP",
     status: "COMPLETED",
+    paymentMethod: "CASH",
     subtotal: "500.00",
     discountTotal: "0.00",
     deliveryCharge: "0.00",
@@ -66,20 +67,28 @@ describe("analytics date boundaries", () => {
     expect(result.summary.recognizedSales.value).toBe(500);
   });
 
-  it("uses Sunday through Saturday for the reporting week", () => {
+  it("uses Sunday through today and the same weekdays from the previous week", () => {
     const range = resolveAnalyticsRange({ preset: "week" }, instant("2026-08-05"));
     expect(range.current.from).toBe("2026-08-02");
-    expect(range.current.to).toBe("2026-08-08");
+    expect(range.current.to).toBe("2026-08-05");
     expect(range.previous.from).toBe("2026-07-26");
-    expect(range.previous.to).toBe("2026-08-01");
+    expect(range.previous.to).toBe("2026-07-29");
   });
 
-  it("uses the full calendar year and compares it with the previous year", () => {
+  it("uses month-to-date and the same elapsed dates from the previous month", () => {
+    const range = resolveAnalyticsRange({ preset: "month" }, instant("2026-08-05"));
+    expect(range.current.from).toBe("2026-08-01");
+    expect(range.current.to).toBe("2026-08-05");
+    expect(range.previous.from).toBe("2026-07-01");
+    expect(range.previous.to).toBe("2026-07-05");
+  });
+
+  it("uses year-to-date and the equivalent dates from the previous year", () => {
     const range = resolveAnalyticsRange({ preset: "year" }, instant("2026-08-05"));
     expect(range.current.from).toBe("2026-01-01");
-    expect(range.current.to).toBe("2026-12-31");
+    expect(range.current.to).toBe("2026-08-05");
     expect(range.previous.from).toBe("2025-01-01");
-    expect(range.previous.to).toBe("2025-12-31");
+    expect(range.previous.to).toBe("2025-08-05");
   });
 
   it("uses the exact inclusive custom range", () => {
@@ -145,7 +154,7 @@ describe("recognized sales and returns", () => {
       expect(result.summary.productRevenue.value).toBe(-500);
       expect(result.summary.grossProfit.value).toBe(-300);
       expect(result.summary.soldQuantities.pieces.value).toBe(-2);
-      expect(result.trend[0]).toMatchObject({ recognizedSales: -500, grossProfit: -300 });
+      expect(result.trend[0].current).toMatchObject({ recognizedSales: -500, grossProfit: -300 });
     },
   );
 
@@ -171,6 +180,7 @@ describe("recognized sales and returns", () => {
         refundAmount: "250.00",
         reversedBuyingCost: "150.00",
         reversedGrossProfit: "100.00",
+        salesOrder: { paymentMethod: "CASH" },
         items: [{
           quantity: 1_000,
           refundAmount: "250.00",
@@ -219,9 +229,27 @@ describe("recognized sales and returns", () => {
     })] });
     expect(result.summary.recognizedSales.value).toBe(960);
     expect(result.summary.productRevenue.value).toBe(900);
+    expect(result.summary.cashProductRevenue.value).toBe(900);
+    expect(result.summary.creditProductRevenue.value).toBe(0);
     expect(result.summary.deliveryCharges.value).toBe(60);
     expect(result.summary.grossProfit.value).toBe(400);
     expect(result.summary.grossMargin.value).toBe(44.44);
+  });
+
+  it("separates cash and credit product revenue", () => {
+    const result = dashboard({ orders: [
+      order({ id: "cash", subtotal: "400.00", grandTotal: "400.00" }),
+      order({
+        id: "credit",
+        paymentMethod: "CREDIT",
+        subtotal: "600.00",
+        grandTotal: "600.00",
+      }),
+    ] });
+
+    expect(result.summary.productRevenue.value).toBe(1000);
+    expect(result.summary.cashProductRevenue.value).toBe(400);
+    expect(result.summary.creditProductRevenue.value).toBe(600);
   });
 
   it("returns a null margin safely when net product revenue is zero", () => {
@@ -246,6 +274,51 @@ describe("recognized sales and returns", () => {
       absoluteChange: 100,
       percentChange: 100,
     });
+  });
+
+  it("pairs daily current and previous trend values with their actual dates", () => {
+    const result = dashboard({
+      query: { preset: "custom", from: "2026-08-04", to: "2026-08-05" },
+      orders: [
+        order({ id: "current", completedAt: instant("2026-08-04"), grandTotal: "500.00" }),
+        order({ id: "previous", completedAt: instant("2026-08-02"), grandTotal: "300.00" }),
+      ],
+    });
+
+    expect(result.trendGranularity).toBe("DAY");
+    expect(result.trend[0]).toEqual({
+      current: { from: "2026-08-04", to: "2026-08-04", recognizedSales: 500, grossProfit: 300 },
+      previous: { from: "2026-08-02", to: "2026-08-02", recognizedSales: 300, grossProfit: 300 },
+    });
+    expect(result.trend[1]).toEqual({
+      current: { from: "2026-08-05", to: "2026-08-05", recognizedSales: 0, grossProfit: 0 },
+      previous: { from: "2026-08-03", to: "2026-08-03", recognizedSales: 0, grossProfit: 0 },
+    });
+  });
+
+  it("groups trend points by month when a range is longer than 62 days", () => {
+    const result = dashboard({
+      query: { preset: "custom", from: "2026-01-01", to: "2026-04-15" },
+    });
+
+    expect(result.trendGranularity).toBe("MONTH");
+    expect(result.trend).toHaveLength(4);
+    expect(result.trend[0].current).toMatchObject({ from: "2026-01-01", to: "2026-01-31" });
+    expect(result.trend[3].current).toMatchObject({ from: "2026-04-01", to: "2026-04-15" });
+  });
+
+  it("keeps 62-day trends daily and switches to monthly on day 63", () => {
+    const daily = dashboard({
+      query: { preset: "custom", from: "2026-06-04", to: "2026-08-04" },
+    });
+    const monthly = dashboard({
+      query: { preset: "custom", from: "2026-06-03", to: "2026-08-04" },
+    });
+
+    expect(daily.trendGranularity).toBe("DAY");
+    expect(daily.trend).toHaveLength(62);
+    expect(monthly.trendGranularity).toBe("MONTH");
+    expect(monthly.trend).toHaveLength(3);
   });
 });
 

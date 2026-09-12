@@ -434,6 +434,8 @@ export interface AnalyticsDashboardData {
   summary: {
     recognizedSales: ComparedAnalyticsMetric;
     productRevenue: ComparedAnalyticsMetric;
+    cashProductRevenue: ComparedAnalyticsMetric;
+    creditProductRevenue: ComparedAnalyticsMetric;
     deliveryCharges: ComparedAnalyticsMetric;
     grossProfit: ComparedAnalyticsMetric;
     grossMargin: ComparedAnalyticsMetric;

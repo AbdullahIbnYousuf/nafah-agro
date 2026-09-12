@@ -68,8 +68,19 @@ function page(data: Product[]) {
 describe('inventory stock alerts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem('nafah_stock_alert_filter_v1');
     mocks.getAdminProducts.mockResolvedValue(page([outOfStock, lowWeight, normalVolume, inactiveProduct, inactiveVariant]));
     mocks.getStockBatches.mockResolvedValue([]);
+  });
+
+  it('restores the selected stock-alert list after refresh', async () => {
+    window.localStorage.setItem('nafah_stock_alert_filter_v1', 'LOW_STOCK');
+    render(<InventoryManager />);
+
+    const alerts = await screen.findByRole('region', { name: 'স্টক সতর্কতা' });
+    expect(within(alerts).getByRole('button', { name: 'কম স্টক (1)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(alerts).getByText('খোলা ডাল')).toBeInTheDocument();
+    expect(within(alerts).queryByText('প্যাকেট চাল · ১ কেজি')).not.toBeInTheDocument();
   });
 
   it('classifies active variants and formats piece, weight, and threshold quantities', async () => {

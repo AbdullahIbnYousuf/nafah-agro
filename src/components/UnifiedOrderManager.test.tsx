@@ -1,0 +1,57 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import UnifiedOrderManager from './UnifiedOrderManager';
+
+const mocks = vi.hoisted(() => ({
+  getOrders: vi.fn(),
+  getAdminProducts: vi.fn(),
+  getAdminDeliveryRates: vi.fn(),
+}));
+
+vi.mock('@/lib/api', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/api')>();
+  return {
+    ...original,
+    getOrders: mocks.getOrders,
+    getAdminProducts: mocks.getAdminProducts,
+    getAdminDeliveryRates: mocks.getAdminDeliveryRates,
+  };
+});
+
+describe('order list view preferences', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.sessionStorage.removeItem('nafah_order_filters_v1');
+    mocks.getOrders.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
+    mocks.getAdminProducts.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
+    mocks.getAdminDeliveryRates.mockResolvedValue([]);
+  });
+
+  it('restores safe order filters after refresh', async () => {
+    window.sessionStorage.setItem('nafah_order_filters_v1', JSON.stringify({
+      source: 'WEBSITE',
+      status: 'PENDING',
+      orderNumber: 'NA-1001',
+      phone: '01300000000',
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-31',
+    }));
+
+    render(<MemoryRouter><UnifiedOrderManager /></MemoryRouter>);
+
+    await waitFor(() => expect(mocks.getOrders).toHaveBeenCalledWith({
+      source: 'WEBSITE',
+      status: 'PENDING',
+      orderNumber: 'NA-1001',
+      phone: '01300000000',
+      dateFrom: '2026-07-31T18:00:00.000Z',
+      dateTo: '2026-08-31T17:59:59.999Z',
+      limit: 100,
+    }));
+    expect(screen.getByLabelText('অর্ডারের উৎস')).toHaveValue('WEBSITE');
+    expect(screen.getByLabelText('অর্ডারের অবস্থা')).toHaveValue('PENDING');
+    expect(screen.getByLabelText('অর্ডার নম্বর')).toHaveValue('NA-1001');
+    expect(screen.getByLabelText('গ্রাহকের ফোন')).toHaveValue('01300000000');
+  });
+});
