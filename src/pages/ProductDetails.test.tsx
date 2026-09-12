@@ -70,13 +70,13 @@ describe('product pack/size selection', () => {
     expect(screen.getByText('বিকল্প নির্বাচন করুন')).toBeInTheDocument();
     expect(screen.queryByText(/^Weight:/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '5 kg · ৳620' })).toHaveClass('min-h-11');
-    expect(screen.getByRole('button', { name: 'কার্টে যোগ করুন' })).toHaveClass('min-h-12');
+    expect(screen.getByRole('button', { name: 'কার্টে অ্যাড করুন' })).toHaveClass('min-h-12');
 
     fireEvent.click(screen.getByRole('button', { name: '10 kg · ৳1180' }));
-    expect(screen.getByText(/10 kg। স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে/)).toBeInTheDocument();
+    expect(screen.getByText(/10 kg। স্টক অর্ডার কনফার্ম করার সময় যাচাই করা হবে/)).toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'কার্টে যোগ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'কার্টে অ্যাড করুন' }));
     await waitFor(() => expect(mocks.addItem).toHaveBeenCalledWith({
       productId: 'product-1',
       productVariantId: 'variant-10',
@@ -106,7 +106,7 @@ describe('product pack/size selection', () => {
           <Routes><Route path="/products/:slug" element={<ProductDetails />} /></Routes>
         </MemoryRouter>,
       );
-      const addButton = await screen.findByRole('button', { name: 'কার্টে যোগ করুন' });
+      const addButton = await screen.findByRole('button', { name: 'কার্টে অ্যাড করুন' });
       expect(addButton).toHaveAttribute('aria-disabled', 'true');
       fireEvent.click(addButton);
       expect(mocks.toastError).toHaveBeenCalledWith('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');

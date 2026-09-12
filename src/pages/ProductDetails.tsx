@@ -103,7 +103,7 @@ const ProductDetails = () => {
         unitPrice: currentPrice,
         imageUrl: product.images[0],
       });
-      toast.success('কার্টে যোগ করা হয়েছে!');
+      toast.success('কার্টে অ্যাড হয়েছে!');
     }
   };
 
@@ -227,7 +227,7 @@ const ProductDetails = () => {
 
             <div className="mb-6 text-sm text-muted-foreground">
               {selectedVariant
-                ? `${visiblePackSize(selectedVariant.name) ? `${visiblePackSize(selectedVariant.name)}। ` : ''}স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।`
+                ? `${visiblePackSize(selectedVariant.name) ? `${visiblePackSize(selectedVariant.name)}। ` : ''}স্টক অর্ডার কনফার্ম করার সময় যাচাই করা হবে।`
                 : 'কোনো অ্যাকটিভ প্যাক/সাইজ নেই।'}
             </div>
 
@@ -261,7 +261,7 @@ const ProductDetails = () => {
                 aria-disabled={!selectedVariant}
               >
                 <ShoppingCart className="mr-2" size={20} />
-                {quantityInCart > 0 ? `আরও যোগ করুন (${quantityInCart})` : 'কার্টে যোগ করুন'}
+                {quantityInCart > 0 ? `আরও অ্যাড করুন (${quantityInCart})` : 'কার্টে অ্যাড করুন'}
               </Button>
               <Button
                 onClick={handleBuyNow}

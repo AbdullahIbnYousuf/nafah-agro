@@ -161,7 +161,7 @@ export default function PhysicalSaleScreen() {
 
   function toggleProductSelection(product: Product, variant: ProductVariant) {
     if (variant.availableStock <= 0) {
-      toast.error('এই পণ্যের স্টক নেই। আগে ক্রয় ও ইনভেন্টরি থেকে স্টক যোগ করুন।');
+      toast.error('এই পণ্যের স্টক নেই। আগে ক্রয় ও ইনভেন্টরি থেকে নতুন স্টক অ্যাড করুন।');
       return;
     }
     setSelectionError('');
@@ -199,8 +199,8 @@ export default function PhysicalSaleScreen() {
   async function saveSale(confirmUnprofitable = false) {
     const nextErrors: typeof errors = {};
     if (lines.length === 0) {
-      nextErrors.items = 'কমপক্ষে একটি পণ্য যোগ করুন।';
-      toast.error('বিক্রি সম্পন্ন করতে আগে অন্তত একটি পণ্য যোগ করুন।');
+      nextErrors.items = 'কমপক্ষে একটি পণ্য অ্যাড করুন।';
+      toast.error('বিক্রি সম্পন্ন করতে আগে অন্তত একটি পণ্য অ্যাড করুন।');
     }
     if (lines.some((line) => {
       const base = toBaseQuantity(line.amount, line.amountUnit);
@@ -208,7 +208,7 @@ export default function PhysicalSaleScreen() {
     })) nextErrors.items = 'প্রতিটি পণ্যের সঠিক পরিমাণ দিন এবং বর্তমান স্টকের মধ্যে রাখুন।';
     if (customerPhone.trim() && (customerPhone.trim().length < 7 || customerPhone.trim().length > 30)) nextErrors.phone = 'ফোন নম্বর ৭ থেকে ৩০ অক্ষরের মধ্যে লিখুন।';
     if (paymentMode === 'CREDIT' && !customerName.trim()) nextErrors.customerName = 'বাকি বিক্রির জন্য ক্রেতার নাম দিন।';
-    if (paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed) nextErrors.customerSelection = 'তালিকা থেকে ক্রেতা বেছে নিন অথবা নতুন ক্রেতা হিসেবে যোগ করুন।';
+    if (paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed) nextErrors.customerSelection = 'তালিকা থেকে ক্রেতা বেছে নিন অথবা নতুন ক্রেতা হিসেবে অ্যাড করুন।';
     if (paymentMode === 'CREDIT' && (!nextFollowUpDate || nextFollowUpDate < dhakaDate())) nextErrors.followUp = 'আজ বা পরের কোনো যোগাযোগের তারিখ দিন।';
     if (!Number.isFinite(discountNumber) || discountNumber < 0 || discountNumber > subtotal) nextErrors.discount = 'ডিসকাউন্ট শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
     if (Object.keys(nextErrors).length > 0) { setErrors(nextErrors); return; }
@@ -307,7 +307,7 @@ export default function PhysicalSaleScreen() {
               {isOpen && selectionDraft && <div id={`physical-sale-selection-${variant.id}`} className="space-y-3 border-t bg-muted/15 p-3">
                 <div><Label className="text-xs">পরিমাণ</Label><div className="mt-1"><SaleAmountInput line={selectionDraft} onChange={(patch) => { setSelectionError(''); setSelectionDraft((current) => current ? { ...current, ...patch } : current); }} /></div></div>
                 {selectionError && <p role="alert" className="text-sm text-destructive">{selectionError}</p>}
-                <Button type="button" className="w-full" onClick={saveProductSelection}><Plus size={16} />{isInSale ? 'পরিমাণ আপডেট করুন' : 'বিক্রয় তালিকায় যোগ করুন'}</Button>
+                <Button type="button" className="w-full" onClick={saveProductSelection}><Plus size={16} />{isInSale ? 'পরিমাণ আপডেট করুন' : 'বিক্রির তালিকায় অ্যাড করুন'}</Button>
               </div>}
             </div>;
           })}
@@ -319,7 +319,7 @@ export default function PhysicalSaleScreen() {
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
-        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{line.variant.sellingPrice} {rateLabel(line.product.kind)} · স্টক {formatQuantity(line.variant.availableStock, quantityUnitForKind(line.product.kind))}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য যোগ করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
+        <div className="space-y-2">{lines.map((line) => <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{line.variant.sellingPrice} {rateLabel(line.product.kind)} · স্টক {formatQuantity(line.variant.availableStock, quantityUnitForKind(line.product.kind))}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>)}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
         <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পরিশোধ</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
         <div className="grid items-start gap-3 sm:grid-cols-2">
           <Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName ?? errors.customerSelection}>
@@ -342,10 +342,10 @@ export default function PhysicalSaleScreen() {
                   setCreditCustomerSuggestions([]);
                   setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined }));
                 }}>{customer.name}</button>)}
-                {!loadingCustomerSuggestions && !customerSuggestionError && creditCustomerSuggestions.length === 0 && <button type="button" className="block w-full px-3 py-2 text-left text-sm font-medium text-secondary hover:bg-muted" onClick={() => { setNewCreditCustomerConfirmed(true); setNextFollowUpDate((current) => current || dhakaDate(7)); setErrors((current) => ({ ...current, customerSelection: undefined })); }}>“{customerName.trim()}” নতুন ক্রেতা হিসেবে যোগ করুন</button>}
+                {!loadingCustomerSuggestions && !customerSuggestionError && creditCustomerSuggestions.length === 0 && <button type="button" className="block w-full px-3 py-2 text-left text-sm font-medium text-secondary hover:bg-muted" onClick={() => { setNewCreditCustomerConfirmed(true); setNextFollowUpDate((current) => current || dhakaDate(7)); setErrors((current) => ({ ...current, customerSelection: undefined })); }}>“{customerName.trim()}” নতুন ক্রেতা হিসেবে অ্যাড করুন</button>}
               </div>}
               {selectedCreditCustomer && <button type="button" className="mt-1 text-xs font-medium text-secondary hover:underline" onClick={() => { setSelectedCreditCustomer(null); setCustomerName(''); setCustomerPhone(''); }}>অন্য ক্রেতা বেছে নিন</button>}
-              {newCreditCustomerConfirmed && <div className="mt-1 text-xs font-medium text-secondary">নতুন ক্রেতা যোগ হবে</div>}
+              {newCreditCustomerConfirmed && <div className="mt-1 text-xs font-medium text-secondary">নতুন ক্রেতা অ্যাড হবে</div>}
             </div>
           </Field>
           <Field label="ফোন (ঐচ্ছিক)" error={errors.phone}><Input aria-label="ক্রেতার ফোন" value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setErrors(current => ({ ...current, phone: undefined })); }} aria-invalid={Boolean(errors.phone)} /></Field>

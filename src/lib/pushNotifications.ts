@@ -61,7 +61,7 @@ function subscriptionInput(subscription: PushSubscription) {
 
 export async function enablePushNotifications() {
   if (!supportsPushNotifications()) throw new Error('এই ব্রাউজারে নোটিফিকেশন চালু করা যায় না।');
-  if (isIos() && !isStandalone()) throw new Error('iPhone বা iPad-এ আগে অ্যাপটি Home Screen-এ যোগ করুন।');
+  if (isIos() && !isStandalone()) throw new Error('iPhone বা iPad-এ আগে অ্যাপটি Home Screen-এ অ্যাড করুন।');
   const permission = Notification.permission === 'default'
     ? await Notification.requestPermission()
     : Notification.permission;

@@ -220,11 +220,11 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
         <RadioGroup value={condition} onValueChange={(value) => setCondition(value as ReturnCondition)} className="grid gap-3 sm:grid-cols-2">
           <Label htmlFor="physical-return-sellable" className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${condition === 'SELLABLE' ? 'border-secondary bg-secondary/10' : ''}`}>
             <RadioGroupItem id="physical-return-sellable" value="SELLABLE" className="mt-1" />
-            <span><strong>SELLABLE</strong><span className="block text-sm font-normal text-muted-foreground">পণ্য আবার বিক্রির স্টকে যোগ হবে</span></span>
+            <span><strong>SELLABLE</strong><span className="block text-sm font-normal text-muted-foreground">পণ্য আবার বিক্রির স্টকে অ্যাড হবে</span></span>
           </Label>
           <Label htmlFor="physical-return-damaged" className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${condition === 'DAMAGED' ? 'border-destructive bg-destructive/5' : ''}`}>
             <RadioGroupItem id="physical-return-damaged" value="DAMAGED" className="mt-1" />
-            <span><strong>DAMAGED</strong><span className="block text-sm font-normal text-muted-foreground">পণ্য স্টকে যোগ হবে না</span></span>
+            <span><strong>DAMAGED</strong><span className="block text-sm font-normal text-muted-foreground">পণ্য স্টকে অ্যাড হবে না</span></span>
           </Label>
         </RadioGroup>
       </fieldset>
@@ -234,8 +234,8 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
         <AlertTitle>ফেরতের প্রভাব</AlertTitle>
         <AlertDescription>
           {condition === 'SELLABLE'
-            ? 'ফেরত পণ্য আগের ক্রয়মূল্যসহ স্টকে যোগ হবে।'
-            : 'ফেরত পণ্য স্টকে যোগ হবে না।'}
+            ? 'ফেরত পণ্য আগের ক্রয়মূল্যসহ স্টকে অ্যাড হবে।'
+            : 'ফেরত পণ্য স্টকে অ্যাড হবে না।'}
           {' '}আনুমানিক ফেরত টাকা: <strong>৳{refundPreview.toFixed(2)}</strong>
         </AlertDescription>
       </Alert>
@@ -257,7 +257,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close} disabled={submitting}>বন্ধ করুন</Button>
         <Button type="button" onClick={() => void submit()} disabled={submitting} aria-disabled={selected.length === 0}>
-          {submitting ? 'ফেরত নিশ্চিত হচ্ছে…' : 'ফেরত নিশ্চিত করুন'}
+          {submitting ? 'ফেরত কনফার্ম হচ্ছে…' : 'ফেরত কনফার্ম করুন'}
         </Button>
       </DialogFooter>
     </DialogContent>

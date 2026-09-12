@@ -23,6 +23,10 @@ import type {
   PhysicalSale,
   SellingPriceHistoryEntry,
   StockBatch,
+  InventoryBatchesPage,
+  InventoryItemsPage,
+  InventoryRecordsPage,
+  InventorySummary,
   User,
   UnifiedOrder,
 } from './types';
@@ -459,6 +463,50 @@ export function getStockBatches(productVariantId?: string): Promise<StockBatch[]
   const query = new URLSearchParams({ limit: '200' });
   if (productVariantId) query.set('productVariantId', productVariantId);
   return requestV1<StockBatch[]>(`/stock-batches?${query}`);
+}
+
+export function getInventorySummary(): Promise<InventorySummary> {
+  return requestV1<InventorySummary>('/inventory/summary');
+}
+
+export function getInventoryItems(input: {
+  query?: string;
+  categoryId?: string;
+  status?: 'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'INACTIVE';
+  sort?: 'URGENCY' | 'NAME' | 'STOCK_ASC' | 'LAST_ADDED';
+  page?: number;
+  limit?: number;
+} = {}): Promise<InventoryItemsPage> {
+  const query = new URLSearchParams();
+  Object.entries(input).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<InventoryItemsPage>(`/inventory/items?${query}`);
+}
+
+export function getInventoryItemBatches(productVariantId: string, input: {
+  includeDepleted?: boolean;
+  page?: number;
+  limit?: number;
+} = {}): Promise<InventoryBatchesPage> {
+  const query = new URLSearchParams();
+  if (input.includeDepleted) query.set('includeDepleted', 'true');
+  if (input.page) query.set('page', String(input.page));
+  if (input.limit) query.set('limit', String(input.limit));
+  return requestV1<InventoryBatchesPage>(`/inventory/items/${productVariantId}/batches?${query}`);
+}
+
+export function getInventoryRecords(input: {
+  query?: string;
+  type?: 'ALL' | 'PURCHASE' | 'ADJUSTMENT';
+  page?: number;
+  limit?: number;
+} = {}): Promise<InventoryRecordsPage> {
+  const query = new URLSearchParams();
+  Object.entries(input).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return requestV1<InventoryRecordsPage>(`/inventory/records?${query}`);
 }
 
 export function adjustStock(input:

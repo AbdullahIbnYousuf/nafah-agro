@@ -55,6 +55,10 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `POST` | `/api/v1/variants/selling-prices/bulk` | OWNER | Atomic bulk price change |
 | `GET` | `/api/v1/variants/:id/price-history` | OWNER | Immutable price history |
 | `GET` | `/api/v1/stock-batches` | OWNER | FIFO batches and costs |
+| `GET` | `/api/v1/inventory/summary` | OWNER | Stock-item counts, alerts, and current buying-cost value |
+| `GET` | `/api/v1/inventory/items` | OWNER | Paginated stock identities with search, status, category, and sorting |
+| `GET` | `/api/v1/inventory/items/:variantId/batches` | OWNER | One stock identity's current or complete FIFO batch list |
+| `GET` | `/api/v1/inventory/records` | OWNER | Paginated purchase groups and stock adjustments with notes/reasons |
 | `POST` | `/api/v1/purchases` | OWNER | Atomic multi-item purchase |
 | `POST` | `/api/v1/stock-adjustments` | OWNER | Reason-required increase/decrease |
 | `POST/GET` | `/api/v1/physical-sales` | OWNER | Immediate FIFO paid or credit sale/list |
@@ -69,6 +73,13 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `POST/DELETE` | `/api/v1/push/subscriptions` | OWNER | Enable or disable the authenticated owner's current browser device |
 | `POST` | `/api/v1/push/test` | OWNER | Send the approved test notification to the current device |
 | `GET` | `/api/v1/cron/credit-reminders` | `CRON_SECRET` | Send the 9 AM Dhaka due/overdue credit reminder summary |
+
+`/inventory/items` accepts `query`, `categoryId`, `status`, `sort`, `page`, and
+`limit`. Status values are `ALL`, `IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`, and
+`INACTIVE`; sorting supports `URGENCY`, `NAME`, `STOCK_ASC`, and `LAST_ADDED`.
+Batch details exclude fully consumed batches unless `includeDepleted=true` is
+passed. `/inventory/records` accepts `query`, `type`, `page`, and `limit`, where
+`type` is `ALL`, `PURCHASE`, or `ADJUSTMENT`.
 
 Website-order push is scheduled only after a new non-replayed order transaction
 commits. Push failure does not fail checkout. The credit cron sends nothing when

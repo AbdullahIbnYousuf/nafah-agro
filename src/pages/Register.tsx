@@ -30,7 +30,7 @@ const Register = () => {
     try {
       const needsConfirmation = await register(name, phoneNumber, email, password);
       toast.success(needsConfirmation
-        ? 'ইমেইল নিশ্চিত করে লগইন করুন।'
+        ? 'ইমেইল কনফার্ম করে লগইন করুন।'
         : 'রেজিস্ট্রেশন সফল হয়েছে!');
       navigate(needsConfirmation ? '/login' : '/profile', { replace: true });
     } catch (error: unknown) {
@@ -114,7 +114,7 @@ const Register = () => {
 
               <div>
                 <label htmlFor="register-confirm" className="block text-sm font-medium text-foreground mb-1.5">
-                  পাসওয়ার্ড নিশ্চিত করুন
+                  পাসওয়ার্ড আবার লিখুন
                 </label>
                 <input
                   id="register-confirm"

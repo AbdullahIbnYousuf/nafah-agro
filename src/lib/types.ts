@@ -60,6 +60,78 @@ export interface StockBatch {
   createdAt: string;
 }
 
+export type InventoryStockStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'INACTIVE';
+
+export interface InventorySummary {
+  totalStockItems: number;
+  lowStockItems: number;
+  outOfStockItems: number;
+  inventoryValue: number;
+}
+
+export interface InventoryItem {
+  productVariantId: string;
+  productId: string;
+  productName: string;
+  variantName: string;
+  productKind: ProductKind;
+  quantityUnit: QuantityUnit;
+  categoryId: string;
+  categoryName: string;
+  availableStock: number;
+  reservedStock: number;
+  lowStockThreshold: number;
+  isOperational: boolean;
+  status: InventoryStockStatus;
+  lastStockAddedAt: string | null;
+}
+
+export interface InventoryItemsPage {
+  data: InventoryItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface InventoryBatchesPage {
+  data: StockBatch[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasDepleted: boolean;
+}
+
+export interface InventoryRecordItem {
+  productVariantId: string;
+  productName: string;
+  variantName: string;
+  productKind: ProductKind;
+  quantityUnit: QuantityUnit;
+  direction: 'INCREASE' | 'DECREASE';
+  quantity: number;
+  unitBuyingCost: number | null;
+}
+
+export interface InventoryRecord {
+  id: string;
+  type: 'PURCHASE' | 'ADJUSTMENT';
+  occurredAt: string;
+  effectiveDate: string;
+  note: string | null;
+  createdBy: { fullName: string; role: Role };
+  items: InventoryRecordItem[];
+}
+
+export interface InventoryRecordsPage {
+  data: InventoryRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface PhysicalSaleAllocation {
   id: string;
   stockBatchId: string;

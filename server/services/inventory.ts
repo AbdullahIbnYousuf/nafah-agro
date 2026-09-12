@@ -11,6 +11,9 @@ import type {
   PhysicalSaleCreate,
   PhysicalSaleList,
   PhysicalSaleReturnInput,
+  InventoryItemBatchList,
+  InventoryItemList,
+  InventoryRecordList,
   PurchaseCreate,
   StockAdjustmentInput,
   StockBatchList,
@@ -505,6 +508,220 @@ export function createInventoryService(prisma: PrismaClient) {
     return batches.map(purchaseBatchDto);
   }
 
+  function operationalStatus(variant: {
+    isActive: boolean;
+    availableStock: number;
+    lowStockThreshold: number;
+    product: { isActive: boolean; category: { isActive: boolean } };
+  }) {
+    if (!variant.isActive || !variant.product.isActive || !variant.product.category.isActive) return "INACTIVE" as const;
+    if (variant.availableStock === 0) return "OUT_OF_STOCK" as const;
+    if (variant.availableStock <= variant.lowStockThreshold) return "LOW_STOCK" as const;
+    return "IN_STOCK" as const;
+  }
+
+  async function getInventorySummary() {
+    const [variants, batches] = await Promise.all([
+      prisma.productVariant.findMany({
+        select: {
+          isActive: true,
+          availableStock: true,
+          lowStockThreshold: true,
+          product: { select: { isActive: true, category: { select: { isActive: true } } } },
+        },
+      }),
+      prisma.stockBatch.findMany({
+        where: { OR: [{ availableQuantity: { gt: 0 } }, { reservedQuantity: { gt: 0 } }] },
+        select: {
+          availableQuantity: true,
+          reservedQuantity: true,
+          unitBuyingCost: true,
+          productVariant: { select: { product: { select: { kind: true } } } },
+        },
+      }),
+    ]);
+    const statuses = variants.map(operationalStatus);
+    const inventoryValue = batches.reduce((total, batch) => total.plus(quantityCost(
+      batch.unitBuyingCost,
+      batch.availableQuantity + batch.reservedQuantity,
+      batch.productVariant.product.kind,
+    )), new Prisma.Decimal(0));
+    return {
+      totalStockItems: variants.length,
+      lowStockItems: statuses.filter((status) => status === "LOW_STOCK").length,
+      outOfStockItems: statuses.filter((status) => status === "OUT_OF_STOCK").length,
+      inventoryValue: moneyNumber(inventoryValue),
+    };
+  }
+
+  async function listInventoryItems(input: InventoryItemList) {
+    const variants = await prisma.productVariant.findMany({
+      select: {
+        id: true,
+        productId: true,
+        name: true,
+        availableStock: true,
+        reservedStock: true,
+        lowStockThreshold: true,
+        isActive: true,
+        product: {
+          select: {
+            name: true,
+            kind: true,
+            isActive: true,
+            category: { select: { id: true, name: true, isActive: true } },
+          },
+        },
+        stockBatches: {
+          orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
+          take: 1,
+          select: { purchaseDate: true },
+        },
+      },
+    });
+    const normalizedQuery = input.query?.toLocaleLowerCase("bn-BD");
+    const rows = variants.map((variant) => ({
+      productVariantId: variant.id,
+      productId: variant.productId,
+      productName: variant.product.name,
+      variantName: variant.name,
+      productKind: variant.product.kind,
+      quantityUnit: quantityUnitForKind(variant.product.kind),
+      categoryId: variant.product.category.id,
+      categoryName: variant.product.category.name,
+      availableStock: variant.availableStock,
+      reservedStock: variant.reservedStock,
+      lowStockThreshold: variant.lowStockThreshold,
+      isOperational: operationalStatus(variant) !== "INACTIVE",
+      status: operationalStatus(variant),
+      lastStockAddedAt: variant.stockBatches[0]?.purchaseDate.toISOString().slice(0, 10) ?? null,
+    })).filter((row) => (
+      (!normalizedQuery || `${row.productName} ${row.variantName}`.toLocaleLowerCase("bn-BD").includes(normalizedQuery))
+      && (!input.categoryId || row.categoryId === input.categoryId)
+      && (input.status === "ALL" || row.status === input.status)
+    ));
+    rows.sort((left, right) => {
+      if (input.sort === "NAME") return `${left.productName} ${left.variantName}`.localeCompare(`${right.productName} ${right.variantName}`, "bn-BD");
+      if (input.sort === "STOCK_ASC") return left.availableStock - right.availableStock
+        || `${left.productName} ${left.variantName}`.localeCompare(`${right.productName} ${right.variantName}`, "bn-BD");
+      if (input.sort === "LAST_ADDED") return (right.lastStockAddedAt ?? "").localeCompare(left.lastStockAddedAt ?? "")
+        || `${left.productName} ${left.variantName}`.localeCompare(`${right.productName} ${right.variantName}`, "bn-BD");
+      const rank = { OUT_OF_STOCK: 0, LOW_STOCK: 1, IN_STOCK: 2, INACTIVE: 3 } as const;
+      return rank[left.status] - rank[right.status]
+        || `${left.productName} ${left.variantName}`.localeCompare(`${right.productName} ${right.variantName}`, "bn-BD");
+    });
+    const start = (input.page - 1) * input.limit;
+    return {
+      data: rows.slice(start, start + input.limit),
+      total: rows.length,
+      page: input.page,
+      limit: input.limit,
+      totalPages: Math.ceil(rows.length / input.limit),
+    };
+  }
+
+  async function listInventoryItemBatches(productVariantId: string, input: InventoryItemBatchList) {
+    const where: Prisma.StockBatchWhereInput = {
+      productVariantId,
+      ...(!input.includeDepleted ? { OR: [{ availableQuantity: { gt: 0 } }, { reservedQuantity: { gt: 0 } }] } : {}),
+    };
+    const [exists, batches, total, allTotal] = await Promise.all([
+      prisma.productVariant.findUnique({ where: { id: productVariantId }, select: { id: true } }),
+      prisma.stockBatch.findMany({
+        where,
+        include: fullBatchInclude,
+        orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
+        skip: (input.page - 1) * input.limit,
+        take: input.limit,
+      }),
+      prisma.stockBatch.count({ where }),
+      prisma.stockBatch.count({ where: { productVariantId } }),
+    ]);
+    if (!exists) throw inventoryError(404, "INVENTORY_ITEM_NOT_FOUND", "Inventory item not found.");
+    return {
+      data: batches.map(purchaseBatchDto),
+      total,
+      page: input.page,
+      limit: input.limit,
+      totalPages: Math.ceil(total / input.limit),
+      hasDepleted: allTotal > total,
+    };
+  }
+
+  async function listInventoryRecords(input: InventoryRecordList) {
+    const [purchaseBatches, adjustments] = await Promise.all([
+      input.type === "ADJUSTMENT" ? Promise.resolve([]) : prisma.stockBatch.findMany({
+        where: { source: "PURCHASE" },
+        include: fullBatchInclude,
+        orderBy: [{ createdAt: "desc" }],
+      }),
+      input.type === "PURCHASE" ? Promise.resolve([]) : prisma.stockAdjustment.findMany({
+        include: {
+          productVariant: { include: { product: { select: { name: true, kind: true } } } },
+          createdBy: { select: { fullName: true, role: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+    const purchaseGroups = new Map<string, typeof purchaseBatches>();
+    for (const batch of purchaseBatches) {
+      const id = batch.purchaseGroupId ?? batch.id;
+      const group = purchaseGroups.get(id) ?? [];
+      group.push(batch);
+      purchaseGroups.set(id, group);
+    }
+    const records = [
+      ...[...purchaseGroups.entries()].map(([id, group]) => ({
+        id,
+        type: "PURCHASE" as const,
+        occurredAt: group[0].createdAt.toISOString(),
+        effectiveDate: group[0].purchaseDate.toISOString().slice(0, 10),
+        note: group[0].note,
+        createdBy: group[0].createdBy,
+        items: group.map((batch) => ({
+          productVariantId: batch.productVariantId,
+          productName: batch.productVariant.product.name,
+          variantName: batch.productVariant.name,
+          productKind: batch.productVariant.product.kind,
+          quantityUnit: quantityUnitForKind(batch.productVariant.product.kind),
+          direction: "INCREASE" as const,
+          quantity: batch.purchasedQuantity,
+          unitBuyingCost: moneyNumber(batch.unitBuyingCost),
+        })),
+      })),
+      ...adjustments.map((adjustment) => ({
+        id: adjustment.id,
+        type: "ADJUSTMENT" as const,
+        occurredAt: adjustment.createdAt.toISOString(),
+        effectiveDate: adjustment.createdAt.toISOString(),
+        note: adjustment.reason,
+        createdBy: adjustment.createdBy,
+        items: [{
+          productVariantId: adjustment.productVariantId,
+          productName: adjustment.productVariant.product.name,
+          variantName: adjustment.productVariant.name,
+          productKind: adjustment.productVariant.product.kind,
+          quantityUnit: quantityUnitForKind(adjustment.productVariant.product.kind),
+          direction: adjustment.direction,
+          quantity: adjustment.quantity,
+          unitBuyingCost: adjustment.unitBuyingCost ? moneyNumber(adjustment.unitBuyingCost) : null,
+        }],
+      })),
+    ];
+    const normalizedQuery = input.query?.toLocaleLowerCase("bn-BD");
+    const filtered = records.filter((record) => !normalizedQuery || record.items.some((item) => (
+      `${item.productName} ${item.variantName}`.toLocaleLowerCase("bn-BD").includes(normalizedQuery)
+    ))).sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
+    const start = (input.page - 1) * input.limit;
+    return {
+      data: filtered.slice(start, start + input.limit),
+      total: filtered.length,
+      page: input.page,
+      limit: input.limit,
+      totalPages: Math.ceil(filtered.length / input.limit),
+    };
+  }
+
   async function creditCustomerDetail(id: string) {
     const customer = await readCreditCustomer(id);
     const [sales, history] = await Promise.all([
@@ -532,6 +749,10 @@ export function createInventoryService(prisma: PrismaClient) {
 
   return {
     listBatches,
+    getInventorySummary,
+    listInventoryItems,
+    listInventoryItemBatches,
+    listInventoryRecords,
 
     async createPurchase(input: PurchaseCreate, actorId: string) {
       const purchaseGroupId = randomUUID();

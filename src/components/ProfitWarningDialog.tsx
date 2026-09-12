@@ -44,7 +44,7 @@ export default function ProfitWarningDialog({ open, projectedGrossProfit, onClos
       </DialogHeader>
       <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>এই বিক্রয়ে ক্ষতি হবে</AlertTitle><AlertDescription>এগিয়ে গেলে আপনার সিদ্ধান্তটি রেকর্ডে রাখা হবে।</AlertDescription></Alert>
       {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
-      <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={submitting}>বন্ধ করুন</Button><Button type="button" variant="destructive" onClick={() => void submit()} disabled={submitting}>{submitting ? 'সংরক্ষণ হচ্ছে…' : 'ক্ষতি হলেও বিক্রি করুন'}</Button></DialogFooter>
+      <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={submitting}>বন্ধ করুন</Button><Button type="button" variant="destructive" onClick={() => void submit()} disabled={submitting}>{submitting ? 'সেভ হচ্ছে…' : 'ক্ষতি হলেও বিক্রি করুন'}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

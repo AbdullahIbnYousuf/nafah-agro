@@ -86,7 +86,7 @@ export default function Cart() {
       <CheckCircle size={64} className="mx-auto text-green-500 mb-4" />
       <h1 className="text-2xl font-bold mb-2">অর্ডার সফল হয়েছে</h1>
       <p className="font-semibold mb-1">{placedOrder.orderNumber}</p>
-      <p className="text-muted-foreground mb-2">অবস্থা: অপেক্ষমান। এখনো স্টক সংরক্ষণ করা হয়নি</p>
+      <p className="text-muted-foreground mb-2">অবস্থা: অপেক্ষমান। এখনো স্টক রিজার্ভ করা হয়নি</p>
       <p className="text-lg font-bold text-secondary mb-6">মোট দাম: ৳{placedOrder.grandTotal}</p>
       <Button asChild><Link to="/shop">আরও কেনাকাটা করুন</Link></Button>
     </div></main><Footer /></div>
@@ -130,7 +130,7 @@ export default function Cart() {
           <div><Label htmlFor="address">সম্পূর্ণ ঠিকানা *</Label><textarea id="address" value={customerAddress} onChange={event => setCustomerAddress(event.target.value)} className="w-full min-h-20 border rounded-md bg-background p-2" /></div>
           <div className="rounded bg-muted/40 p-3 text-sm">পেমেন্ট: ক্যাশ অন ডেলিভারি</div>
           {selectedRate?.charge == null && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{selectedRate ? 'এই এলাকার ডেলিভারি চার্জ এখনো নির্ধারণ করা হয়নি। অন্য এলাকা নির্বাচন করুন অথবা দোকানের সঙ্গে যোগাযোগ করুন।' : 'অর্ডার করতে আগে ডেলিভারি এলাকা নির্বাচন করুন।'}</p>}
-          <Button className="w-full" disabled={placing} aria-disabled={selectedRate?.charge == null} onClick={() => void placeOrder()}>{placing ? <><Loader2 size={16} className="animate-spin mr-2" />অর্ডার হচ্ছে…</> : 'অর্ডার নিশ্চিত করুন'}</Button>
+          <Button className="w-full" disabled={placing} aria-disabled={selectedRate?.charge == null} onClick={() => void placeOrder()}>{placing ? <><Loader2 size={16} className="animate-spin mr-2" />অর্ডার হচ্ছে…</> : 'অর্ডার কনফার্ম করুন'}</Button>
           <Button variant="ghost" className="w-full" disabled={placing} onClick={() => setShowCheckout(false)}>পিছনে যান</Button>
         </div>}
       </aside>

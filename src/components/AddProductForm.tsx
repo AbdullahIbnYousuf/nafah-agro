@@ -121,7 +121,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
     if (!categoryId) return toast.error('ক্যাটাগরি নির্বাচন করুন');
     const thresholdNumber = Number(lowStockThreshold);
     if (!Number.isFinite(thresholdNumber) || thresholdNumber < 0 || (kind !== 'PACKAGED' && thresholdNumber * 1_000 % 1 !== 0)) {
-      return toast.error('সঠিক লো-স্টক সীমা দিন');
+      return toast.error('সঠিক কম স্টকের লিমিট দিন');
     }
     const thresholdBase = kind === 'PACKAGED' ? Math.round(thresholdNumber) : Math.round(thresholdNumber * 1_000);
     const kindChanged = isEdit && kind !== (editProduct.kind ?? 'PACKAGED');
@@ -164,11 +164,11 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         onCreated(updated);
       } else {
         const created = await createProduct(payload);
-        toast.success(`"${created.name}" পণ্য সফলভাবে যোগ করা হয়েছে`);
+        toast.success(`"${created.name}" পণ্য সফলভাবে অ্যাড হয়েছে`);
         onCreated(created);
       }
     } catch (error: unknown) {
-      toast.error(getErrorMessage(error, 'সংরক্ষণ করতে ব্যর্থ হয়েছে'));
+      toast.error(getErrorMessage(error, 'সেভ করা যায়নি'));
     } finally {
       setSaving(false);
     }
@@ -268,11 +268,11 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                     className="mt-1 bg-card"
                   />
                   <p className="text-xs text-muted-foreground mt-1">{rateLabel(kind)} দাম</p>
-                  {isEdit && kind === (editProduct?.kind ?? 'PACKAGED') && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “{kind === 'PACKAGED' ? 'প্যাক/সাইজ ও দাম' : 'দাম ও স্টক সীমা'}” খুলুন।</p>}
+                  {isEdit && kind === (editProduct?.kind ?? 'PACKAGED') && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “{kind === 'PACKAGED' ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'}” খুলুন।</p>}
               </div>
 
               {(kind !== 'PACKAGED' || (isEdit && kind !== (editProduct?.kind ?? 'PACKAGED'))) && <div>
-                <Label htmlFor="low-stock-threshold">লো-স্টক সীমা ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : 'ইউনিট'})</Label>
+                <Label htmlFor="low-stock-threshold">কম স্টকের লিমিট ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : 'ইউনিট'})</Label>
                 <Input id="low-stock-threshold" type="number" min="0" step={kind === 'PACKAGED' ? '1' : '0.001'} value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} className="mt-1 bg-card" />
               </div>}
 
@@ -347,7 +347,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               ))}
               <label className="aspect-square rounded-lg border-2 border-dashed border-border bg-muted flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-secondary hover:bg-secondary/5 transition-colors">
                 <Upload size={20} className="text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">ছবি যোগ করুন</span>
+                <span className="text-xs text-muted-foreground">ছবি অ্যাড করুন</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -399,7 +399,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               onClick={addYoutubeLink}
               className="mt-2 flex min-h-11 items-center gap-1 rounded-md px-2 text-sm font-medium text-secondary hover:bg-muted hover:text-secondary/80"
             >
-              <Plus size={15} /> আরো লিংক যোগ করুন
+              <Plus size={15} /> আরো লিংক অ্যাড করুন
             </button>
           </section>
 
@@ -409,7 +409,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               ট্যাগ
             </h3>
             <p className="text-xs text-muted-foreground mb-3">
-              Enter বা কমা চেপে ট্যাগ যোগ করুন
+              Enter বা কমা চেপে ট্যাগ অ্যাড করুন
             </p>
             <div className="relative">
               <div
@@ -473,12 +473,12 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
             {saving ? (
               <span className="flex items-center gap-2">
                 <span className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                সংরক্ষণ হচ্ছে...
+                সেভ হচ্ছে...
               </span>
             ) : isEdit ? (
               'আপডেট করুন'
             ) : (
-              'পণ্য সংরক্ষণ করুন'
+              'পণ্য সেভ করুন'
             )}
           </Button>
         </div>

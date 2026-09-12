@@ -60,6 +60,28 @@ export const stockBatchListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
 }).strict();
 
+export const inventoryItemListSchema = z.object({
+  query: z.string().trim().max(120).optional(),
+  categoryId: uuid.optional(),
+  status: z.enum(["ALL", "IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK", "INACTIVE"]).default("ALL"),
+  sort: z.enum(["URGENCY", "NAME", "STOCK_ASC", "LAST_ADDED"]).default("URGENCY"),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(25),
+}).strict();
+
+export const inventoryItemBatchListSchema = z.object({
+  includeDepleted: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+}).strict();
+
+export const inventoryRecordListSchema = z.object({
+  query: z.string().trim().max(120).optional(),
+  type: z.enum(["ALL", "PURCHASE", "ADJUSTMENT"]).default("ALL"),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+}).strict();
+
 export const physicalSaleCreateSchema = z.object({
   items: z.array(z.object({
     productVariantId: uuid,
@@ -156,6 +178,9 @@ export const creditFollowUpSchema = z.object({
 export type PurchaseCreate = z.infer<typeof purchaseCreateSchema>;
 export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 export type StockBatchList = z.infer<typeof stockBatchListSchema>;
+export type InventoryItemList = z.infer<typeof inventoryItemListSchema>;
+export type InventoryItemBatchList = z.infer<typeof inventoryItemBatchListSchema>;
+export type InventoryRecordList = z.infer<typeof inventoryRecordListSchema>;
 export type PhysicalSaleCreate = z.infer<typeof physicalSaleCreateSchema>;
 export type PhysicalSaleList = z.infer<typeof physicalSaleListSchema>;
 export type PhysicalSaleReturnInput = z.infer<typeof physicalSaleReturnSchema>;

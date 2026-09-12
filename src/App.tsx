@@ -114,6 +114,8 @@ const App = () => (
                 </Route>
                 <Route path="categories" element={<AdminCategories />} />
                 <Route path="inventory" element={<AdminInventory />} />
+                <Route path="inventory/purchase" element={<AdminInventory />} />
+                <Route path="inventory/adjustment" element={<AdminInventory />} />
                 <Route path="physical-sales" element={<AdminPhysicalSales />} />
                 <Route path="dues" element={<AdminDues />} />
                 <Route path="orders" element={<AdminOrders />} />

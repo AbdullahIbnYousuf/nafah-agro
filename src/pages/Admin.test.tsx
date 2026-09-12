@@ -166,7 +166,7 @@ describe('safe catalog deletion controls', () => {
     renderAdmin('/admin/products');
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Unused Product অনলাইন শপ' }));
-    expect(screen.getByRole('dialog', { name: 'Unused Product হাইড করুন' })).toHaveTextContent('ক্রয়, ইনভেন্টরি ও দোকানের বিক্রিতে ব্যবহার করা যাবে');
+    expect(screen.getByRole('dialog', { name: 'Unused Product হাইড করুন' })).toHaveTextContent('স্টক অ্যাড, ইনভেন্টরি ও দোকানের বিক্রিতে ব্যবহার করা যাবে');
     fireEvent.click(screen.getByRole('button', { name: 'হাইড করুন' }));
 
     await waitFor(() => expect(mocks.setProductVisibleInShop).toHaveBeenCalledWith(product.id, false));
@@ -251,7 +251,7 @@ describe('safe catalog deletion controls', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Empty Category অ্যাকটিভ' }));
     const dialog = await screen.findByRole('dialog', { name: 'Empty Category ইনঅ্যাকটিভ করুন' });
     expect(dialog).toHaveTextContent('Unused Product');
-    expect(dialog).toHaveTextContent('নতুন ক্রয়, স্টক সমন্বয় ও বিক্রিতে বন্ধ হবে');
+    expect(dialog).toHaveTextContent('নতুন স্টক অ্যাড, স্টক আপডেট ও বিক্রিতে বন্ধ হবে');
     expect(mocks.getAdminProducts).toHaveBeenCalledWith({ category: 'empty-category', limit: 100 });
     expect(mocks.setCategoryActive).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'ইনঅ্যাকটিভ করুন' }));
@@ -263,7 +263,7 @@ describe('safe catalog deletion controls', () => {
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Empty Category অনলাইন শপ' }));
     const dialog = await screen.findByRole('dialog', { name: 'Empty Category হাইড করুন' });
-    expect(dialog).toHaveTextContent('ক্রয়, ইনভেন্টরি ও দোকানের বিক্রিতে কোনো পরিবর্তন হবে না');
+    expect(dialog).toHaveTextContent('স্টক অ্যাড, ইনভেন্টরি ও দোকানের বিক্রিতে কোনো পরিবর্তন হবে না');
     fireEvent.click(screen.getByRole('button', { name: 'হাইড করুন' }));
 
     await waitFor(() => expect(mocks.setCategoryVisibleInShop).toHaveBeenCalledWith(product.categoryId, false));

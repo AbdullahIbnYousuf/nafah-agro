@@ -19,9 +19,9 @@ interface Props {
 
 const copy: Record<OrderAction, { title: string; description: string; button: string; warning?: string }> = {
   CONFIRM: {
-    title: 'অর্ডার নিশ্চিত করুন',
+    title: 'অর্ডার কনফার্ম করুন',
     description: 'আগে কেনা স্টক আগে অর্ডারের জন্য রাখা হবে। পর্যাপ্ত স্টক না থাকলে কাজটি সম্পন্ন হবে না।',
-    button: 'নিশ্চিত ও স্টক সংরক্ষণ করুন',
+    button: 'অর্ডার কনফার্ম ও স্টক রিজার্ভ করুন',
   },
   PROCESS: {
     title: 'প্রসেসিং শুরু করুন',
@@ -30,21 +30,21 @@ const copy: Record<OrderAction, { title: string; description: string; button: st
   },
   DELIVER: {
     title: 'ডেলিভারি সম্পন্ন করুন',
-    description: 'অর্ডারের জন্য রাখা স্টক বিক্রি হিসেবে কাটা হবে এবং বিক্রি ও লাভের হিসাবে যোগ হবে।',
-    button: 'ডেলিভারড হিসেবে নিশ্চিত করুন',
+    description: 'অর্ডারের জন্য রাখা স্টক বিক্রি হিসেবে কাটা হবে এবং বিক্রি ও লাভের হিসাবে অ্যাড হবে।',
+    button: 'ডেলিভারড হিসেবে কনফার্ম করুন',
     warning: 'অর্ডারটি গ্রাহকের কাছে পৌঁছেছে কি না দেখে তারপর ডেলিভারড করুন।',
   },
   CANCEL: {
     title: 'অর্ডার বাতিল করুন',
     description: 'অর্ডারটি বাতিল হবে। এর জন্য রাখা স্টক আবার বিক্রির জন্য পাওয়া যাবে।',
-    button: 'অর্ডার বাতিল নিশ্চিত করুন',
+    button: 'অর্ডার বাতিল কনফার্ম করুন',
     warning: 'এটি একটি গুরুত্বপূর্ণ পরিবর্তন। কারণ লিখলে সেটি রেকর্ডে রাখা হবে।',
   },
   FAILED_DELIVERY: {
     title: 'ডেলিভারি ব্যর্থ হিসেবে চিহ্নিত করুন',
-    description: 'অর্ডার বাতিল হবে এবং সংরক্ষিত স্টক ছেড়ে দেওয়া হবে।',
-    button: 'ব্যর্থ ডেলিভারি নিশ্চিত করুন',
-    warning: 'কারণ লিখলে সেটি রেকর্ডে থাকবে। এই অর্ডার বিক্রি বা লাভের হিসাবে যোগ হবে না।',
+    description: 'অর্ডার বাতিল হবে এবং রিজার্ভ করা স্টক ছেড়ে দেওয়া হবে।',
+    button: 'ব্যর্থ ডেলিভারি কনফার্ম করুন',
+    warning: 'কারণ লিখলে সেটি রেকর্ডে থাকবে। এই অর্ডার বিক্রি বা লাভের হিসাবে অ্যাড হবে না।',
   },
 };
 
@@ -108,8 +108,8 @@ export default function OrderActionDialog({ order, action, onClose, onConfirm }:
       </DialogHeader>
       {(config?.warning || confirmUnprofitable) && <Alert variant={action === 'CANCEL' || action === 'FAILED_DELIVERY' || confirmUnprofitable ? 'destructive' : 'default'}>
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>{confirmUnprofitable ? 'ক্ষতির সতর্কতা' : 'নিশ্চিত করুন'}</AlertTitle>
-        <AlertDescription>{confirmUnprofitable ? `${error} তারপরও অর্ডারটি নিশ্চিত করতে আবার বোতাম চাপুন।` : config?.warning}</AlertDescription>
+        <AlertTitle>{confirmUnprofitable ? 'ক্ষতির সতর্কতা' : 'কনফার্ম করুন'}</AlertTitle>
+        <AlertDescription>{confirmUnprofitable ? `${error} তারপরও অর্ডারটি কনফার্ম করতে আবার বোতাম চাপুন।` : config?.warning}</AlertDescription>
       </Alert>}
       {reasonVisible && <div>
         <Label htmlFor="order-action-reason">কারণ (ঐচ্ছিক)</Label>
@@ -119,7 +119,7 @@ export default function OrderActionDialog({ order, action, onClose, onConfirm }:
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close} disabled={submitting}>বন্ধ করুন</Button>
         <Button type="button" variant={action === 'CANCEL' || action === 'FAILED_DELIVERY' ? 'destructive' : 'default'} onClick={() => void submit()} disabled={submitting}>
-          {submitting ? 'সংরক্ষণ হচ্ছে…' : confirmUnprofitable ? 'ক্ষতি মেনে নিশ্চিত করুন' : config?.button}
+          {submitting ? 'সেভ হচ্ছে…' : confirmUnprofitable ? 'ক্ষতি মেনে কনফার্ম করুন' : config?.button}
         </Button>
       </DialogFooter>
     </DialogContent>

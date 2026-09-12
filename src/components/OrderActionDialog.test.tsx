@@ -19,7 +19,7 @@ describe('order action dialog', () => {
   it('submits cancellation without requiring a reason', async () => {
     const onConfirm = vi.fn(async () => {});
     render(<OrderActionDialog order={order} action="CANCEL" onClose={vi.fn()} onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByRole('button', { name: 'অর্ডার বাতিল নিশ্চিত করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'অর্ডার বাতিল কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(undefined, false));
   });
 
@@ -27,7 +27,7 @@ describe('order action dialog', () => {
     const onConfirm = vi.fn(async () => {});
     render(<OrderActionDialog order={order} action="FAILED_DELIVERY" onClose={vi.fn()} onConfirm={onConfirm} />);
     fireEvent.change(screen.getByLabelText('কারণ (ঐচ্ছিক)'), { target: { value: 'Customer was unavailable' } });
-    fireEvent.click(screen.getByRole('button', { name: 'ব্যর্থ ডেলিভারি নিশ্চিত করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ব্যর্থ ডেলিভারি কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('Customer was unavailable', false));
   });
 
@@ -36,9 +36,9 @@ describe('order action dialog', () => {
       .mockRejectedValueOnce(new ApiError('Estimated gross profit is negative.', 'UNPROFITABLE_ORDER_CONFIRMATION_REQUIRED', 409))
       .mockResolvedValueOnce(undefined);
     render(<OrderActionDialog order={order} action="CONFIRM" onClose={vi.fn()} onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByRole('button', { name: 'নিশ্চিত ও স্টক সংরক্ষণ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'অর্ডার কনফার্ম ও স্টক রিজার্ভ করুন' }));
     expect(await screen.findByText(/Estimated gross profit is negative/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'ক্ষতি মেনে নিশ্চিত করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ক্ষতি মেনে কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenLastCalledWith(undefined, true));
   });
 });

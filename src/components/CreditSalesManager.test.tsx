@@ -56,9 +56,9 @@ describe('customer-based credit manager', () => {
 
   it('records one payment against the customer total', async () => {
     render(<CreditSalesManager />); fireEvent.click(await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'পেমেন্ট যোগ করুন' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'পেমেন্ট অ্যাড করুন' }));
     fireEvent.change(screen.getByLabelText('জমা টাকা'), { target: { value: '200' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'পেমেন্ট যোগ করুন' }).at(-1)!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'পেমেন্ট অ্যাড করুন' }).at(-1)!);
     await waitFor(() => expect(mocks.recordCreditCustomerPayment).toHaveBeenCalledWith(customer.id, expect.objectContaining({ amount: 200, idempotencyKey: expect.any(String) })));
   });
 
@@ -66,13 +66,13 @@ describe('customer-based credit manager', () => {
     render(<CreditSalesManager />); fireEvent.click(await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'তথ্য বদলান' }));
     fireEvent.change(screen.getByLabelText('ক্রেতার নাম সম্পাদনা'), { target: { value: 'করিম' } });
-    fireEvent.click(screen.getByRole('button', { name: 'সংরক্ষণ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'সেভ করুন' }));
     await waitFor(() => expect(mocks.updateCreditCustomer).toHaveBeenCalledWith(customer.id, { name: 'করিম', phone: null }));
   });
 
   it('requires a reason before voiding a customer payment', async () => {
     render(<CreditSalesManager />); fireEvent.click(await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'ভুল পেমেন্ট' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'পেমেন্ট বাতিল' }));
     fireEvent.click(screen.getByRole('button', { name: 'পেমেন্ট বাতিল করুন' }));
     expect(screen.getByRole('alert')).toHaveTextContent('কেন পেমেন্টটি বাতিল করছেন');
     expect(mocks.voidCreditCustomerPayment).not.toHaveBeenCalled();

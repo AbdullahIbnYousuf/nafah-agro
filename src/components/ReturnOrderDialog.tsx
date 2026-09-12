@@ -95,11 +95,11 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
         <RadioGroup value={condition} onValueChange={value => setCondition(value as ReturnCondition)} className="grid sm:grid-cols-2 gap-3">
           <Label htmlFor="return-sellable" className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer ${condition === 'SELLABLE' ? 'border-secondary bg-secondary/10' : ''}`}>
             <RadioGroupItem id="return-sellable" value="SELLABLE" className="mt-1" />
-            <span><strong>SELLABLE</strong><span className="block text-sm font-normal text-muted-foreground">পণ্যগুলো আবার বিক্রির স্টকে যোগ হবে</span></span>
+            <span><strong>SELLABLE</strong><span className="block text-sm font-normal text-muted-foreground">পণ্যগুলো আবার বিক্রির স্টকে অ্যাড হবে</span></span>
           </Label>
           <Label htmlFor="return-damaged" className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer ${condition === 'DAMAGED' ? 'border-destructive bg-destructive/5' : ''}`}>
             <RadioGroupItem id="return-damaged" value="DAMAGED" className="mt-1" />
-            <span><strong>DAMAGED</strong><span className="block text-sm font-normal text-muted-foreground">পণ্যগুলো স্টকে যোগ হবে না</span></span>
+            <span><strong>DAMAGED</strong><span className="block text-sm font-normal text-muted-foreground">পণ্যগুলো স্টকে অ্যাড হবে না</span></span>
           </Label>
         </RadioGroup>
       </fieldset>
@@ -109,8 +109,8 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
         <AlertTitle>স্টকের উপর প্রভাব</AlertTitle>
         <AlertDescription>
           {condition === 'SELLABLE'
-            ? 'নিশ্চিত করলে সব পণ্য আগের ক্রয়মূল্যসহ আবার বিক্রির স্টকে যোগ হবে।'
-            : 'অর্ডারটি ফেরত হিসেবে ধরা হবে, তবে ক্ষতিগ্রস্ত পণ্য স্টকে যোগ হবে না।'}
+            ? 'কনফার্ম করলে সব পণ্য আগের ক্রয়মূল্যসহ আবার বিক্রির স্টকে অ্যাড হবে।'
+            : 'অর্ডারটি ফেরত হিসেবে ধরা হবে, তবে ক্ষতিগ্রস্ত পণ্য স্টকে অ্যাড হবে না।'}
         </AlertDescription>
       </Alert>
 
@@ -131,7 +131,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close} disabled={submitting}>বন্ধ করুন</Button>
         <Button type="button" onClick={() => void submit()} disabled={submitting}>
-          {submitting ? 'ফেরত নিশ্চিত হচ্ছে…' : 'ফেরত নিশ্চিত করুন'}
+          {submitting ? 'ফেরত কনফার্ম হচ্ছে…' : 'ফেরত কনফার্ম করুন'}
         </Button>
       </DialogFooter>
     </DialogContent>

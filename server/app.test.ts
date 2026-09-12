@@ -754,6 +754,10 @@ describe("GET /api/v1/foundation", () => {
     function inventoryStub() {
       return {
         listBatches: vi.fn(async () => []),
+        getInventorySummary: vi.fn(async () => ({ totalStockItems: 2, lowStockItems: 1, outOfStockItems: 0, inventoryValue: 750 })),
+        listInventoryItems: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 25, totalPages: 0 })),
+        listInventoryItemBatches: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 25, totalPages: 0, hasDepleted: false })),
+        listInventoryRecords: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 25, totalPages: 0 })),
         createPurchase: vi.fn(async () => ({ purchaseGroupId: "30000000-0000-4000-8000-000000000001", batches: [] })),
         adjustStock: vi.fn(async () => []),
         createPhysicalSale: vi.fn(),
@@ -775,6 +779,35 @@ describe("GET /api/v1/foundation", () => {
         rescheduleCreditCustomerFollowUp: vi.fn(),
       } as unknown as InventoryService;
     }
+
+    it("provides OWNER inventory workspace reads", async () => {
+      const inventory = inventoryStub();
+      const app = createProtectedApp(ownerProfile, 60, undefined, inventory);
+      const summary = await request(app)
+        .get("/api/v1/inventory/summary")
+        .set("Authorization", "Bearer valid-token");
+      const items = await request(app)
+        .get("/api/v1/inventory/items?status=LOW_STOCK&sort=URGENCY")
+        .set("Authorization", "Bearer valid-token");
+      const batches = await request(app)
+        .get("/api/v1/inventory/items/10000000-0000-4000-8000-000000000001/batches?includeDepleted=true")
+        .set("Authorization", "Bearer valid-token");
+      const records = await request(app)
+        .get("/api/v1/inventory/records?type=ADJUSTMENT")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(summary.status).toBe(200);
+      expect(summary.body.data.inventoryValue).toBe(750);
+      expect(items.status).toBe(200);
+      expect(batches.status).toBe(200);
+      expect(records.status).toBe(200);
+      expect(inventory.listInventoryItems).toHaveBeenCalledWith(expect.objectContaining({ status: "LOW_STOCK" }));
+      expect(inventory.listInventoryItemBatches).toHaveBeenCalledWith(
+        "10000000-0000-4000-8000-000000000001",
+        expect.objectContaining({ includeDepleted: true }),
+      );
+      expect(inventory.listInventoryRecords).toHaveBeenCalledWith(expect.objectContaining({ type: "ADJUSTMENT" }));
+    });
 
     it("allows an OWNER to create purchases", async () => {
       const inventory = inventoryStub();
@@ -816,15 +849,20 @@ describe("GET /api/v1/foundation", () => {
       const creditResponse = await request(app)
         .get("/api/v1/credit-customers")
         .set("Authorization", "Bearer valid-token");
+      const inventoryReadResponse = await request(app)
+        .get("/api/v1/inventory/summary")
+        .set("Authorization", "Bearer valid-token");
 
       expect(purchaseResponse.status).toBe(403);
       expect(saleResponse.status).toBe(403);
       expect(returnResponse.status).toBe(403);
       expect(creditResponse.status).toBe(403);
+      expect(inventoryReadResponse.status).toBe(403);
       expect(inventory.createPurchase).not.toHaveBeenCalled();
       expect(inventory.createPhysicalSale).not.toHaveBeenCalled();
       expect(inventory.returnPhysicalSale).not.toHaveBeenCalled();
       expect(inventory.listCreditCustomers).not.toHaveBeenCalled();
+      expect(inventory.getInventorySummary).not.toHaveBeenCalled();
     });
 
     it("allows an OWNER to record a validated credit payment", async () => {

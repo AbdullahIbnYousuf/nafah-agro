@@ -71,6 +71,9 @@ Owner pages are directly addressable under `/admin`: `/admin/dashboard`,
 `/admin/products`, `/admin/categories`, `/admin/inventory`,
 `/admin/physical-sales`, `/admin/dues`, and `/admin/orders`. The বাকি page is
 linked from the dashboard and physical-sale screen on desktop and mobile.
+Inventory purchases and adjustments use route-backed drawers at
+`/admin/inventory/purchase` and `/admin/inventory/adjustment`; direct links,
+refresh, Back, and Forward preserve the intended workspace state.
 Product creation, editing, and
 pack/size management use `/admin/products/new`,
 `/admin/products/:productId/edit`, and

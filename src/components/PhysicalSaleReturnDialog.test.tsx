@@ -74,7 +74,7 @@ describe('physical sale return dialog', () => {
   it('submits a SELLABLE return with the selected measured amount', async () => {
     const { onConfirm } = setup();
     selectItemAndReason();
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({
       condition: 'SELLABLE',
       reason: 'প্যাকেট নষ্ট ছিল',
@@ -90,14 +90,14 @@ describe('physical sale return dialog', () => {
     const { onConfirm } = setup();
     selectItemAndReason();
     fireEvent.click(screen.getByLabelText(/DAMAGED/));
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ condition: 'DAMAGED' })));
   });
 
   it('submits without requiring a return reason', async () => {
     const { onConfirm } = setup();
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       condition: 'SELLABLE',
       reason: undefined,
@@ -106,7 +106,7 @@ describe('physical sale return dialog', () => {
 
   it('explains that a product must be selected before confirmation', async () => {
     const { onConfirm } = setup();
-    const confirm = screen.getByRole('button', { name: 'ফেরত নিশ্চিত করুন' });
+    const confirm = screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' });
     expect(confirm).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(confirm);
     expect(await screen.findByText('ফেরত নেওয়ার জন্য অন্তত একটি পণ্য বেছে নিন।')).toHaveAttribute(

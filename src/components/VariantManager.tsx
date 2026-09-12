@@ -16,6 +16,7 @@ import { getErrorMessage } from '@/lib/utils';
 import { packSizeAdminLabel, visiblePackSize } from '@/lib/productOptions';
 import { productKindLabel, rateLabel } from '@/lib/quantity';
 import { formatAppDateTime } from '@/lib/date';
+import { UI_TERMS } from '@/lib/uiTerms';
 
 interface VariantManagerProps {
   product: Product;
@@ -46,7 +47,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
     if (hasUnnamedPackSize) {
-      toast.error('নতুন প্যাক/সাইজ যোগ করার আগে আগেরটির নাম দিন');
+      toast.error('নতুন প্যাক/সাইজ অ্যাড করার আগে আগেরটির নাম দিন');
       return;
     }
     if (!name.trim() || price === '') {
@@ -67,9 +68,9 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
       setPrice('');
       setThreshold('5');
       setIsDefault(false);
-      toast.success('প্যাক/সাইজ যোগ হয়েছে');
+      toast.success('প্যাক/সাইজ অ্যাড হয়েছে');
     } catch (error) {
-      toast.error(getErrorMessage(error, 'প্যাক/সাইজ যোগ করা যায়নি'));
+      toast.error(getErrorMessage(error, 'প্যাক/সাইজ অ্যাড করা যায়নি'));
     } finally {
       setCreating(false);
     }
@@ -105,7 +106,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
       <section className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-background shadow-2xl flex flex-col">
         <header className="flex items-start justify-between gap-3 bg-primary px-4 py-4 text-primary-foreground sm:px-5">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold">{isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও স্টক সীমা'}</h2>
+            <h2 className="text-lg font-bold">{isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'}</h2>
             <p className="break-words text-sm font-medium opacity-90">{product.name}</p>
             <p className="text-xs opacity-80">দাম বদলালে আগের দামের রেকর্ড থাকবে।</p>
           </div>
@@ -115,20 +116,20 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
         <div className="flex-1 space-y-6 overflow-y-auto p-3 sm:p-5">
           {isPackaged && <form onSubmit={handleCreate} className="border rounded-lg p-4 space-y-3">
             <h3 className="font-semibold flex items-center gap-2"><Plus size={17} />নতুন প্যাক/সাইজ</h3>
-            {hasUnnamedPackSize && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">আরেকটি প্যাক/সাইজ যোগ করার আগে নিচে থাকা “প্যাক/সাইজ দেওয়া হয়নি” অপশনটির নাম দিন।</p>}
+            {hasUnnamedPackSize && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">আরেকটি প্যাক/সাইজ অ্যাড করার আগে নিচে থাকা “প্যাক/সাইজ দেওয়া হয়নি” অপশনটির নাম দিন।</p>}
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Field label="প্যাক/সাইজের নাম"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="যেমন: ১ কেজি" /></Field>
               <Field label="দাম"><Input type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></Field>
-              <Field label="লো-স্টক সীমা"><Input type="number" min="0" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
+              <Field label={UI_TERMS.stock.lowLimit}><Input type="number" min="0" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
             </div>
             <Field label="প্রাথমিক দামের কারণ (ঐচ্ছিক)"><Input value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
             <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
               <label className="flex min-h-11 items-center gap-2 text-sm"><input className="h-5 w-5" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />মূল প্যাক/সাইজ</label>
-              <Button className="w-full aria-disabled:border aria-disabled:border-amber-600 aria-disabled:bg-amber-50 aria-disabled:text-amber-950 aria-disabled:hover:bg-amber-100 sm:w-auto" type="submit" disabled={creating} aria-disabled={hasUnnamedPackSize}>{creating ? 'যোগ হচ্ছে…' : 'প্যাক/সাইজ যোগ করুন'}</Button>
+              <Button className="w-full aria-disabled:border aria-disabled:border-amber-600 aria-disabled:bg-amber-50 aria-disabled:text-amber-950 aria-disabled:hover:bg-amber-100 sm:w-auto" type="submit" disabled={creating} aria-disabled={hasUnnamedPackSize}>{creating ? 'অ্যাড হচ্ছে…' : 'প্যাক/সাইজ অ্যাড করুন'}</Button>
             </div>
           </form>}
 
-          {!isPackaged && <p className="rounded-lg border bg-muted/40 p-4 text-sm">{productKindLabel(product.kind)} পণ্য। দাম {rateLabel(product.kind)} হিসেবে রাখা হয় এবং এই পণ্যে আলাদা প্যাক/সাইজ যোগ করা যায় না।</p>}
+          {!isPackaged && <p className="rounded-lg border bg-muted/40 p-4 text-sm">{productKindLabel(product.kind)} পণ্য। দাম {rateLabel(product.kind)} হিসেবে রাখা হয় এবং এই পণ্যে আলাদা প্যাক/সাইজ অ্যাড করা যায় না।</p>}
 
           <div className="space-y-4">
             {variants.map((variant) => (
@@ -150,7 +151,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
                 ))}
               </div>
               <Field label="দাম পরিবর্তনের কারণ (ঐচ্ছিক)"><Input value={bulkReason} onChange={(event) => setBulkReason(event.target.value)} /></Field>
-              <div className="text-right"><Button type="button" disabled={bulkSaving} onClick={() => void handleBulkPriceUpdate()}>{bulkSaving ? 'আপডেট হচ্ছে…' : 'বাল্ক দাম সংরক্ষণ'}</Button></div>
+              <div className="text-right"><Button type="button" disabled={bulkSaving} onClick={() => void handleBulkPriceUpdate()}>{bulkSaving ? 'আপডেট হচ্ছে…' : 'বাল্ক দাম সেভ করুন'}</Button></div>
             </section>
           )}
         </div>
@@ -249,14 +250,14 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 
       <div className="grid sm:grid-cols-2 gap-3">
         {isPackaged && <Field label="প্যাক/সাইজের নাম"><Input value={name.toLowerCase() === 'default' ? '' : name} onChange={(event) => setName(event.target.value)} placeholder="যেমন: ১ কেজি" /></Field>}
-        <Field label={`লো-স্টক সীমা (${isPackaged ? 'ইউনিট' : product.kind === 'LOOSE_WEIGHT' ? 'কেজি' : 'লিটার'})`}><Input type="number" min="0" step={isPackaged ? '1' : '0.001'} value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
+        <Field label={`${UI_TERMS.stock.lowLimit} (${isPackaged ? 'ইউনিট' : product.kind === 'LOOSE_WEIGHT' ? 'কেজি' : 'লিটার'})`}><Input type="number" min="0" step={isPackaged ? '1' : '0.001'} value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
       </div>
-      <div className="text-right"><Button type="button" size="sm" disabled={saving} onClick={() => void saveMetadata()}><Save size={14} className="mr-1" />তথ্য সংরক্ষণ</Button></div>
+      <div className="text-right"><Button type="button" size="sm" disabled={saving} onClick={() => void saveMetadata()}><Save size={14} className="mr-1" />তথ্য সেভ করুন</Button></div>
 
       <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end border-t pt-4">
         <Field label={`বর্তমান দাম: ৳${variant.sellingPrice} (${rateLabel(product.kind)})`}><Input type="number" min="0" step="0.01" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} placeholder="নতুন দাম" /></Field>
         <Field label="পরিবর্তনের কারণ (ঐচ্ছিক)"><Input value={priceReason} onChange={(event) => setPriceReason(event.target.value)} /></Field>
-        <Button type="button" disabled={saving} onClick={() => void updatePrice()}>দাম সংরক্ষণ</Button>
+        <Button type="button" disabled={saving} onClick={() => void updatePrice()}>দাম সেভ করুন</Button>
       </div>
 
       {history && <PriceHistory entries={history} />}

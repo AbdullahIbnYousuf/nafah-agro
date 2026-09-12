@@ -105,7 +105,7 @@ describe('role-aware profile page', () => {
 
     fireEvent.change(name, { target: { value: 'Updated Owner' } });
     fireEvent.change(phone, { target: { value: '01800000000' } });
-    fireEvent.click(screen.getByRole('button', { name: 'পরিবর্তন সংরক্ষণ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'পরিবর্তন সেভ করুন' }));
     await waitFor(() => expect(mocks.auth.updateProfile).toHaveBeenCalledWith(
       'Updated Owner', '01800000000',
     ));
@@ -145,17 +145,17 @@ describe('role-aware profile page', () => {
     if (!form) throw new Error('Owner setup form was not rendered.');
 
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'short' } });
-    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'short' } });
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড আবার লিখুন'), { target: { value: 'short' } });
     fireEvent.submit(form);
     expect(await screen.findByRole('alert')).toHaveTextContent('কমপক্ষে ৮ অক্ষরের');
 
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'new-password' } });
-    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'other-password' } });
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড আবার লিখুন'), { target: { value: 'other-password' } });
     fireEvent.submit(form);
     expect(await screen.findByRole('alert')).toHaveTextContent('পাসওয়ার্ড দুইটি মিলছে না');
 
     mocks.auth.setInitialPassword.mockRejectedValueOnce(new Error('Supabase password update failed'));
-    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'new-password' } });
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড আবার লিখুন'), { target: { value: 'new-password' } });
     fireEvent.submit(form);
     expect(await screen.findByRole('alert')).toHaveTextContent('Supabase password update failed');
   });
@@ -171,7 +171,7 @@ describe('role-aware profile page', () => {
       </MemoryRouter>,
     );
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'new-password' } });
-    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড নিশ্চিত করুন'), { target: { value: 'new-password' } });
+    fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড আবার লিখুন'), { target: { value: 'new-password' } });
     fireEvent.click(screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করে পরিচালনা প্যানেলে যান' }));
 
     await waitFor(() => expect(mocks.auth.setInitialPassword).toHaveBeenCalledWith('new-password'));

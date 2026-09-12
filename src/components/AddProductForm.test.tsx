@@ -24,7 +24,7 @@ describe('product creation form', () => {
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('স্লাগ (URL)')).not.toBeInTheDocument();
     expect(screen.queryByText(/^URL:/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'পণ্য সংরক্ষণ করুন' })).not.toHaveClass('bg-secondary');
+    expect(screen.getByRole('button', { name: 'পণ্য সেভ করুন' })).not.toHaveClass('bg-secondary');
   });
 
   it('uses a rate and stock threshold instead of pack/size for loose products', () => {
@@ -38,6 +38,6 @@ describe('product creation form', () => {
 
     expect(screen.queryByText('প্যাক/সাইজ (ঐচ্ছিক)')).not.toBeInTheDocument();
     expect(screen.getByText('প্রতি কেজি বিক্রির দাম (টাকা) *')).toBeInTheDocument();
-    expect(screen.getByText('লো-স্টক সীমা (কেজি)')).toBeInTheDocument();
+    expect(screen.getByText('কম স্টকের লিমিট (কেজি)')).toBeInTheDocument();
   });
 });

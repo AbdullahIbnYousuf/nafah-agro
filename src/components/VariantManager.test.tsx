@@ -59,7 +59,7 @@ describe('pack/size management', () => {
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
     fireEvent.change(screen.getAllByPlaceholderText('যেমন: ১ কেজি')[0], { target: { value: '1 kg' } });
     fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '900' } });
-    fireEvent.click(screen.getByRole('button', { name: 'প্যাক/সাইজ যোগ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'প্যাক/সাইজ অ্যাড করুন' }));
 
     await waitFor(() => expect(mocks.createVariant).toHaveBeenCalledWith('product-1', {
       name: '1 kg',
@@ -76,12 +76,12 @@ describe('pack/size management', () => {
 
     expect(screen.queryByText('Default')).not.toBeInTheDocument();
     expect(screen.getByText('প্যাক/সাইজ দেওয়া হয়নি')).toBeInTheDocument();
-    const addButton = screen.getByRole('button', { name: 'প্যাক/সাইজ যোগ করুন' });
+    const addButton = screen.getByRole('button', { name: 'প্যাক/সাইজ অ্যাড করুন' });
     expect(addButton).toHaveAttribute('aria-disabled', 'true');
     expect(addButton).not.toBeDisabled();
-    expect(screen.getByText(/আরেকটি প্যাক\/সাইজ যোগ করার আগে/)).toBeInTheDocument();
+    expect(screen.getByText(/আরেকটি প্যাক\/সাইজ অ্যাড করার আগে/)).toBeInTheDocument();
     fireEvent.click(addButton);
-    expect(mocks.toastError).toHaveBeenCalledWith('নতুন প্যাক/সাইজ যোগ করার আগে আগেরটির নাম দিন');
+    expect(mocks.toastError).toHaveBeenCalledWith('নতুন প্যাক/সাইজ অ্যাড করার আগে আগেরটির নাম দিন');
     expect(mocks.createVariant).not.toHaveBeenCalled();
   });
 });

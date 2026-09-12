@@ -11,6 +11,9 @@ import {
   physicalSaleCreateSchema,
   physicalSaleListSchema,
   physicalSaleReturnSchema,
+  inventoryItemBatchListSchema,
+  inventoryItemListSchema,
+  inventoryRecordListSchema,
   purchaseCreateSchema,
   stockAdjustmentSchema,
   stockBatchListSchema,
@@ -44,6 +47,36 @@ export function createInventoryRouter(
   router.get("/stock-batches", ...protectedRoute, async (req, res, next) => {
     try {
       res.json({ success: true, data: await service.listBatches(validate(stockBatchListSchema, req.query)) });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/inventory/summary", ...protectedRoute, async (_req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.getInventorySummary() });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/inventory/items", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.listInventoryItems(validate(inventoryItemListSchema, req.query)) });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/inventory/items/:variantId/batches", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        data: await service.listInventoryItemBatches(
+          validate(z.string().uuid(), req.params.variantId),
+          validate(inventoryItemBatchListSchema, req.query),
+        ),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/inventory/records", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.listInventoryRecords(validate(inventoryRecordListSchema, req.query)) });
     } catch (error) { next(error); }
   });
 
