@@ -9,7 +9,6 @@ import {
   CircleDollarSign,
   ClipboardList,
   HandCoins,
-  PackageCheck,
   RefreshCw,
   ShoppingBag,
   TrendingUp,
@@ -32,7 +31,6 @@ import type {
   AnalyticsProductRow,
   ComparedAnalyticsMetric,
   CreditSummary,
-  OrderSource,
 } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,15 +46,6 @@ const presets: Array<{ value: QuickPreset; label: string }> = [
   { value: 'month', label: 'এই মাস' },
   { value: 'year', label: 'এই বছর' },
 ];
-
-const sourceLabels: Record<OrderSource, string> = {
-  WEBSITE: 'ওয়েবসাইট',
-  PHYSICAL_SHOP: 'দোকান',
-  FACEBOOK: 'ফেসবুক',
-  PHONE: 'ফোন',
-  WHATSAPP: 'হোয়াটসঅ্যাপ',
-  OTHER: 'অন্যান্য',
-};
 
 const banglaNumber = new Intl.NumberFormat('bn-BD', { maximumFractionDigits: 2 });
 const axisNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
@@ -210,6 +199,20 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
 
 function DashboardContent({ data, creditSummary }: { data: AnalyticsDashboardData; creditSummary?: CreditSummary }) {
   const showTrend = data.range.current.from !== data.range.current.to;
+  const sourceCards = [
+    { label: 'ওয়েবসাইট', sources: ['WEBSITE'] },
+    { label: 'দোকান', sources: ['PHYSICAL_SHOP'] },
+    { label: 'অন্যান্য', sources: ['FACEBOOK', 'PHONE', 'WHATSAPP', 'OTHER'] },
+  ].map(({ label, sources }) => data.salesBySource.reduce(
+    (summary, source) => sources.includes(source.source)
+      ? {
+          ...summary,
+          orderCount: summary.orderCount + source.orderCount,
+          recognizedSales: summary.recognizedSales + source.recognizedSales,
+        }
+      : summary,
+    { label, orderCount: 0, recognizedSales: 0 },
+  ));
   const primaryMetrics = [
     { label: 'মোট সম্পন্ন বিক্রি', metric: data.summary.recognizedSales, icon: CircleDollarSign },
     { label: 'পণ্য আয়', metric: data.summary.productRevenue, icon: ShoppingBag },
@@ -217,10 +220,6 @@ function DashboardContent({ data, creditSummary }: { data: AnalyticsDashboardDat
     { label: 'মোট লাভ', metric: data.summary.grossProfit, icon: TrendingUp },
     { label: 'লাভের মার্জিন', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(value)}%`, icon: TrendingUp },
     { label: 'সম্পন্ন/ডেলিভারড অর্ডার', metric: data.summary.recognizedOrderCount, formatter: count, icon: ClipboardList },
-    { label: 'বিক্রি হওয়া প্যাক/ইউনিট', metric: data.summary.soldQuantities.pieces, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${count(value)} ইউনিট`, icon: PackageCheck },
-    { label: 'বিক্রি হওয়া ওজন', metric: data.summary.soldQuantities.weightKg, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${count(value)} কেজি`, icon: PackageCheck },
-    { label: 'বিক্রি হওয়া তরল', metric: data.summary.soldQuantities.volumeLitres, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${count(value)} লিটার`, icon: PackageCheck },
-    { label: 'গড় অর্ডার মূল্য', metric: data.summary.averageOrderValue, icon: CircleDollarSign },
   ];
 
   return <div className="space-y-6">
@@ -255,7 +254,7 @@ function DashboardContent({ data, creditSummary }: { data: AnalyticsDashboardDat
     <section className="rounded-xl border bg-card p-4 sm:p-5">
       <h2 className="mb-4 text-lg font-bold">উৎস অনুযায়ী বিক্রয়</h2>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {data.salesBySource.map((source) => <div key={source.source} className="rounded-lg border bg-background/40 p-3"><div className="font-semibold">{sourceLabels[source.source]}</div><div className="mt-2 text-xl font-bold">{money(source.recognizedSales)}</div><div className="text-xs text-muted-foreground">{count(source.orderCount)}টি সম্পন্ন অর্ডার</div></div>)}
+        {sourceCards.map((source) => <div key={source.label} className="rounded-lg border bg-background/40 p-3"><div className="font-semibold">{source.label}</div><div className="mt-2 text-xl font-bold">{money(source.recognizedSales)}</div><div className="text-xs text-muted-foreground">{count(source.orderCount)}টি সম্পন্ন অর্ডার</div></div>)}
       </div>
     </section>
 
@@ -264,28 +263,7 @@ function DashboardContent({ data, creditSummary }: { data: AnalyticsDashboardDat
       <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে লাভজনক</h2><p className="text-sm text-muted-foreground">বিক্রি হওয়া পণ্যের ক্রয়মূল্য ধরে</p></div><ProductTable rows={data.mostProfitable} mode="profit" /></section>
     </div>
 
-    <section className="rounded-xl border bg-card p-4 sm:p-5">
-      <div className="mb-4"><h2 className="text-lg font-bold">ইনভেন্টরি সারাংশ</h2><p className="text-sm text-muted-foreground">বিক্রির জন্য থাকা ও অর্ডারের জন্য রাখা স্টকের মোট ক্রয়মূল্য</p></div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <QuantitySummary label="বিক্রির জন্য আছে" values={data.inventory.availableQuantities} />
-        <QuantitySummary label="সংরক্ষিত স্টক" values={data.inventory.reservedQuantities} />
-        <QuantitySummary label="মোট হাতে আছে" values={data.inventory.onHandQuantities} />
-        <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">বর্তমান স্টকের ক্রয়মূল্য</span><div className="text-xl font-bold">{money(data.inventory.fifoValuation)}</div></div>
-      </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <StockAlertList title="কম স্টক" rows={data.inventory.lowStock} empty="কম স্টক থাকা কোনো প্যাক/সাইজ নেই।" />
-        <StockAlertList title="স্টক শেষ" rows={data.inventory.outOfStock} empty="স্টক শেষ এমন কোনো প্যাক/সাইজ নেই।" />
-      </div>
-    </section>
   </div>;
-}
-
-function StockAlertList({ title, rows, empty }: { title: string; rows: AnalyticsDashboardData['inventory']['lowStock']; empty: string }) {
-  return <div className="rounded-lg border"><h3 className="border-b px-3 py-2 font-semibold">{title}</h3>{rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{empty}</p> : <div className="divide-y">{rows.slice(0, 10).map((row) => <div key={row.productVariantId} className="flex items-center justify-between gap-3 p-3 text-sm"><div className="min-w-0"><strong className="block truncate">{productPackLabel(row.productName, row.variantName)}</strong><span className="text-xs text-muted-foreground">সীমা {formatMajorQuantity(row.lowStockThreshold, row.quantityUnit)}</span></div><span className="shrink-0 font-bold">{formatMajorQuantity(row.availableStock, row.quantityUnit)}</span></div>)}</div>}</div>;
-}
-
-function QuantitySummary({ label, values }: { label: string; values: { pieces: number; weightKg: number; volumeLitres: number } }) {
-  return <div className="rounded-lg bg-muted/60 p-3"><span className="text-sm text-muted-foreground">{label}</span><div className="mt-1 space-y-0.5 font-bold"><div>{count(values.pieces)} ইউনিট</div><div>{count(values.weightKg)} কেজি</div><div>{count(values.volumeLitres)} লিটার</div></div></div>;
 }
 
 function AnalyticsDashboardContent() {

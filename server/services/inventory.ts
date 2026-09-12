@@ -339,7 +339,7 @@ export function createInventoryService(prisma: PrismaClient) {
           },
         });
         if (variants.length !== variantIds.length || variants.some(({ product }) => !product.isActive || product.category?.isActive === false)) {
-          throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "One or more purchase products are inactive or missing.");
+          throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "ক্রয়ের এক বা একাধিক পণ্য ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
         }
         const byId = new Map(variants.map((variant) => [variant.id, variant]));
         const ids: string[] = [];
@@ -388,7 +388,7 @@ export function createInventoryService(prisma: PrismaClient) {
           },
         });
         if (!variant || !variant.isActive || !variant.product.isActive || variant.product.category?.isActive === false) {
-          throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "The selected product is inactive or missing.");
+          throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "নির্বাচিত পণ্যটি ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
         }
 
         const quantity = toBaseQuantity(input.amount, input.amountUnit, variant.product.kind);
@@ -442,7 +442,7 @@ export function createInventoryService(prisma: PrismaClient) {
           },
         });
         if (variants.length !== sortedItems.length || variants.some((variant) => !variant.product.isActive || variant.product.category?.isActive === false)) {
-          throw inventoryError(404, "SELLABLE_VARIANT_NOT_FOUND", "One or more variants are inactive or missing.");
+          throw inventoryError(404, "SELLABLE_VARIANT_NOT_FOUND", "এক বা একাধিক প্যাক/সাইজ ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
         }
         const byId = new Map(variants.map((variant) => [variant.id, variant]));
         const quantities = sortedItems.map((item) => {

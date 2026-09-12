@@ -59,7 +59,14 @@ const dashboard: AnalyticsDashboardData = {
     outOfStockVariantCount: 0,
   },
   trend: [{ date: '2026-08-07', recognizedSales: 1000, grossProfit: 250 }],
-  salesBySource: [],
+  salesBySource: [
+    { source: 'WEBSITE', orderCount: 1, recognizedSales: 100 },
+    { source: 'PHYSICAL_SHOP', orderCount: 2, recognizedSales: 200 },
+    { source: 'FACEBOOK', orderCount: 3, recognizedSales: 300 },
+    { source: 'PHONE', orderCount: 4, recognizedSales: 400 },
+    { source: 'WHATSAPP', orderCount: 5, recognizedSales: 500 },
+    { source: 'OTHER', orderCount: 6, recognizedSales: 600 },
+  ],
   bestSelling: [],
   mostProfitable: [],
   inventory: {
@@ -131,6 +138,19 @@ describe('analytics dashboard date controls', () => {
     expect(screen.queryByRole('button', { name: 'নিজস্ব সময়সীমা' })).not.toBeInTheDocument();
     expect(screen.getByTestId('graph-date')).toHaveTextContent('৭ আগস্ট');
     expect(screen.getByTestId('graph-amount')).toHaveTextContent('1,000');
+    expect(screen.queryByText('বিক্রি হওয়া প্যাক/ইউনিট')).not.toBeInTheDocument();
+    expect(screen.queryByText('বিক্রি হওয়া ওজন')).not.toBeInTheDocument();
+    expect(screen.queryByText('বিক্রি হওয়া তরল')).not.toBeInTheDocument();
+    expect(screen.queryByText('গড় অর্ডার মূল্য')).not.toBeInTheDocument();
+    expect(screen.queryByText('ইনভেন্টরি সারাংশ')).not.toBeInTheDocument();
+    expect(screen.getByText('ওয়েবসাইট')).toBeInTheDocument();
+    expect(screen.getByText('দোকান')).toBeInTheDocument();
+    expect(screen.getByText('অন্যান্য')).toBeInTheDocument();
+    expect(screen.getByText('১৮টি সম্পন্ন অর্ডার')).toBeInTheDocument();
+    expect(screen.getByText('৳১,৮০০')).toBeInTheDocument();
+    expect(screen.queryByText('ফেসবুক')).not.toBeInTheDocument();
+    expect(screen.queryByText('ফোন')).not.toBeInTheDocument();
+    expect(screen.queryByText('হোয়াটসঅ্যাপ')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'এই বছর' }));
     await waitFor(() => expect(mocks.getAnalyticsDashboard).toHaveBeenCalledWith({ preset: 'year' }));

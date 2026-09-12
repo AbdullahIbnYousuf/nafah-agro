@@ -56,9 +56,23 @@ function isUnnamedPackSize(name: string) {
 
 function constraintTarget(error: unknown): string {
   if (!error || typeof error !== "object") return "";
-  const candidate = error as { code?: unknown; meta?: { target?: unknown } };
+  const candidate = error as { code?: unknown; message?: unknown; meta?: unknown };
   if (candidate.code !== "P2002") return "";
-  return JSON.stringify(candidate.meta?.target ?? "").toLowerCase();
+  let metadata = "";
+  try {
+    metadata = JSON.stringify(candidate.meta ?? "");
+  } catch {
+    // Some database adapters attach non-serializable metadata. The Prisma
+    // message still contains the affected field and remains safe to inspect.
+  }
+  return `${metadata} ${String(candidate.message ?? "")}`.toLowerCase();
+}
+
+function productSlugCandidate(base: string, attempt: number) {
+  if (attempt === 0) return base;
+  const suffix = `-${attempt + 1}`;
+  const prefix = base.slice(0, 120 - suffix.length).replace(/-+$/, "");
+  return `${prefix}${suffix}`;
 }
 
 function rethrowCatalogWriteError(error: unknown): never {
@@ -188,7 +202,7 @@ export function createCatalogService(prisma: PrismaClient) {
           });
           if (!category) throw catalogError(404, "CATEGORY_NOT_FOUND", "Category not found");
           if (category._count.products > 0) {
-            throw catalogError(409, "CATEGORY_HAS_PRODUCTS", "A category containing products can only be deactivated.");
+            throw catalogError(409, "CATEGORY_HAS_PRODUCTS", "এই ক্যাটাগরিতে পণ্য আছে। তাই এটি মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
           }
           await transaction.category.delete({ where: { id } });
           await transaction.auditLog.create({ data: {
@@ -203,7 +217,7 @@ export function createCatalogService(prisma: PrismaClient) {
         });
       } catch (error) {
         if (isDeleteConstraintConflict(error)) {
-          throw catalogError(409, "CATEGORY_DELETE_CONFLICT", "The category became in use and can only be deactivated.");
+          throw catalogError(409, "CATEGORY_DELETE_CONFLICT", "এই ক্যাটাগরিটি এখন ব্যবহৃত হচ্ছে। তাই এটি মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
         }
         throw error;
       }
@@ -272,45 +286,50 @@ export function createCatalogService(prisma: PrismaClient) {
       return readProduct(id, true);
     },
     async createProduct(input: ProductCreate, actorId: string) {
-      try {
-        const productId = await prisma.$transaction(async (transaction) => {
-          const variantId = randomUUID();
-          const product = await transaction.product.create({
-            data: {
-              name: input.name,
-              slug: input.slug,
-              description: input.description,
-              kind: input.kind ?? "PACKAGED",
-              categoryId: input.categoryId,
-              featured: input.featured,
-              tags: input.tags,
-              images: input.images,
-              youtubeLinks: input.youtubeLinks,
-              attributes: input.attributes as Prisma.InputJsonValue,
-              variants: { create: {
-                id: variantId,
-                name: (input.kind ?? "PACKAGED") === "PACKAGED" ? input.initialVariant.name || "Default" : "Default",
-                sku: internalSku(variantId),
-                currentSellingPrice: input.initialVariant.sellingPrice,
-                lowStockThreshold: input.initialVariant.lowStockThreshold,
-                isDefault: true,
-              } },
-            },
-            include: { variants: true },
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const candidateSlug = productSlugCandidate(input.slug, attempt);
+        try {
+          const productId = await prisma.$transaction(async (transaction) => {
+            const variantId = randomUUID();
+            const product = await transaction.product.create({
+              data: {
+                name: input.name,
+                slug: candidateSlug,
+                description: input.description,
+                kind: input.kind ?? "PACKAGED",
+                categoryId: input.categoryId,
+                featured: input.featured,
+                tags: input.tags,
+                images: input.images,
+                youtubeLinks: input.youtubeLinks,
+                attributes: input.attributes as Prisma.InputJsonValue,
+                variants: { create: {
+                  id: variantId,
+                  name: (input.kind ?? "PACKAGED") === "PACKAGED" ? input.initialVariant.name || "Default" : "Default",
+                  sku: internalSku(variantId),
+                  currentSellingPrice: input.initialVariant.sellingPrice,
+                  lowStockThreshold: input.initialVariant.lowStockThreshold,
+                  isDefault: true,
+                } },
+              },
+              include: { variants: true },
+            });
+            await transaction.sellingPriceHistory.create({ data: {
+              variantId: product.variants[0].id,
+              previousPrice: null,
+              newPrice: input.initialVariant.sellingPrice,
+              reason: input.priceReason,
+              changedByProfileId: actorId,
+            } });
+            return product.id;
           });
-          await transaction.sellingPriceHistory.create({ data: {
-            variantId: product.variants[0].id,
-            previousPrice: null,
-            newPrice: input.initialVariant.sellingPrice,
-            reason: input.priceReason,
-            changedByProfileId: actorId,
-          } });
-          return product.id;
-        });
-        return readProduct(productId);
-      } catch (error) {
-        rethrowCatalogWriteError(error);
+          return readProduct(productId);
+        } catch (error) {
+          if (constraintTarget(error).includes("slug") && attempt < 99) continue;
+          rethrowCatalogWriteError(error);
+        }
       }
+      throw catalogError(409, "DUPLICATE_SLUG", "পণ্যের জন্য আলাদা URL তৈরি করা যায়নি। আবার চেষ্টা করুন।");
     },
     async updateProduct(id: string, input: ProductUpdate) {
       try {
@@ -425,13 +444,13 @@ export function createCatalogService(prisma: PrismaClient) {
             || variant._count.stockAdjustments > 0
             || variant._count.salesOrderItems > 0);
           if (hasOperationalHistory) {
-            throw catalogError(409, "PRODUCT_HAS_HISTORY", "A product with stock, inventory, or order history can only be deactivated.");
+            throw catalogError(409, "PRODUCT_HAS_HISTORY", "এই পণ্যের স্টক, ইনভেন্টরি বা অর্ডারের রেকর্ড আছে। তাই এটি মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
           }
           const hasPriceUpdates = product.variants.some((variant) =>
             variant.priceHistory.length > 1
             || variant.priceHistory.some((history) => history.previousPrice !== null));
           if (hasPriceUpdates) {
-            throw catalogError(409, "PRODUCT_HAS_PRICE_UPDATES", "A product with selling-price updates can only be deactivated.");
+            throw catalogError(409, "PRODUCT_HAS_PRICE_UPDATES", "এই পণ্যের দাম পরিবর্তনের রেকর্ড আছে। তাই এটি মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
           }
 
           await transaction.$executeRaw`SELECT set_config('nafah.allow_unused_catalog_delete', 'on', true)`;
@@ -463,7 +482,7 @@ export function createCatalogService(prisma: PrismaClient) {
         });
       } catch (error) {
         if (isDeleteConstraintConflict(error)) {
-          throw catalogError(409, "PRODUCT_DELETE_CONFLICT", "The product became in use and can only be deactivated.");
+          throw catalogError(409, "PRODUCT_DELETE_CONFLICT", "এই পণ্যটি এখন ব্যবহৃত হচ্ছে। তাই এটি মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
         }
         throw error;
       }
@@ -535,14 +554,14 @@ export function createCatalogService(prisma: PrismaClient) {
               where: { productId: variant.productId, isActive: true },
             });
             if (activeCount <= 1) {
-              throw catalogError(409, "LAST_ACTIVE_VARIANT", "A product must keep at least one active variant.");
+              throw catalogError(409, "LAST_ACTIVE_VARIANT", "পণ্যটিতে অন্তত একটি অ্যাকটিভ প্যাক/সাইজ রাখতে হবে।");
             }
           }
           if (input.isDefault === false && variant.isDefault && input.isActive !== false) {
             throw catalogError(409, "DEFAULT_VARIANT_REQUIRED", "Choose another default variant first.");
           }
           if (input.isDefault === true && !variant.isActive && input.isActive !== true) {
-            throw catalogError(409, "DEFAULT_ACTIVE_REQUIRED", "A default variant must be active.");
+            throw catalogError(409, "DEFAULT_ACTIVE_REQUIRED", "মূল প্যাক/সাইজটি অ্যাকটিভ রাখতে হবে।");
           }
 
           if (input.isDefault === true) {
@@ -561,7 +580,7 @@ export function createCatalogService(prisma: PrismaClient) {
               where: { productId: variant.productId, isActive: true, id: { not: variantId } },
               orderBy: { createdAt: "asc" },
             });
-            if (!replacement) throw catalogError(409, "LAST_ACTIVE_VARIANT", "A product must keep at least one active variant.");
+            if (!replacement) throw catalogError(409, "LAST_ACTIVE_VARIANT", "পণ্যটিতে অন্তত একটি অ্যাকটিভ প্যাক/সাইজ রাখতে হবে।");
             await transaction.productVariant.update({
               where: { id: replacement.id },
               data: { isDefault: true },

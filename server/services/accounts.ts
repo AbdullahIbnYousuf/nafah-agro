@@ -385,11 +385,11 @@ export function createAccountService(
         });
         if (!owner) throw accountError(404, "OWNER_NOT_FOUND", "The owner profile was not found.");
         if (!owner.isActive) {
-          throw accountError(409, "INACTIVE_OWNER_DEMOTION", "Reactivate this owner before changing the account back to customer.");
+          throw accountError(409, "INACTIVE_OWNER_DEMOTION", "কাস্টমার করার আগে এই ওনারকে অ্যাকটিভ করুন।");
         }
         const activeOwnerCount = await transaction.profile.count({ where: { role: "OWNER", isActive: true } });
         if (activeOwnerCount <= 1) {
-          throw accountError(409, "LAST_ACTIVE_OWNER", "The final active owner cannot be changed to a customer.");
+          throw accountError(409, "LAST_ACTIVE_OWNER", "শেষ অ্যাকটিভ ওনারকে কাস্টমার করা যাবে না।");
         }
         const promotion = await transaction.auditLog.findFirst({
           where: {
@@ -448,7 +448,7 @@ export function createAccountService(
 
     async setOwnerActive(actorId, ownerId, input) {
       if (actorId === ownerId) {
-        throw accountError(400, "SELF_OWNER_STATUS_CHANGE", "An owner cannot change their own active status.");
+        throw accountError(400, "SELF_OWNER_STATUS_CHANGE", "নিজের অ্যাকটিভ বা ইনঅ্যাকটিভ অবস্থা পরিবর্তন করা যাবে না।");
       }
       await prisma.$transaction(async (transaction) => {
         const previous = await transaction.profile.findFirst({
@@ -462,7 +462,7 @@ export function createAccountService(
         if (!input.isActive) {
           const activeOwners = await transaction.profile.count({ where: { role: "OWNER", isActive: true } });
           if (activeOwners <= 1) {
-            throw accountError(409, "LAST_ACTIVE_OWNER", "The final active owner cannot be deactivated.");
+            throw accountError(409, "LAST_ACTIVE_OWNER", "শেষ অ্যাকটিভ ওনারকে ইনঅ্যাকটিভ করা যাবে না।");
           }
         }
         const updated = await transaction.profile.update({
@@ -527,7 +527,7 @@ export function createAccountService(
         throw accountError(409, "OWNER_AUTH_IDENTITY_NOT_FOUND", "The invited Auth identity was not found.");
       }
       if (hasOwnerHistory(owner._count)) {
-        throw accountError(409, "OWNER_HAS_BUSINESS_HISTORY", "This owner has business history and can only be deactivated.");
+        throw accountError(409, "OWNER_HAS_BUSINESS_HISTORY", "এই ওনারের ব্যবসার রেকর্ড আছে। তাই অ্যাকাউন্ট মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
       }
 
       const deletionSnapshot = {

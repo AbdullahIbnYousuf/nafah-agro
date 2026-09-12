@@ -157,7 +157,7 @@ function writeAudit(
 
 async function loadDeliveryRate(transaction: Prisma.TransactionClient, id: string) {
   const rate = await transaction.deliveryRate.findFirst({ where: { id, isActive: true } });
-  if (!rate) throw orderError(404, "DELIVERY_RATE_NOT_FOUND", "The selected delivery rate is inactive or missing.");
+  if (!rate) throw orderError(404, "DELIVERY_RATE_NOT_FOUND", "নির্বাচিত ডেলিভারি এলাকা ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
   const charge = rate.charge;
   if (charge === null) {
     throw orderError(409, "DELIVERY_RATE_NOT_CONFIGURED", "The selected delivery charge has not been approved yet.");
@@ -201,7 +201,7 @@ async function createOrderBase(
     || (variant.product.kind ?? "PACKAGED") !== "PACKAGED"
     || (input.source === "WEBSITE" && (variant.product.isVisibleInShop === false || variant.product.category?.isVisibleInShop === false)));
   if (variants.length !== sortedItems.length || invalidVariant) {
-    throw orderError(404, "SELLABLE_VARIANT_NOT_FOUND", "One or more variants are inactive or missing.");
+    throw orderError(404, "SELLABLE_VARIANT_NOT_FOUND", "এক বা একাধিক প্যাক/সাইজ ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
   }
   const byId = new Map(variants.map((variant) => [variant.id, variant]));
   const lineTotals = sortedItems.map((item) => money(byId.get(item.productVariantId)!.currentSellingPrice).mul(item.quantity));

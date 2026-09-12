@@ -6,6 +6,7 @@ import VariantManager from './VariantManager';
 const mocks = vi.hoisted(() => ({
   createVariant: vi.fn(),
   updateVariant: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -16,7 +17,7 @@ vi.mock('@/lib/api', () => ({
   updateVariant: mocks.updateVariant,
 }));
 
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } }));
 
 function product(optionName: string): Product {
   return {
@@ -70,12 +71,17 @@ describe('pack/size management', () => {
     expect(JSON.stringify(mocks.createVariant.mock.calls)).not.toContain('INTERNAL-SKU');
   });
 
-  it('hides Default and blocks a second option until the first is named', () => {
+  it('hides Default and explains why a second option cannot be added yet', () => {
     render(<VariantManager product={product('Default')} onClose={vi.fn()} onUpdated={vi.fn()} />);
 
     expect(screen.queryByText('Default')).not.toBeInTheDocument();
     expect(screen.getByText('প্যাক/সাইজ দেওয়া হয়নি')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'প্যাক/সাইজ যোগ করুন' })).toBeDisabled();
+    const addButton = screen.getByRole('button', { name: 'প্যাক/সাইজ যোগ করুন' });
+    expect(addButton).toHaveAttribute('aria-disabled', 'true');
+    expect(addButton).not.toBeDisabled();
     expect(screen.getByText(/আরেকটি প্যাক\/সাইজ যোগ করার আগে/)).toBeInTheDocument();
+    fireEvent.click(addButton);
+    expect(mocks.toastError).toHaveBeenCalledWith('নতুন প্যাক/সাইজ যোগ করার আগে আগেরটির নাম দিন');
+    expect(mocks.createVariant).not.toHaveBeenCalled();
   });
 });

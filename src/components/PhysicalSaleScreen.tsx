@@ -137,7 +137,10 @@ export default function PhysicalSaleScreen() {
 
   async function saveSale(confirmUnprofitable = false) {
     const nextErrors: typeof errors = {};
-    if (lines.length === 0) nextErrors.items = 'কমপক্ষে একটি পণ্য যোগ করুন।';
+    if (lines.length === 0) {
+      nextErrors.items = 'কমপক্ষে একটি পণ্য যোগ করুন।';
+      toast.error('বিক্রি সম্পন্ন করতে আগে অন্তত একটি পণ্য যোগ করুন।');
+    }
     if (lines.some((line) => {
       const base = toBaseQuantity(line.amount, line.amountUnit);
       return base === null || base > line.variant.availableStock;
@@ -201,7 +204,7 @@ export default function PhysicalSaleScreen() {
   }
 
   return <div className="space-y-8">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">এখন পেমেন্ট অথবা বাকি রেখে বিক্রি সম্পন্ন করুন।</p></div><Button asChild variant="outline"><Link to="/admin/dues"><HandCoins size={17} className="mr-2" />বাকি হিসাব</Link></Button></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold">দোকানের বিক্রি</h1><p className="text-sm text-muted-foreground">এখন পেমেন্ট অথবা বাকি রেখে বিক্রি সম্পন্ন করুন।</p></div><Button asChild className="min-h-12 w-full px-5 text-base font-semibold shadow-md transition-shadow hover:shadow-lg sm:w-auto"><Link to="/admin/dues"><HandCoins size={18} />বাকি হিসাব</Link></Button></div>
     <div className="grid xl:grid-cols-[1.1fr_1fr] gap-6">
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <div className="relative"><Search className="absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="বিক্রির পণ্য খুঁজুন" className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="পণ্য বা প্যাক/সাইজ খুঁজুন" /></div>
@@ -255,7 +258,7 @@ export default function PhysicalSaleScreen() {
         <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
         {errors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{errors.submit}</p>}
-        <Button className="w-full min-h-11" disabled={saving || lines.length === 0} onClick={() => void saveSale()}><Plus size={16} className="mr-2" />{saving ? 'সম্পন্ন হচ্ছে…' : paymentMode === 'CREDIT' ? 'বাকি বিক্রি সম্পন্ন করুন' : 'বিক্রি সম্পন্ন করুন'}</Button>
+        <Button className="min-h-11 w-full aria-disabled:border aria-disabled:border-amber-600 aria-disabled:bg-amber-50 aria-disabled:text-amber-950 aria-disabled:hover:bg-amber-100" disabled={saving} aria-disabled={lines.length === 0} onClick={() => void saveSale()}><Plus size={16} className="mr-2" />{saving ? 'সম্পন্ন হচ্ছে…' : paymentMode === 'CREDIT' ? 'বাকি বিক্রি সম্পন্ন করুন' : 'বিক্রি সম্পন্ন করুন'}</Button>
       </section>
     </div>
 
@@ -356,7 +359,7 @@ function ProductHistorySearch({
           {product.images[0]
             ? <img src={product.images[0]} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
             : <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-muted text-sm font-semibold">{product.name.charAt(0)}</span>}
-          <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{product.name}</strong><span className="block text-xs text-muted-foreground">{productKindLabel(product.kind)}{product.isActive === false ? ' · নিষ্ক্রিয়' : ''}</span></span>
+          <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{product.name}</strong><span className="block text-xs text-muted-foreground">{productKindLabel(product.kind)}{product.isActive === false ? ' · ইনঅ্যাকটিভ' : ''}</span></span>
         </button>)}
     </div>}
   </div>;
@@ -438,7 +441,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
         </div>
         {sale.paymentMethod === 'CREDIT' && <div className="mt-4 rounded-lg border bg-card p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>বাকি হিসাব</strong><span>{sale.nextFollowUpDate ? `পরবর্তী যোগাযোগ: ${sale.nextFollowUpDate}` : 'বাকি শেষ'}</span></div><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"><Metric label="জমা হয়েছে" value={money(sale.collectedAmount)} /><Metric label="এখনো বাকি" value={money(sale.outstandingAmount)} /><Metric label="পেমেন্ট" value={`${sale.creditPayments.filter((payment) => !payment.voidedAt).length}টি`} /></div></div>}
         {sale.returns.length > 0 && <div className="mt-4 space-y-2">
-          <h3 className="text-sm font-semibold">ফেরতের ইতিহাস</h3>
+          <h3 className="text-sm font-semibold">আগের ফেরতের রেকর্ড</h3>
           {sale.returns.map((value) => <div key={value.id} className="rounded-lg border bg-card p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{new Date(value.createdAt).toLocaleString('bn-BD')}</span></div>
             <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>

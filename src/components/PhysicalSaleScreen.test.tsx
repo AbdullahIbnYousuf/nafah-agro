@@ -126,6 +126,14 @@ describe('physical sale history', () => {
     mocks.createPhysicalSale.mockResolvedValue(sale);
   });
 
+  it('shows the frequently used dues page as a prominent primary action', async () => {
+    renderScreen();
+
+    const duesLink = await screen.findByRole('link', { name: 'বাকি হিসাব' });
+    expect(duesLink).toHaveAttribute('href', '/admin/dues');
+    expect(duesLink).toHaveClass('bg-primary', 'min-h-12', 'shadow-md');
+  });
+
   it('uses the same explicit expand-and-add flow for packaged and loose products', async () => {
     mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct, product], total: 2, page: 1, limit: 100, totalPages: 1 });
     renderScreen();
@@ -255,6 +263,20 @@ describe('physical sale history', () => {
     });
 
     expect(screen.getByRole('status')).toHaveTextContent('এমন কোনো পণ্য পাওয়া যায়নি।');
+  });
+
+  it('explains why a sale cannot be completed without products', async () => {
+    renderScreen();
+    await screen.findByText(sale.orderNumber);
+
+    const completeButton = screen.getByRole('button', { name: 'বিক্রি সম্পন্ন করুন' });
+    expect(completeButton).toHaveAttribute('aria-disabled', 'true');
+    expect(completeButton).not.toBeDisabled();
+    fireEvent.click(completeButton);
+
+    expect(mocks.toastError).toHaveBeenCalledWith('বিক্রি সম্পন্ন করতে আগে অন্তত একটি পণ্য যোগ করুন।');
+    expect(screen.getByText('কমপক্ষে একটি পণ্য যোগ করুন।')).toBeInTheDocument();
+    expect(mocks.createPhysicalSale).not.toHaveBeenCalled();
   });
 
   it('requires identifiable customer details and submits the seven-day credit follow-up', async () => {

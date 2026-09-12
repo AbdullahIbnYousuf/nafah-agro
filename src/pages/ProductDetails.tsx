@@ -88,7 +88,7 @@ const ProductDetails = () => {
   const quantityInCart = cartItem?.quantity ?? 0;
 
   const handleAddToCart = () => {
-    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় প্যাক/সাইজ নেই');
+    if (!selectedVariant) return toast.error('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
     if (quantityInCart > 0) {
       // Already in cart; increase quantity
       updateQuantity(selectedVariant.id, quantityInCart + 1);
@@ -119,7 +119,7 @@ const ProductDetails = () => {
   };
 
   const handleBuyNow = () => {
-    if (!selectedVariant) return toast.error('এই পণ্যের কোনো সক্রিয় প্যাক/সাইজ নেই');
+    if (!selectedVariant) return toast.error('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
     if (quantityInCart === 0) {
       addItem({
         productId: product.id,
@@ -228,7 +228,7 @@ const ProductDetails = () => {
             <div className="mb-6 text-sm text-muted-foreground">
               {selectedVariant
                 ? `${visiblePackSize(selectedVariant.name) ? `${visiblePackSize(selectedVariant.name)}। ` : ''}স্টক অর্ডার নিশ্চিত করার সময় যাচাই করা হবে।`
-                : 'কোনো সক্রিয় প্যাক/সাইজ নেই।'}
+                : 'কোনো অ্যাকটিভ প্যাক/সাইজ নেই।'}
             </div>
 
             {/* Quantity controls + Add to Cart */}

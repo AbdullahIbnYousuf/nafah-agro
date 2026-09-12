@@ -63,6 +63,13 @@ Keep system statuses and sources in their familiar English form when they are di
 
 Natural sentences and action buttons may use familiar Bangla forms when they read better, such as “ডেলিভারড করুন” or “অর্ডারটি বাতিল হবে”. Do not change the underlying enum or API value.
 
+For active-state labels, actions, instructions, and errors, consistently use:
+
+- অ্যাকটিভ
+- ইনঅ্যাকটিভ
+
+Do not use “সক্রিয়” or “নিষ্ক্রিয়” in user-visible text. Keep technical names such as `isActive`, `ACTIVE`, `INACTIVE`, and audit-event values unchanged.
+
 ## Quantity and inventory wording
 
 - Keep the word “ইউনিট” whenever a number represents product or stock quantity.

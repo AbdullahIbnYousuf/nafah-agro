@@ -111,7 +111,7 @@ export function requireAuthenticated(
           res,
           403,
           "PROFILE_INACTIVE",
-          "This application profile is inactive.",
+          "এই অ্যাকাউন্টটি ইনঅ্যাকটিভ।",
         );
         return;
       }

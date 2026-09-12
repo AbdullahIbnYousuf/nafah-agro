@@ -106,7 +106,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
           <div className="min-w-0">
             <h2 className="text-lg font-bold">{isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও স্টক সীমা'}</h2>
             <p className="break-words text-sm font-medium opacity-90">{product.name}</p>
-            <p className="text-xs opacity-80">দাম বদলালে আগের দাম ইতিহাসে থাকবে।</p>
+            <p className="text-xs opacity-80">দাম বদলালে আগের দামের রেকর্ড থাকবে।</p>
           </div>
           <button type="button" aria-label="বন্ধ করুন" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-primary-foreground/10"><X size={20} /></button>
         </header>
@@ -123,7 +123,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
             <Field label="প্রাথমিক দামের কারণ (ঐচ্ছিক)"><Input value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
             <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
               <label className="flex min-h-11 items-center gap-2 text-sm"><input className="h-5 w-5" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />মূল প্যাক/সাইজ</label>
-              <Button className="w-full sm:w-auto" type="submit" disabled={creating || hasUnnamedPackSize}>{creating ? 'যোগ হচ্ছে…' : 'প্যাক/সাইজ যোগ করুন'}</Button>
+              <Button className="w-full aria-disabled:border aria-disabled:border-amber-600 aria-disabled:bg-amber-50 aria-disabled:text-amber-950 aria-disabled:hover:bg-amber-100 sm:w-auto" type="submit" disabled={creating} aria-disabled={hasUnnamedPackSize}>{creating ? 'যোগ হচ্ছে…' : 'প্যাক/সাইজ যোগ করুন'}</Button>
             </div>
           </form>}
 
@@ -235,15 +235,15 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
     try {
       setHistory(await getSellingPriceHistory(variant.id));
     } catch (error) {
-      toast.error(getErrorMessage(error, 'দামের ইতিহাস লোড হয়নি'));
+      toast.error(getErrorMessage(error, 'আগের দামের রেকর্ড লোড হয়নি'));
     }
   }
 
   return (
     <article className={`border rounded-lg p-4 space-y-4 ${variant.isActive ? '' : 'opacity-70 bg-muted/30'}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2"><strong>{isPackaged ? packSizeAdminLabel(variant.name) : productKindLabel(product.kind)}</strong>{isPackaged && variant.isDefault && <span className="text-xs bg-secondary/15 text-secondary px-2 py-1 rounded">মূল</span>}<span className={`text-xs px-2 py-1 rounded ${variant.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>{variant.isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}</span></div>
-        <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => void toggleHistory()}><History size={14} className="mr-1" />ইতিহাস</Button>{isPackaged && !variant.isDefault && <Button type="button" size="sm" variant="outline" onClick={() => void makeDefault()}>মূল করুন</Button>}<Button type="button" size="sm" variant={variant.isActive ? 'destructive' : 'default'} onClick={() => void toggleActive()}>{variant.isActive ? 'নিষ্ক্রিয়' : 'সক্রিয়'}</Button></div>
+        <div className="flex items-center gap-2"><strong>{isPackaged ? packSizeAdminLabel(variant.name) : productKindLabel(product.kind)}</strong>{isPackaged && variant.isDefault && <span className="text-xs bg-secondary/15 text-secondary px-2 py-1 rounded">মূল</span>}<span className={`text-xs px-2 py-1 rounded ${variant.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>{variant.isActive ? 'অ্যাকটিভ' : 'ইনঅ্যাকটিভ'}</span></div>
+        <div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={() => void toggleHistory()}><History size={14} className="mr-1" />আগের রেকর্ড</Button>{isPackaged && !variant.isDefault && <Button type="button" size="sm" variant="outline" onClick={() => void makeDefault()}>মূল করুন</Button>}<Button type="button" size="sm" variant={variant.isActive ? 'destructive' : 'default'} onClick={() => void toggleActive()}>{variant.isActive ? 'ইনঅ্যাকটিভ' : 'অ্যাকটিভ'}</Button></div>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
@@ -264,7 +264,7 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 }
 
 function PriceHistory({ entries }: { entries: SellingPriceHistoryEntry[] }) {
-  return <div className="border-t pt-4 overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left py-2">সময়</th><th className="text-right">পুরনো</th><th className="text-right">নতুন</th><th className="text-left pl-3">কারণ</th><th className="text-left pl-3">পরিবর্তনকারী</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id} className="border-t"><td className="py-2">{new Date(entry.effectiveAt).toLocaleString('bn-BD')}</td><td className="text-right">{entry.previousPrice === null ? 'প্রথম মূল্য' : `৳${entry.previousPrice}`}</td><td className="text-right">৳{entry.newPrice}</td><td className="pl-3">{entry.reason}</td><td className="pl-3">{entry.changedBy.fullName} ({entry.changedBy.role})</td></tr>)}</tbody></table>{entries.length === 0 && <p className="text-muted-foreground">কোনো ইতিহাস নেই</p>}</div>;
+  return <div className="border-t pt-4 overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left py-2">সময়</th><th className="text-right">পুরনো</th><th className="text-right">নতুন</th><th className="text-left pl-3">কারণ</th><th className="text-left pl-3">পরিবর্তনকারী</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id} className="border-t"><td className="py-2">{new Date(entry.effectiveAt).toLocaleString('bn-BD')}</td><td className="text-right">{entry.previousPrice === null ? 'প্রথম মূল্য' : `৳${entry.previousPrice}`}</td><td className="text-right">৳{entry.newPrice}</td><td className="pl-3">{entry.reason}</td><td className="pl-3">{entry.changedBy.fullName} ({entry.changedBy.role})</td></tr>)}</tbody></table>{entries.length === 0 && <p className="text-muted-foreground">আগের কোনো রেকর্ড নেই</p>}</div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

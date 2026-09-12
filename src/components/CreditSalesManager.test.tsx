@@ -48,7 +48,7 @@ describe('credit sales manager', () => {
     expect((await screen.findAllByText('৳600.00')).length).toBeGreaterThan(0);
     expect(screen.getByText('রহিম')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /PS-CREDIT-1/ }));
-    expect(screen.getByText('পেমেন্টের ইতিহাস')).toBeInTheDocument();
+    expect(screen.getByText('আগের পেমেন্টের রেকর্ড')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '01300000000' })).toHaveAttribute('href', 'tel:01300000000');
   });
 

@@ -69,7 +69,16 @@ interface HistoryRow {
 }
 
 function duplicate(target: string) {
-  return { code: "P2002", meta: { target: [target] } };
+  return {
+    code: "P2002",
+    message: `Unique constraint failed on the fields: (${target})`,
+    meta: {
+      modelName: "TestModel",
+      driverAdapterError: {
+        cause: { kind: "UniqueConstraintViolation", constraint: { fields: [target] } },
+      },
+    },
+  };
 }
 
 function createInMemoryPrisma() {
@@ -421,12 +430,15 @@ describe("PostgreSQL catalog service", () => {
     }, ACTOR_ID)).rejects.toMatchObject({ code: "PRODUCT_KIND_LOCKED", status: 409 });
   });
 
-  it("rejects duplicate product slugs", async () => {
+  it("creates unique product slugs when products share the same generated URL", async () => {
     const { prisma } = createInMemoryPrisma();
     const service = createCatalogService(prisma);
-    await service.createProduct(productInput(), ACTOR_ID);
-    await expect(service.createProduct(productInput("raw-honey", "500 g"), ACTOR_ID))
-      .rejects.toMatchObject({ code: "DUPLICATE_SLUG", status: 409 });
+    const first = await service.createProduct(productInput(), ACTOR_ID);
+    const second = await service.createProduct(productInput("raw-honey", "500 g"), ACTOR_ID);
+    const third = await service.createProduct(productInput("raw-honey", "1 kg"), ACTOR_ID);
+
+    expect([first.slug, second.slug, third.slug]).toEqual(["raw-honey", "raw-honey-2", "raw-honey-3"]);
+    expect(new Set([first.id, second.id, third.id])).toHaveLength(3);
   });
 
   it("requires an unnamed default pack/size to be named before adding another", async () => {

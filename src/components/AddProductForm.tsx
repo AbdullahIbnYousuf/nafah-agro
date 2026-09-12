@@ -271,18 +271,6 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   {isEdit && kind === (editProduct?.kind ?? 'PACKAGED') && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “{kind === 'PACKAGED' ? 'প্যাক/সাইজ ও দাম' : 'দাম ও স্টক সীমা'}” খুলুন।</p>}
               </div>
 
-              {!isEdit && kind === 'PACKAGED' && <div>
-                <Label htmlFor="variant-name">প্যাক/সাইজ (ঐচ্ছিক)</Label>
-                <Input
-                  id="variant-name"
-                  value={variantName}
-                  onChange={e => setVariantName(e.target.value)}
-                  placeholder="যেমন: ১ কেজি"
-                  className="mt-1 bg-card"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">একাধিক প্যাক/সাইজ থাকলে এখানে প্রথমটির নাম দিন।</p>
-              </div>}
-
               {(kind !== 'PACKAGED' || (isEdit && kind !== (editProduct?.kind ?? 'PACKAGED'))) && <div>
                 <Label htmlFor="low-stock-threshold">লো-স্টক সীমা ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : 'ইউনিট'})</Label>
                 <Input id="low-stock-threshold" type="number" min="0" step={kind === 'PACKAGED' ? '1' : '0.001'} value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} className="mt-1 bg-card" />
@@ -480,7 +468,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
             type="submit"
             form="add-product-form"
             disabled={saving}
-            className="w-full min-w-0 bg-secondary text-secondary-foreground hover:bg-secondary/90 sm:min-w-[120px] sm:w-auto"
+            className="w-full min-w-0 sm:min-w-[120px] sm:w-auto"
           >
             {saving ? (
               <span className="flex items-center gap-2">

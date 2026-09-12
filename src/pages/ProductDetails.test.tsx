@@ -109,7 +109,7 @@ describe('product pack/size selection', () => {
       const addButton = await screen.findByRole('button', { name: 'কার্টে যোগ করুন' });
       expect(addButton).toHaveAttribute('aria-disabled', 'true');
       fireEvent.click(addButton);
-      expect(mocks.toastError).toHaveBeenCalledWith('এই পণ্যের কোনো সক্রিয় প্যাক/সাইজ নেই');
+      expect(mocks.toastError).toHaveBeenCalledWith('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
     } finally {
       product.variants = originalVariants;
     }

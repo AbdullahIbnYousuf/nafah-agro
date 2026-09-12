@@ -336,13 +336,17 @@ describe('role-aware profile page', () => {
     ));
   });
 
-  it('clearly disables invitation fields when backend administration is unavailable', async () => {
+  it('explains unavailable owner invitations from both the warning and button', async () => {
     mocks.getOwners.mockResolvedValue({ owners: [], invitationsConfigured: false });
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
 
     expect(await screen.findByText(/ওনার আমন্ত্রণ এখনো চালু করা হয়নি/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'আমন্ত্রণ পাঠান' })).toBeDisabled();
+    const inviteButton = screen.getByRole('button', { name: 'আমন্ত্রণ পাঠান' });
+    expect(inviteButton).toHaveAttribute('aria-disabled', 'true');
+    expect(inviteButton).not.toBeDisabled();
     expect(screen.getByLabelText('ইমেইল', { selector: '#owner-email' })).toBeDisabled();
+    fireEvent.click(inviteButton);
+    expect(mocks.toastError).toHaveBeenCalledWith('ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।');
     expect(mocks.inviteOwner).not.toHaveBeenCalled();
   });
 

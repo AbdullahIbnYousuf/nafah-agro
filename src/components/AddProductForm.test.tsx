@@ -11,18 +11,20 @@ vi.mock('@/lib/api', () => ({
 }));
 
 describe('product creation form', () => {
-  it('offers an optional pack/size without exposing SKU', () => {
+  it('keeps initial pack/size, SKU, and slug management out of product creation', () => {
     render(<AddProductForm
       categories={[{ id: 'category-1', name: 'Rice', slug: 'rice', isActive: true }]}
       onClose={vi.fn()}
       onCreated={vi.fn()}
     />);
 
-    expect(screen.getByText('প্যাক/সাইজ (ঐচ্ছিক)')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('যেমন: ১ কেজি')).not.toBeRequired();
+    expect(screen.queryByText('প্যাক/সাইজ (ঐচ্ছিক)')).not.toBeInTheDocument();
+    expect(screen.queryByText('একাধিক প্যাক/সাইজ থাকলে এখানে প্রথমটির নাম দিন।')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('যেমন: ১ কেজি')).not.toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('স্লাগ (URL)')).not.toBeInTheDocument();
     expect(screen.queryByText(/^URL:/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'পণ্য সংরক্ষণ করুন' })).not.toHaveClass('bg-secondary');
   });
 
   it('uses a rate and stock threshold instead of pack/size for loose products', () => {

@@ -74,7 +74,7 @@ export const variantUpdateSchema = z.object({
   .refine((value) => Object.keys(value).length > 0)
   .refine(
     (value) => !(value.isDefault === true && value.isActive === false),
-    { message: "An inactive variant cannot be the default", path: ["isDefault"] },
+    { message: "ইনঅ্যাকটিভ প্যাক/সাইজকে মূল করা যাবে না।", path: ["isDefault"] },
   );
 
 export const priceChangeSchema = z.object({
