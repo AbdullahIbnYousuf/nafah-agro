@@ -3,10 +3,12 @@ import { AlertTriangle, Minus, PackageX, Plus, RefreshCw, Trash2 } from 'lucide-
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
 import { adjustStock, createPurchase, getAdminProducts, getStockBatches } from '@/lib/api';
 import type { AmountUnit, Product, ProductVariant, StockBatch } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
+import { formatAppDate } from '@/lib/date';
 import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
 import { amountUnitsForKind, defaultAmountUnit, formatQuantity, productKindLabel, quantityUnitForKind, rateLabel, toBaseQuantity } from '@/lib/quantity';
 
@@ -18,6 +20,16 @@ interface PurchaseRow {
 }
 
 type StockAlertFilter = 'ALL' | 'OUT_OF_STOCK' | 'LOW_STOCK';
+const STOCK_ALERT_FILTER_KEY = 'nafah_stock_alert_filter_v1';
+
+function initialStockAlertFilter(): StockAlertFilter {
+  try {
+    const value = window.localStorage.getItem(STOCK_ALERT_FILTER_KEY);
+    return value === 'OUT_OF_STOCK' || value === 'LOW_STOCK' ? value : 'ALL';
+  } catch {
+    return 'ALL';
+  }
+}
 
 const todayDhaka = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -35,7 +47,7 @@ export default function InventoryManager() {
   const [note, setNote] = useState('');
   const [rows, setRows] = useState<PurchaseRow[]>([{ productVariantId: '', amount: '', amountUnit: 'PIECE', unitBuyingCost: '' }]);
   const [savingPurchase, setSavingPurchase] = useState(false);
-  const [stockAlertFilter, setStockAlertFilter] = useState<StockAlertFilter>('ALL');
+  const [stockAlertFilter, setStockAlertFilter] = useState<StockAlertFilter>(initialStockAlertFilter);
   const [adjustVariantId, setAdjustVariantId] = useState('');
   const [direction, setDirection] = useState<'INCREASE' | 'DECREASE'>('DECREASE');
   const [adjustQuantity, setAdjustQuantity] = useState('');
@@ -77,6 +89,15 @@ export default function InventoryManager() {
     : stockAlertFilter === 'LOW_STOCK'
       ? stockAlerts.lowStock
       : stockAlerts.all;
+
+  function selectStockAlertFilter(filter: StockAlertFilter) {
+    setStockAlertFilter(filter);
+    try {
+      window.localStorage.setItem(STOCK_ALERT_FILTER_KEY, filter);
+    } catch {
+      // The filter still works when browser storage is unavailable.
+    }
+  }
 
   function setRow(index: number, patch: Partial<PurchaseRow>) {
     setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
@@ -185,9 +206,9 @@ export default function InventoryManager() {
       <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 id="stock-alerts-title" className="flex items-center gap-2 text-lg font-semibold"><AlertTriangle size={18} />স্টক সতর্কতা</h2><p className="mt-1 text-sm text-muted-foreground">যেসব পণ্য আবার কেনা দরকার, সেগুলো এখানে দেখুন।</p></div>
         <div className="flex flex-wrap gap-2" role="group" aria-label="স্টক সতর্কতা ফিল্টার">
-          <StockAlertFilterButton active={stockAlertFilter === 'ALL'} onClick={() => setStockAlertFilter('ALL')}>সব ({stockAlerts.all.length})</StockAlertFilterButton>
-          <StockAlertFilterButton active={stockAlertFilter === 'OUT_OF_STOCK'} onClick={() => setStockAlertFilter('OUT_OF_STOCK')}>স্টক নেই ({stockAlerts.outOfStock.length})</StockAlertFilterButton>
-          <StockAlertFilterButton active={stockAlertFilter === 'LOW_STOCK'} onClick={() => setStockAlertFilter('LOW_STOCK')}>কম স্টক ({stockAlerts.lowStock.length})</StockAlertFilterButton>
+          <StockAlertFilterButton active={stockAlertFilter === 'ALL'} onClick={() => selectStockAlertFilter('ALL')}>সব ({stockAlerts.all.length})</StockAlertFilterButton>
+          <StockAlertFilterButton active={stockAlertFilter === 'OUT_OF_STOCK'} onClick={() => selectStockAlertFilter('OUT_OF_STOCK')}>স্টক নেই ({stockAlerts.outOfStock.length})</StockAlertFilterButton>
+          <StockAlertFilterButton active={stockAlertFilter === 'LOW_STOCK'} onClick={() => selectStockAlertFilter('LOW_STOCK')}>কম স্টক ({stockAlerts.lowStock.length})</StockAlertFilterButton>
         </div>
       </div>
       {visibleStockAlerts.length === 0
@@ -207,7 +228,7 @@ export default function InventoryManager() {
 
     <form onSubmit={submitPurchase} className="bg-card border rounded-lg p-5 space-y-4">
       <h2 className="font-semibold text-lg">নতুন ক্রয়</h2>
-      <div className="grid sm:grid-cols-2 gap-4"><Field label="ক্রয়ের তারিখ"><Input type="date" value={purchaseDate} onChange={(event) => setPurchaseDate(event.target.value)} required /></Field><Field label="নোট (ঐচ্ছিক)"><Input value={note} onChange={(event) => setNote(event.target.value)} /></Field></div>
+      <div className="grid sm:grid-cols-2 gap-4"><Field label="ক্রয়ের তারিখ"><FormattedDateInput aria-label="ক্রয়ের তারিখ" value={purchaseDate} onChange={(event) => setPurchaseDate(event.target.value)} required /></Field><Field label="নোট (ঐচ্ছিক)"><Input value={note} onChange={(event) => setNote(event.target.value)} /></Field></div>
       <div className="space-y-3">{rows.map((row, index) => <div id={`purchase-row-${index}`} tabIndex={-1} key={index} className="grid lg:grid-cols-[2fr_1fr_1fr_auto] gap-3 items-end border rounded p-3 outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
         <Field label="পণ্য / প্যাক/সাইজ"><VariantSelect ariaLabel={`ক্রয়ের পণ্য / প্যাক/সাইজ ${index + 1}`} variants={variants} value={row.productVariantId} onChange={(value) => { const selected = variantById.get(value); setRow(index, { productVariantId: value, amountUnit: defaultAmountUnit(selected?.product.kind), amount: '' }); }} /></Field>
         <Field label="পরিমাণ"><AmountInput kind={variantById.get(row.productVariantId)?.product.kind} amount={row.amount} unit={row.amountUnit} onAmountChange={(amount) => setRow(index, { amount })} onUnitChange={(amountUnit) => setRow(index, { amountUnit, amount: '' })} /></Field>
@@ -221,16 +242,16 @@ export default function InventoryManager() {
       <h2 className="font-semibold text-lg">স্টক সমন্বয়</h2>
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
         <Field label="পণ্য / প্যাক/সাইজ"><VariantSelect ariaLabel="স্টক সমন্বয়ের পণ্য / প্যাক/সাইজ" variants={variants} value={adjustVariantId} onChange={(value) => { setAdjustVariantId(value); setAdjustAmountUnit(defaultAmountUnit(variantById.get(value)?.product.kind)); setAdjustQuantity(''); }} /></Field>
-        <Field label="ধরন"><select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={direction} onChange={(event) => setDirection(event.target.value as 'INCREASE' | 'DECREASE')}><option value="DECREASE">স্টক কমান, আগের স্টক আগে</option><option value="INCREASE">স্টক বাড়ান, নতুন ব্যাচ</option></select></Field>
+        <Field label="ধরন"><select className="h-11 w-full rounded-md border bg-background px-3 md:h-10" value={direction} onChange={(event) => setDirection(event.target.value as 'INCREASE' | 'DECREASE')}><option value="DECREASE">স্টক কমান</option><option value="INCREASE">স্টক বাড়ান</option></select></Field>
         <Field label="পরিমাণ"><AmountInput kind={variantById.get(adjustVariantId)?.product.kind} amount={adjustQuantity} unit={adjustAmountUnit} onAmountChange={setAdjustQuantity} onUnitChange={(unit) => { setAdjustAmountUnit(unit); setAdjustQuantity(''); }} /></Field>
         {direction === 'INCREASE' && <Field label={`ক্রয়মূল্য (৳, ${rateLabel(variantById.get(adjustVariantId)?.product.kind)})`}><Input type="number" min="0.01" step="0.01" value={adjustCost} onChange={(event) => setAdjustCost(event.target.value)} /></Field>}
-        {direction === 'INCREASE' && <Field label="স্টক যোগ করার তারিখ"><Input type="date" value={adjustDate} onChange={(event) => setAdjustDate(event.target.value)} /></Field>}
+        {direction === 'INCREASE' && <Field label="স্টক যোগ করার তারিখ"><FormattedDateInput aria-label="স্টক যোগ করার তারিখ" value={adjustDate} onChange={(event) => setAdjustDate(event.target.value)} /></Field>}
       </div>
       <Field label="সমন্বয়ের কারণ *"><Input value={adjustReason} onChange={(event) => setAdjustReason(event.target.value)} placeholder="যেমন: ক্ষতিগ্রস্ত ২ ইউনিট" /></Field>
       <div className="text-right"><Button type="submit" disabled={savingAdjustment}>{direction === 'INCREASE' ? <Plus size={15} className="mr-2" /> : <Minus size={15} className="mr-2" />}{savingAdjustment ? 'সংরক্ষণ হচ্ছে…' : 'সমন্বয় সংরক্ষণ'}</Button></div>
     </form>
 
-    <section><h2 className="font-semibold text-lg mb-3">স্টকের বিস্তারিত ও ক্রয়মূল্য</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">পণ্য / প্যাক/সাইজ</th><th className="text-left p-3">উৎস ও তারিখ</th><th className="text-right p-3">ক্রয়</th><th className="text-right p-3">অবশিষ্ট</th><th className="text-right p-3">রিজার্ভ</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-left p-3">কারণ/নোট</th></tr></thead><tbody>{batches.map((batch) => <tr key={batch.id} className="border-t"><td className="p-3"><strong>{batch.productName}</strong><div className="text-xs text-muted-foreground">{batch.productKind === 'PACKAGED' ? visiblePackSize(batch.variantName) : productKindLabel(batch.productKind)}</div></td><td className="p-3">{batch.source === 'PURCHASE' ? 'ক্রয়' : 'সমন্বয়'}<div className="text-xs">{new Date(batch.purchaseDate).toLocaleDateString('bn-BD')}</div></td><td className="p-3 text-right">{formatQuantity(batch.purchasedQuantity, batch.quantityUnit)}</td><td className="p-3 text-right font-medium">{formatQuantity(batch.availableQuantity, batch.quantityUnit)}</td><td className="p-3 text-right">{formatQuantity(batch.reservedQuantity, batch.quantityUnit)}</td><td className="p-3 text-right">৳{batch.unitBuyingCost.toFixed(2)}<div className="text-xs text-muted-foreground">{rateLabel(batch.productKind)}</div></td><td className="p-3 text-xs">{batch.adjustmentReason ?? batch.note ?? 'নোট নেই'}</td></tr>)}</tbody></table>{batches.length === 0 && <p className="p-6 text-center text-muted-foreground">এখনো কোনো স্টক ব্যাচ নেই</p>}</div></section>
+    <section><h2 className="font-semibold text-lg mb-3">স্টকের বিস্তারিত ও ক্রয়মূল্য</h2><div className="border rounded-lg overflow-x-auto bg-card"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">পণ্য / প্যাক/সাইজ</th><th className="text-left p-3">উৎস ও তারিখ</th><th className="text-right p-3">ক্রয়</th><th className="text-right p-3">অবশিষ্ট</th><th className="text-right p-3">রিজার্ভ</th><th className="text-right p-3">ক্রয়মূল্য</th><th className="text-left p-3">কারণ/নোট</th></tr></thead><tbody>{batches.map((batch) => <tr key={batch.id} className="border-t"><td className="p-3"><strong>{batch.productName}</strong><div className="text-xs text-muted-foreground">{batch.productKind === 'PACKAGED' ? visiblePackSize(batch.variantName) : productKindLabel(batch.productKind)}</div></td><td className="p-3">{batch.source === 'PURCHASE' ? 'ক্রয়' : 'সমন্বয়'}<div className="text-xs">{formatAppDate(batch.purchaseDate)}</div></td><td className="p-3 text-right">{formatQuantity(batch.purchasedQuantity, batch.quantityUnit)}</td><td className="p-3 text-right font-medium">{formatQuantity(batch.availableQuantity, batch.quantityUnit)}</td><td className="p-3 text-right">{formatQuantity(batch.reservedQuantity, batch.quantityUnit)}</td><td className="p-3 text-right">৳{batch.unitBuyingCost.toFixed(2)}<div className="text-xs text-muted-foreground">{rateLabel(batch.productKind)}</div></td><td className="p-3 text-xs">{batch.adjustmentReason ?? batch.note ?? 'নোট নেই'}</td></tr>)}</tbody></table>{batches.length === 0 && <p className="p-6 text-center text-muted-foreground">এখনো কোনো স্টক ব্যাচ নেই</p>}</div></section>
   </div>;
 }
 

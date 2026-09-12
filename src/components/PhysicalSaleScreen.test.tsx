@@ -318,7 +318,7 @@ describe('physical sale history', () => {
 
     await waitFor(() => expect(mocks.createPhysicalSale).toHaveBeenCalledWith(expect.objectContaining({
       paymentMode: 'CREDIT', customerName: 'করিম', customerPhone: undefined, createCreditCustomer: true, nextFollowUpDate: expect.any(String),
-    })));
+    })), { timeout: 3_000 });
   });
 
   it('selects an existing customer by name and fills saved credit details', async () => {

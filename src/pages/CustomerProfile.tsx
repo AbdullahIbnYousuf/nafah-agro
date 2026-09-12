@@ -24,6 +24,7 @@ import {
 import { formatBanglaNumber, getErrorMessage } from '@/lib/utils';
 import { productPackLabel } from '@/lib/productOptions';
 import { formatQuantity } from '@/lib/quantity';
+import { formatAppDateTime } from '@/lib/date';
 import type { CustomerPromotionCandidate, OrderStatus, OwnerAccount, UnifiedOrder } from '@/lib/types';
 
 const statusLabels: Record<OrderStatus, string> = {
@@ -328,7 +329,7 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
                 {owner.promotedFromCustomer && <Badge variant="outline">কাস্টমার থেকে ওনার</Badge>}
               </div>
               <div className="text-sm text-muted-foreground mt-1">{owner.email ?? 'ইমেইল পাওয়া যায়নি'} · {owner.phoneNumber ?? 'ফোন নেই'}</div>
-              <div className="text-xs text-muted-foreground mt-1">{owner.lastSignInAt ? `শেষ লগইন: ${new Date(owner.lastSignInAt).toLocaleString('bn-BD')}` : owner.invitedAt ? 'আমন্ত্রণ গ্রহণের অপেক্ষায়' : 'সরাসরি তৈরি করা'}</div>
+              <div className="text-xs text-muted-foreground mt-1">{owner.lastSignInAt ? `শেষ লগইন: ${formatAppDateTime(owner.lastSignInAt)}` : owner.invitedAt ? 'আমন্ত্রণ গ্রহণের অপেক্ষায়' : 'সরাসরি তৈরি করা'}</div>
               {demotionBlockedMessage(owner) && <p className="mt-1 text-xs text-muted-foreground">{demotionBlockedMessage(owner)}</p>}
             </div>
             {owner.id !== currentOwnerId && <div className="flex flex-wrap gap-2">
@@ -363,7 +364,7 @@ function CustomerOrders() {
   return <section className="bg-card rounded-2xl border p-6"><div className="flex items-center gap-2 mb-6"><Package size={22} /><h2 className="text-xl font-bold">আমার ওয়েবসাইট অর্ডার</h2><span className="ml-auto text-sm text-muted-foreground">মোট: {formatBanglaNumber(orders.length)}</span></div>
     {loading ? <div className="py-16 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : orders.length === 0 ? <div className="text-center py-16"><ShoppingBag size={48} className="mx-auto text-muted-foreground/40 mb-4" /><p className="mb-4">কোনো অ্যাকাউন্ট-সংযুক্ত ওয়েবসাইট অর্ডার নেই</p><Button asChild><Link to="/shop">দোকানে যান</Link></Button></div> : <div className="space-y-3">{orders.map(order => {
       const expanded = expandedId === order.id;
-      return <article key={order.id} className="border rounded-lg overflow-hidden"><button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setExpandedId(expanded ? null : order.id)}>{expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}<div className="flex-1"><strong>{order.orderNumber}</strong><div className="text-xs text-muted-foreground">{new Date(order.placedAt).toLocaleString('bn-BD')} · {statusLabels[order.status]}</div></div><strong>৳{order.grandTotal}</strong></button>
+      return <article key={order.id} className="border rounded-lg overflow-hidden"><button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setExpandedId(expanded ? null : order.id)}>{expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}<div className="flex-1"><strong>{order.orderNumber}</strong><div className="text-xs text-muted-foreground">{formatAppDateTime(order.placedAt)} · {statusLabels[order.status]}</div></div><strong>৳{order.grandTotal}</strong></button>
         {expanded && <div className="border-t p-4 bg-muted/10"><div className="space-y-2">{order.items.map(item => <div key={item.id} className="flex justify-between text-sm"><span>{productPackLabel(item.productName, item.variantName)} × {formatQuantity(item.quantity, item.quantityUnit)}</span><span>৳{item.grossLineRevenue}</span></div>)}</div><div className="border-t mt-3 pt-3 text-sm space-y-1"><div className="flex justify-between"><span>সাবটোটাল</span><span>৳{order.subtotal}</span></div><div className="flex justify-between"><span>ডেলিভারি</span><span>৳{order.deliveryCharge}</span></div><div className="flex justify-between font-bold"><span>মোট</span><span>৳{order.grandTotal}</span></div></div>{order.statusReason && <p className="text-sm text-destructive mt-3">{order.statusReason}</p>}</div>}
       </article>;
     })}</div>}

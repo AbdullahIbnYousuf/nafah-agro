@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarClock, ChevronDown, Clock3, HandCoins, Plus, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
+import { ChevronDown, Clock3, HandCoins, Plus, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import PhysicalSaleReturnDialog from '@/components/PhysicalSaleReturnDialog';
@@ -13,6 +14,7 @@ import type { AmountUnit, CreditCustomerSuggestion, PhysicalSale, Product, Produ
 import { getErrorMessage } from '@/lib/utils';
 import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
 import { amountUnitsForKind, defaultAmountUnit, formatQuantity, productKindLabel, quantityUnitForKind, rateLabel, toBaseQuantity } from '@/lib/quantity';
+import { formatAppDate, formatAppDateTime } from '@/lib/date';
 
 interface SaleLine {
   product: Product;
@@ -351,9 +353,9 @@ export default function PhysicalSaleScreen() {
         {paymentMode === 'CREDIT' && selectedCreditCustomer && <div className="grid gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:grid-cols-3">
           <Metric label="আগের বাকি" value={money(selectedCreditCustomer.outstandingAmount)} />
           <Metric label="এই বিক্রির পর" value={money(selectedCreditCustomer.outstandingAmount + Math.max(total, 0))} />
-          <Metric label="যোগাযোগের তারিখ" value={nextFollowUpDate || 'তারিখ দিন'} />
+          <Metric label="যোগাযোগের তারিখ" value={formatAppDate(nextFollowUpDate) || 'তারিখ দিন'} />
         </div>}
-        {paymentMode === 'CREDIT' && <Field label="পরবর্তী যোগাযোগের তারিখ" error={errors.followUp}><div className="relative"><CalendarClock className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="পরবর্তী যোগাযোগের তারিখ" className="pl-10" type="date" min={dhakaDate()} value={nextFollowUpDate} onChange={(event) => { setNextFollowUpDate(event.target.value); setErrors((current) => ({ ...current, followUp: undefined })); }} aria-invalid={Boolean(errors.followUp)} /></div></Field>}
+        {paymentMode === 'CREDIT' && <Field label="পরবর্তী যোগাযোগের তারিখ" error={errors.followUp}><FormattedDateInput aria-label="পরবর্তী যোগাযোগের তারিখ" min={dhakaDate()} value={nextFollowUpDate} onChange={(event) => { setNextFollowUpDate(event.target.value); setErrors((current) => ({ ...current, followUp: undefined })); }} aria-invalid={Boolean(errors.followUp)} /></Field>}
         <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
         {errors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{errors.submit}</p>}
@@ -361,7 +363,7 @@ export default function PhysicalSaleScreen() {
       </section>
     </div>
 
-    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2>{completed.paymentMethod === 'CREDIT' && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">বাকি {money(completed.outstandingAmount)}</span>}</div><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label={completed.paymentMethod === 'CREDIT' ? 'পরবর্তী যোগাযোগ' : 'মার্জিন'} value={completed.paymentMethod === 'CREDIT' ? completed.nextFollowUpDate ?? 'বাকি শেষ' : completed.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
+    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2>{completed.paymentMethod === 'CREDIT' && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">বাকি {money(completed.outstandingAmount)}</span>}</div><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label={completed.paymentMethod === 'CREDIT' ? 'পরবর্তী যোগাযোগ' : 'মার্জিন'} value={completed.paymentMethod === 'CREDIT' ? formatAppDate(completed.nextFollowUpDate) || 'বাকি শেষ' : completed.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
 
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
@@ -383,8 +385,8 @@ export default function PhysicalSaleScreen() {
           onChange={(event) => setHistoryQuery(event.target.value)}
           placeholder="নাম, ফোন, বিক্রয় নম্বর বা মোট দাম"
         /></Field>
-        <Field label="তারিখ থেকে"><Input type="date" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></Field>
-        <Field label="তারিখ পর্যন্ত"><Input type="date" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></Field>
+        <Field label="তারিখ থেকে"><FormattedDateInput aria-label="বিক্রির তারিখ থেকে" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></Field>
+        <Field label="তারিখ পর্যন্ত"><FormattedDateInput aria-label="বিক্রির তারিখ পর্যন্ত" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></Field>
         <Button type="submit" variant="outline"><Search size={16} className="mr-2" />খুঁজুন</Button>
         <Button type="button" variant="ghost" onClick={clearHistoryFilters} disabled={!historyProduct && !historyQuery && !historyDateFrom && !historyDateTo && !historyFilters.product && !historyFilters.query && !historyFilters.dateFrom && !historyFilters.dateTo}>ফিল্টার মুছুন</Button>
       </form>
@@ -497,7 +499,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
           </div>
           {firstItem && <div className="mt-0.5 text-sm text-muted-foreground">{formatQuantity(firstItem.quantity, firstItem.quantityUnit)}{remainingItems > 0 ? ' এবং অন্যান্য পণ্য' : ''}</div>}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><Clock3 size={13} />{new Date(sale.completedAt).toLocaleString('bn-BD')}</span>
+            <span className="inline-flex items-center gap-1"><Clock3 size={13} />{formatAppDateTime(sale.completedAt)}</span>
             <span className="inline-flex min-w-0 items-center gap-1"><UserRound size={13} /><span className="truncate">{customer || 'ক্রেতার তথ্য নেই'}</span></span>
             <span className="truncate">{sale.orderNumber}</span>
           </div>
@@ -544,7 +546,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
         {sale.returns.length > 0 && <div className="mt-4 space-y-2">
           <h3 className="text-sm font-semibold">আগের ফেরতের রেকর্ড</h3>
           {sale.returns.map((value) => <div key={value.id} className="rounded-lg border bg-card p-3 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{new Date(value.createdAt).toLocaleString('bn-BD')}</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{formatAppDateTime(value.createdAt)}</span></div>
             <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
             <div className="mt-1">ফেরত মূল্য {money(value.refundAmount)}{sale.paymentMethod === 'CREDIT' ? ` · বাকি কমেছে ${money(value.creditOffsetAmount)} · নগদ ফেরত ${money(value.cashRefundAmount)}` : ''} · কারণ: {value.reason}</div>
           </div>)}

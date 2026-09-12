@@ -15,6 +15,7 @@ import type { Product, ProductVariant, SellingPriceHistoryEntry } from '@/lib/ty
 import { getErrorMessage } from '@/lib/utils';
 import { packSizeAdminLabel, visiblePackSize } from '@/lib/productOptions';
 import { productKindLabel, rateLabel } from '@/lib/quantity';
+import { formatAppDateTime } from '@/lib/date';
 
 interface VariantManagerProps {
   product: Product;
@@ -264,7 +265,7 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 }
 
 function PriceHistory({ entries }: { entries: SellingPriceHistoryEntry[] }) {
-  return <div className="border-t pt-4 overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left py-2">সময়</th><th className="text-right">পুরনো</th><th className="text-right">নতুন</th><th className="text-left pl-3">কারণ</th><th className="text-left pl-3">পরিবর্তনকারী</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id} className="border-t"><td className="py-2">{new Date(entry.effectiveAt).toLocaleString('bn-BD')}</td><td className="text-right">{entry.previousPrice === null ? 'প্রথম মূল্য' : `৳${entry.previousPrice}`}</td><td className="text-right">৳{entry.newPrice}</td><td className="pl-3">{entry.reason}</td><td className="pl-3">{entry.changedBy.fullName} ({entry.changedBy.role})</td></tr>)}</tbody></table>{entries.length === 0 && <p className="text-muted-foreground">আগের কোনো রেকর্ড নেই</p>}</div>;
+  return <div className="border-t pt-4 overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left py-2">সময়</th><th className="text-right">পুরনো</th><th className="text-right">নতুন</th><th className="text-left pl-3">কারণ</th><th className="text-left pl-3">পরিবর্তনকারী</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id} className="border-t"><td className="py-2">{formatAppDateTime(entry.effectiveAt)}</td><td className="text-right">{entry.previousPrice === null ? 'প্রথম মূল্য' : `৳${entry.previousPrice}`}</td><td className="text-right">৳{entry.newPrice}</td><td className="pl-3">{entry.reason}</td><td className="pl-3">{entry.changedBy.fullName} ({entry.changedBy.role})</td></tr>)}</tbody></table>{entries.length === 0 && <p className="text-muted-foreground">আগের কোনো রেকর্ড নেই</p>}</div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

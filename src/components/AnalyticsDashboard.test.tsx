@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalyticsDashboardData } from '@/lib/types';
-import AnalyticsDashboard from './AnalyticsDashboard';
+import AnalyticsDashboard, { ComparisonTooltip } from './AnalyticsDashboard';
 
 const mocks = vi.hoisted(() => ({
   getAnalyticsDashboard: vi.fn(),
@@ -16,7 +16,9 @@ vi.mock('@/lib/api', () => ({
 vi.mock('recharts', () => ({
   CartesianGrid: () => null,
   Legend: () => null,
-  Line: () => null,
+  Line: ({ dataKey, strokeDasharray }: { dataKey: string; strokeDasharray?: string }) => (
+    <div data-testid={`line-${dataKey}`} data-dashed={strokeDasharray ?? ''} />
+  ),
   LineChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Tooltip: () => null,
@@ -35,6 +37,20 @@ const metric = {
   percentChange: 0,
 };
 
+const salesMetric = {
+  value: 14,
+  previousValue: 3030,
+  absoluteChange: -3016,
+  percentChange: -99.54,
+};
+
+const profitMetric = {
+  value: 250,
+  previousValue: 200,
+  absoluteChange: 50,
+  percentChange: 25,
+};
+
 const dashboard: AnalyticsDashboardData = {
   generatedAt: '2026-08-07T12:00:00.000Z',
   currency: 'BDT',
@@ -42,14 +58,16 @@ const dashboard: AnalyticsDashboardData = {
   week: { startsOn: 'SUNDAY', endsOn: 'SATURDAY' },
   range: {
     preset: 'month',
-    current: { from: '2026-08-01', to: '2026-08-31' },
-    previous: { from: '2026-07-01', to: '2026-07-31' },
+    current: { from: '2026-08-01', to: '2026-08-07' },
+    previous: { from: '2026-07-01', to: '2026-07-07' },
   },
   summary: {
-    recognizedSales: metric,
+    recognizedSales: salesMetric,
     productRevenue: metric,
+    cashProductRevenue: metric,
+    creditProductRevenue: metric,
     deliveryCharges: metric,
-    grossProfit: metric,
+    grossProfit: profitMetric,
     grossMargin: metric,
     recognizedOrderCount: metric,
     soldQuantities: { pieces: metric, weightKg: metric, volumeLitres: metric },
@@ -58,7 +76,11 @@ const dashboard: AnalyticsDashboardData = {
     lowStockVariantCount: 0,
     outOfStockVariantCount: 0,
   },
-  trend: [{ date: '2026-08-07', recognizedSales: 1000, grossProfit: 250 }],
+  trendGranularity: 'DAY',
+  trend: [{
+    current: { from: '2026-08-07', to: '2026-08-07', recognizedSales: 14, grossProfit: 250 },
+    previous: { from: '2026-07-07', to: '2026-07-07', recognizedSales: 3030, grossProfit: 200 },
+  }],
   salesBySource: [
     { source: 'WEBSITE', orderCount: 1, recognizedSales: 100 },
     { source: 'PHYSICAL_SHOP', orderCount: 2, recognizedSales: 200 },
@@ -83,6 +105,7 @@ const dashboard: AnalyticsDashboardData = {
 describe('analytics dashboard date controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mocks.getCreditSummary.mockResolvedValue({
       totalOutstanding: 0,
       openSaleCount: 0,
@@ -111,8 +134,8 @@ describe('analytics dashboard date controls', () => {
           ...dashboard,
           range: {
             preset: 'year' as const,
-            current: { from: '2026-01-01', to: '2026-12-31' },
-            previous: { from: '2025-01-01', to: '2025-12-31' },
+            current: { from: '2026-01-01', to: '2026-08-07' },
+            previous: { from: '2025-01-01', to: '2025-08-07' },
           },
         };
       }
@@ -134,14 +157,31 @@ describe('analytics dashboard date controls', () => {
     render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
 
     await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-01'));
-    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-31');
+    const currentStatusHeading = screen.getByRole('heading', { name: 'এখনকার অবস্থা' });
+    expect(screen.getByText('এগুলো সব সময় বর্তমান অবস্থা দেখায়।')).toBeInTheDocument();
+    expect(currentStatusHeading.compareDocumentPosition(screen.getByLabelText('তারিখ থেকে')) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-07');
     expect(screen.queryByRole('button', { name: 'নিজস্ব সময়সীমা' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('graph-date')).toHaveTextContent('৭ আগস্ট');
+    expect(screen.getByTestId('graph-date')).toHaveTextContent('07/08/2026');
     expect(screen.getByTestId('graph-amount')).toHaveTextContent('1,000');
+    expect(screen.getByRole('button', { name: 'বিক্রি' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('প্রতিদিনের বিক্রি তুলনা')).toBeInTheDocument();
+    expect(screen.getByTestId('line-currentValue')).toHaveAttribute('data-dashed', '');
+    expect(screen.getByTestId('line-previousValue')).toHaveAttribute('data-dashed', '7 5');
+    expect(screen.getAllByText('এই সময়').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('আগের সময়').length).toBeGreaterThan(1);
+    expect(screen.getByText(/এই সময়ের বিক্রি অনেক কম/)).toBeInTheDocument();
     expect(screen.queryByText('বিক্রি হওয়া প্যাক/ইউনিট')).not.toBeInTheDocument();
     expect(screen.queryByText('বিক্রি হওয়া ওজন')).not.toBeInTheDocument();
     expect(screen.queryByText('বিক্রি হওয়া তরল')).not.toBeInTheDocument();
     expect(screen.queryByText('গড় অর্ডার মূল্য')).not.toBeInTheDocument();
+    expect(screen.queryByText('মোট সম্পন্ন বিক্রি')).not.toBeInTheDocument();
+    expect(screen.getByText('নগদে বিক্রি')).toBeInTheDocument();
+    expect(screen.getByText('বাকিতে বিক্রি')).toBeInTheDocument();
+    expect(screen.getByText('ডিসকাউন্ট বাদ দিয়ে পণ্য বিক্রি থেকে মোট আয়।')).toBeInTheDocument();
+    const deliveredCard = screen.getByText('ডেলিভারড অর্ডার').closest('div.rounded-xl');
+    const deliveryChargeCard = screen.getByText('ডেলিভারি চার্জ').closest('div.rounded-xl');
+    expect(deliveredCard?.compareDocumentPosition(deliveryChargeCard!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.queryByText('ইনভেন্টরি সারাংশ')).not.toBeInTheDocument();
     expect(screen.getByText('ওয়েবসাইট')).toBeInTheDocument();
     expect(screen.getByText('দোকান')).toBeInTheDocument();
@@ -151,11 +191,15 @@ describe('analytics dashboard date controls', () => {
     expect(screen.queryByText('ফেসবুক')).not.toBeInTheDocument();
     expect(screen.queryByText('ফোন')).not.toBeInTheDocument();
     expect(screen.queryByText('হোয়াটসঅ্যাপ')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'চলমান COD অর্ডার বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/orders');
+    expect(screen.getByRole('link', { name: 'কম স্টকের প্যাক/সাইজ বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/inventory');
+    expect(screen.getByRole('link', { name: 'স্টক নেই এমন প্যাক/সাইজ বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/inventory');
+    expect(screen.getByRole('link', { name: 'বাকি হিসাব বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/dues');
 
     fireEvent.click(screen.getByRole('button', { name: 'এই বছর' }));
     await waitFor(() => expect(mocks.getAnalyticsDashboard).toHaveBeenCalledWith({ preset: 'year' }));
     await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-01-01'));
-    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-12-31');
+    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-07');
 
     fireEvent.change(screen.getByLabelText('তারিখ থেকে'), { target: { value: '2026-03-10' } });
     fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-04-15' } });
@@ -168,6 +212,54 @@ describe('analytics dashboard date controls', () => {
     fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-04-15' } });
     expect(screen.getByRole('button', { name: 'প্রয়োগ করুন' })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('সর্বোচ্চ ৩৬৬ দিন');
+  });
+
+  it('switches the comparison chart from sales to profit while keeping two lines', async () => {
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
+
+    expect(await screen.findByText('প্রতিদিনের বিক্রি তুলনা')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'লাভ' }));
+
+    expect(screen.getByText('প্রতিদিনের লাভ তুলনা')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'লাভ' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByText('৳২৫০').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId(/^line-/)).toHaveLength(2);
+  });
+
+  it('shows both actual date ranges and values in the comparison tooltip', () => {
+    render(<ComparisonTooltip active payload={[{
+      payload: {
+        currentFrom: '2026-08-01',
+        currentTo: '2026-08-07',
+        previousFrom: '2026-07-01',
+        previousTo: '2026-07-07',
+        currentValue: 1000,
+        previousValue: 800,
+      },
+    }]} />);
+
+    expect(screen.getByText(/01\/08\/2026.*07\/08\/2026/)).toBeInTheDocument();
+    expect(screen.getByText(/01\/07\/2026.*07\/07\/2026/)).toBeInTheDocument();
+    expect(screen.getByText('৳১,০০০')).toBeInTheDocument();
+    expect(screen.getByText('৳৮০০')).toBeInTheDocument();
+  });
+
+  it('restores the last valid custom range and chart choice after refresh', async () => {
+    window.localStorage.setItem('nafah_dashboard_preferences_v1', JSON.stringify({
+      preset: 'custom',
+      from: '2026-05-01',
+      to: '2026-05-10',
+      chartMetric: 'PROFIT',
+    }));
+
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
+
+    await waitFor(() => expect(mocks.getAnalyticsDashboard).toHaveBeenCalledWith({
+      preset: 'custom', from: '2026-05-01', to: '2026-05-10',
+    }));
+    expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-05-01');
+    expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-05-10');
+    expect(screen.getByRole('button', { name: 'লাভ' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('hides the trend graph when the selected range is one day', async () => {

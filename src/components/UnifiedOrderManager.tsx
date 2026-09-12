@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
 import ReturnOrderDialog, { type ReturnCondition } from '@/components/ReturnOrderDialog';
 import OrderActionDialog, { type OrderAction } from '@/components/OrderActionDialog';
@@ -20,6 +21,7 @@ import {
 import type { DeliveryRate, OrderSource, OrderStatus, Product, UnifiedOrder } from '@/lib/types';
 import { productPackLabel } from '@/lib/productOptions';
 import { formatQuantity } from '@/lib/quantity';
+import { formatAppDateTime } from '@/lib/date';
 
 const sources: OrderSource[] = ['WEBSITE', 'PHYSICAL_SHOP', 'FACEBOOK', 'PHONE', 'WHATSAPP', 'OTHER'];
 const statuses: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PROCESSING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'RETURNED_SELLABLE', 'RETURNED_DAMAGED'];
@@ -27,18 +29,47 @@ const manualSources = ['FACEBOOK', 'PHONE', 'WHATSAPP', 'OTHER'] as const;
 
 interface ManualItem { productVariantId: string; quantity: number }
 
+interface OrderFilterPreferences {
+  source: OrderSource | '';
+  status: OrderStatus | '';
+  orderNumber: string;
+  phone: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
+const ORDER_FILTERS_KEY = 'nafah_order_filters_v1';
+
+function readOrderFilters(orderNumberFromUrl: string): OrderFilterPreferences {
+  const fallback: OrderFilterPreferences = { source: '', status: '', orderNumber: orderNumberFromUrl, phone: '', dateFrom: '', dateTo: '' };
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(ORDER_FILTERS_KEY) ?? '{}') as Record<string, unknown>;
+    return {
+      source: sources.includes(value.source as OrderSource) ? value.source as OrderSource : '',
+      status: statuses.includes(value.status as OrderStatus) ? value.status as OrderStatus : '',
+      orderNumber: orderNumberFromUrl || (typeof value.orderNumber === 'string' ? value.orderNumber : ''),
+      phone: typeof value.phone === 'string' ? value.phone : '',
+      dateFrom: typeof value.dateFrom === 'string' ? value.dateFrom : '',
+      dateTo: typeof value.dateTo === 'string' ? value.dateTo : '',
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export default function UnifiedOrderManager() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [initialFilters] = useState(() => readOrderFilters(searchParams.get('orderNumber')?.trim() ?? ''));
   const [orders, setOrders] = useState<UnifiedOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [rates, setRates] = useState<DeliveryRate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<OrderSource | ''>('');
-  const [status, setStatus] = useState<OrderStatus | ''>('');
-  const [orderNumber, setOrderNumber] = useState(() => searchParams.get('orderNumber')?.trim() ?? '');
-  const [phoneFilter, setPhoneFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [source, setSource] = useState<OrderSource | ''>(initialFilters.source);
+  const [status, setStatus] = useState<OrderStatus | ''>(initialFilters.status);
+  const [orderNumber, setOrderNumber] = useState(initialFilters.orderNumber);
+  const [phoneFilter, setPhoneFilter] = useState(initialFilters.phone);
+  const [dateFrom, setDateFrom] = useState(initialFilters.dateFrom);
+  const [dateTo, setDateTo] = useState(initialFilters.dateTo);
   const [showManual, setShowManual] = useState(false);
   const [manualSource, setManualSource] = useState<typeof manualSources[number]>('PHONE');
   const [initialStatus, setInitialStatus] = useState<'PENDING' | 'CONFIRMED'>('CONFIRMED');
@@ -72,6 +103,15 @@ export default function UnifiedOrderManager() {
   }, [dateFrom, dateTo, orderNumber, phoneFilter, source, status]);
 
   useEffect(() => { void loadOrders(); }, [loadOrders]);
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(ORDER_FILTERS_KEY, JSON.stringify({
+        source, status, orderNumber, phone: phoneFilter, dateFrom, dateTo,
+      }));
+    } catch {
+      // The filters still work when browser storage is unavailable.
+    }
+  }, [dateFrom, dateTo, orderNumber, phoneFilter, source, status]);
   useEffect(() => {
     void Promise.all([getAdminProducts({ limit: 100 }), getAdminDeliveryRates()]).then(([page, deliveryRates]) => {
       setProducts(page.data);
@@ -177,12 +217,12 @@ export default function UnifiedOrderManager() {
       <select aria-label="অর্ডারের অবস্থা" className="h-11 rounded border bg-background px-3 md:h-10" value={status} onChange={event => setStatus(event.target.value as OrderStatus | '')}><option value="">সব অবস্থা</option>{statuses.map(value => <option key={value}>{value}</option>)}</select>
       <Input aria-label="অর্ডার নম্বর" placeholder="অর্ডার নম্বর" value={orderNumber} onChange={event => setOrderNumber(event.target.value)} />
       <Input aria-label="গ্রাহকের ফোন" placeholder="ফোন" value={phoneFilter} onChange={event => setPhoneFilter(event.target.value)} />
-      <div><Label htmlFor="orders-date-from">তারিখ থেকে</Label><Input id="orders-date-from" type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /></div>
-      <div><Label htmlFor="orders-date-to">তারিখ পর্যন্ত</Label><Input id="orders-date-to" type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} /></div>
+      <div><Label htmlFor="orders-date-from">তারিখ থেকে</Label><FormattedDateInput id="orders-date-from" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /></div>
+      <div><Label htmlFor="orders-date-to">তারিখ পর্যন্ত</Label><FormattedDateInput id="orders-date-to" value={dateTo} onChange={event => setDateTo(event.target.value)} /></div>
       <Button variant="outline" onClick={clearFilters} disabled={!hasActiveFilters}>ফিল্টার মুছুন</Button>
       <Button variant="outline" onClick={() => void loadOrders()}><RefreshCw size={16} className="mr-2" />রিফ্রেশ</Button>
     </section>
-    {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : <div className="space-y-3">{orders.map(order => <article key={order.id} className="bg-card border rounded-lg p-4"><div className="flex flex-wrap justify-between gap-3"><div><strong>{order.orderNumber}</strong><div className="text-sm">{order.source} · {order.status} · {order.customerName ?? 'গ্রাহক নেই'} · {order.customerPhone ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground">{new Date(order.placedAt).toLocaleString('bn-BD')}</div></div><div className="text-right"><div className="font-bold">মোট ৳{order.grandTotal}</div><div className="text-sm">ক্রয়মূল্য {order.totalBuyingCost === null ? 'প্রযোজ্য নয়' : `৳${order.totalBuyingCost}`} · লাভ {order.grossProfit === null ? 'প্রযোজ্য নয়' : `৳${order.grossProfit}`} · মার্জিন {order.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${order.grossProfitMargin}%`}</div></div></div>
+    {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : <div className="space-y-3">{orders.map(order => <article key={order.id} className="bg-card border rounded-lg p-4"><div className="flex flex-wrap justify-between gap-3"><div><strong>{order.orderNumber}</strong><div className="text-sm">{order.source} · {order.status} · {order.customerName ?? 'গ্রাহক নেই'} · {order.customerPhone ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground">{formatAppDateTime(order.placedAt)}</div></div><div className="text-right"><div className="font-bold">মোট ৳{order.grandTotal}</div><div className="text-sm">ক্রয়মূল্য {order.totalBuyingCost === null ? 'প্রযোজ্য নয়' : `৳${order.totalBuyingCost}`} · লাভ {order.grossProfit === null ? 'প্রযোজ্য নয়' : `৳${order.grossProfit}`} · মার্জিন {order.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${order.grossProfitMargin}%`}</div></div></div>
         <div className="text-sm mt-3">{order.items.map(item => `${productPackLabel(item.productName, item.variantName)} × ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
         {order.statusReason && <div className="text-sm text-destructive mt-2">কারণ: {order.statusReason}</div>}
         <div className="flex flex-wrap gap-2 mt-3">{order.status === 'PENDING' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'CONFIRM' })}>নিশ্চিত ও স্টক সংরক্ষণ</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'CANCEL' })}>বাতিল</Button></>}{order.status === 'CONFIRMED' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'PROCESS' })}>প্রসেসিং</Button><Button size="sm" onClick={() => setPendingAction({ order, action: 'DELIVER' })}>ডেলিভারড</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'FAILED_DELIVERY' })}>ডেলিভারি ব্যর্থ</Button></>}{order.status === 'PROCESSING' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'DELIVER' })}>ডেলিভারড</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'FAILED_DELIVERY' })}>ডেলিভারি ব্যর্থ</Button></>}{order.source !== 'PHYSICAL_SHOP' && (order.status === 'DELIVERED' || order.status === 'COMPLETED') && <Button size="sm" variant="outline" onClick={() => setReturnOrder(order)}>পুরো অর্ডার ফেরত</Button>}</div>
