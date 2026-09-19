@@ -30,7 +30,7 @@ interface ProductRow {
   name: string;
   slug: string;
   description: string;
-  kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME";
+  kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME" | "EGG";
   featured: boolean;
   isActive: boolean;
   isVisibleInShop: boolean;
@@ -48,6 +48,7 @@ interface VariantRow {
   name: string;
   sku: string;
   currentSellingPrice: string | number;
+  bulkSellingPrice: string | number | null;
   availableStock: number;
   reservedStock: number;
   lowStockThreshold: number;
@@ -62,6 +63,7 @@ interface HistoryRow {
   variantId: string;
   previousPrice: string | number | null;
   newPrice: string | number;
+  priceTier: "REGULAR" | "EGG_BULK";
   reason: string;
   changedByProfileId: string;
   effectiveAt: Date;
@@ -141,6 +143,8 @@ function createInMemoryPrisma() {
     if (where.isActive === true && !product.isActive) return false;
     if (where.isVisibleInShop === true && !product.isVisibleInShop) return false;
     if (typeof where.kind === "string" && product.kind !== where.kind) return false;
+    if (where.kind && typeof where.kind === "object" && "in" in where.kind
+      && !(where.kind as { in: ProductRow["kind"][] }).in.includes(product.kind)) return false;
     const categoryWhere = where.category as { isActive?: boolean; isVisibleInShop?: boolean; slug?: string } | undefined;
     const category = state.categories.find((item) => item.id === product.categoryId);
     if (categoryWhere?.isActive === true && !category?.isActive) return false;
@@ -248,6 +252,7 @@ function createInMemoryPrisma() {
           name: String(variantData.name),
           sku: String(variantData.sku),
           currentSellingPrice: String(variantData.currentSellingPrice),
+          bulkSellingPrice: variantData.bulkSellingPrice == null ? null : String(variantData.bulkSellingPrice),
           availableStock: 0,
           reservedStock: 0,
           lowStockThreshold: Number(variantData.lowStockThreshold),
@@ -280,11 +285,15 @@ function createInMemoryPrisma() {
     productVariant: {
       findUnique: async ({ where }: { where: { id: string } }) => {
         const row = state.variants.find((variant) => variant.id === where.id);
-        return row ? { ...row } : null;
+        const product = row ? state.products.find((value) => value.id === row.productId) : undefined;
+        return row ? { ...row, product: product ? { kind: product.kind } : undefined } : null;
       },
       findMany: async ({ where }: { where: { id: { in: string[] } } }) => state.variants
         .filter((variant) => where.id.in.includes(variant.id))
-        .map((variant) => ({ ...variant })),
+        .map((variant) => ({
+          ...variant,
+          product: { kind: state.products.find((value) => value.id === variant.productId)?.kind ?? "PACKAGED" },
+        })),
       findFirst: async ({ where }: { where: { productId: string; isActive?: boolean; id?: { not: string } } }) => state.variants.find((variant) => variant.productId === where.productId && (where.isActive !== true || variant.isActive) && variant.id !== where.id?.not) ?? null,
       count: async ({ where }: { where: { productId: string; isActive?: boolean } }) => state.variants.filter((variant) => variant.productId === where.productId && (where.isActive !== true || variant.isActive)).length,
       create: async ({ data }: { data: Partial<VariantRow> & Pick<VariantRow, "productId" | "name" | "sku"> }) => {
@@ -295,6 +304,7 @@ function createInMemoryPrisma() {
           name: data.name,
           sku: data.sku,
           currentSellingPrice: data.currentSellingPrice ?? 0,
+          bulkSellingPrice: data.bulkSellingPrice ?? null,
           availableStock: 0,
           reservedStock: 0,
           lowStockThreshold: data.lowStockThreshold ?? 5,
@@ -321,7 +331,7 @@ function createInMemoryPrisma() {
     },
     sellingPriceHistory: {
       create: async ({ data }: { data: Omit<HistoryRow, "id" | "effectiveAt" | "createdAt"> }) => {
-        const row = { ...data, id: id(), effectiveAt: new Date(), createdAt: new Date() };
+        const row = { ...data, priceTier: data.priceTier ?? "REGULAR", id: id(), effectiveAt: new Date(), createdAt: new Date() };
         state.histories.push(row);
         return row;
       },
@@ -370,7 +380,7 @@ function productInput(slug = "raw-honey", packSize = "", kind: ProductRow["kind"
     slug,
     categoryId: CATEGORY_ID,
     kind,
-    initialVariant: { name: packSize, sellingPrice: "500.00" },
+    initialVariant: { name: packSize, sellingPrice: "500.00", ...(kind === "EGG" ? { bulkSellingPrice: "450.00" } : {}) },
     priceReason: "Initial selling price",
   });
 }
@@ -414,6 +424,44 @@ describe("PostgreSQL catalog service", () => {
     await expect(service.createVariant(product.id, variantCreateSchema.parse({
       name: "5 kg", sellingPrice: "700", priceReason: "Not allowed",
     }), ACTOR_ID)).rejects.toMatchObject({ code: "LOOSE_PRODUCT_SINGLE_OPTION", status: 409 });
+  });
+
+  it("creates an egg product with paired prices and independent immutable histories", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput("farm-eggs", "ignored", "EGG"), ACTOR_ID);
+    expect(product).toMatchObject({
+      kind: "EGG",
+      price: 500,
+      bulkSellingPrice: 450,
+      bulkMinimumQuantity: 15,
+      variantName: "Default",
+    });
+    expect(state.histories).toHaveLength(2);
+    expect(state.histories.map((history) => history.priceTier)).toEqual(["REGULAR", "EGG_BULK"]);
+    await expect(service.createVariant(product.id, variantCreateSchema.parse({
+      name: "30 eggs", sellingPrice: "400", priceReason: "Not allowed",
+    }), ACTOR_ID)).rejects.toMatchObject({ code: "LOOSE_PRODUCT_SINGLE_OPTION", status: 409 });
+
+    const updated = await service.changePrice(product.variants[0].id, {
+      sellingPrice: "520.00",
+      bulkSellingPrice: "460.00",
+      reason: "Market update",
+    }, ACTOR_ID);
+    expect(updated.variants[0]).toMatchObject({ sellingPrice: 520, bulkSellingPrice: 460 });
+    expect(state.histories.slice(-2).map((history) => history.priceTier)).toEqual(["REGULAR", "EGG_BULK"]);
+  });
+
+  it("publishes active egg products but keeps measured loose products out of the storefront", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const egg = await service.createProduct(productInput("farm-eggs", "", "EGG"), ACTOR_ID);
+    await service.createProduct(productInput("loose-rice", "", "LOOSE_WEIGHT"), ACTOR_ID);
+    const query = productListSchema.parse({ limit: 20, page: 1 });
+    const storefront = await service.listProducts(query);
+    expect(storefront.data).toHaveLength(1);
+    expect(storefront.data[0]).toMatchObject({ id: egg.id, kind: "EGG", bulkMinimumQuantity: 15 });
+    await expect(service.getProductBySlug(egg.slug)).resolves.toMatchObject({ kind: "EGG" });
   });
 
   it("changes product type only before operational history exists", async () => {

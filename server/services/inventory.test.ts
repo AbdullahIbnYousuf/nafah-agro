@@ -26,6 +26,7 @@ interface VariantRow {
   name: string;
   sku: string;
   currentSellingPrice: string;
+  bulkSellingPrice: string | null;
   availableStock: number;
   reservedStock: number;
   isActive: boolean;
@@ -33,7 +34,7 @@ interface VariantRow {
     id: string;
     name: string;
     isActive: boolean;
-    kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME";
+    kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME" | "EGG";
     category: { isActive: boolean };
   };
 }
@@ -103,6 +104,7 @@ interface SaleItemRow {
   quantity: number;
   quantityUnit: "PIECE" | "GRAM" | "MILLILITER";
   unitSellingPrice: string;
+  sellingPriceTier: "REGULAR" | "EGG_BULK";
   grossLineRevenue: string;
   allocatedDiscount: string;
   netLineRevenue: string;
@@ -196,12 +198,12 @@ function createInMemoryPrisma() {
     variants: [
       {
         id: VARIANT_A, productId: PRODUCT_A, name: "500 g", sku: "HONEY-500",
-        currentSellingPrice: "500.00", availableStock: 0, reservedStock: 0, isActive: true,
+        currentSellingPrice: "500.00", bulkSellingPrice: null, availableStock: 0, reservedStock: 0, isActive: true,
         product: { id: PRODUCT_A, name: "Raw Honey", isActive: true, kind: "PACKAGED", category: { isActive: true } },
       },
       {
         id: VARIANT_B, productId: PRODUCT_B, name: "1 kg", sku: "RICE-1KG",
-        currentSellingPrice: "300.00", availableStock: 0, reservedStock: 0, isActive: true,
+        currentSellingPrice: "300.00", bulkSellingPrice: null, availableStock: 0, reservedStock: 0, isActive: true,
         product: { id: PRODUCT_B, name: "Red Rice", isActive: true, kind: "PACKAGED", category: { isActive: true } },
       },
     ],
@@ -401,6 +403,7 @@ function createInMemoryPrisma() {
           productVariantId: String(data.productVariantId), productNameSnapshot: String(data.productNameSnapshot),
           variantNameSnapshot: String(data.variantNameSnapshot), skuSnapshot: String(data.skuSnapshot),
           quantity: Number(data.quantity), unitSellingPrice: money(data.unitSellingPrice as MoneyValue),
+          sellingPriceTier: (data.sellingPriceTier as SaleItemRow["sellingPriceTier"] | undefined) ?? "REGULAR",
           quantityUnit: (data.quantityUnit as SaleItemRow["quantityUnit"] | undefined) ?? "PIECE",
           grossLineRevenue: money(data.grossLineRevenue as MoneyValue),
           allocatedDiscount: money(data.allocatedDiscount as MoneyValue), netLineRevenue: money(data.netLineRevenue as MoneyValue),
@@ -765,6 +768,25 @@ describe("Milestone 3 inventory and physical sales", () => {
     expect(result.items[0]).toMatchObject({ unitSellingPrice: 500, totalBuyingCost: 280 });
     expect(stored.items[0]).toMatchObject({ unitSellingPrice: 500, totalBuyingCost: 280 });
     expect(stored.items[0].allocations[0].unitBuyingCost).toBe(280);
+  });
+
+  it("uses the 15+ egg rate for a physical sale and keeps its tier snapshot", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    state.variants[0].product.kind = "EGG";
+    state.variants[0].currentSellingPrice = "12.00";
+    state.variants[0].bulkSellingPrice = "10.00";
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 20, unitBuyingCost: "7" }]), OWNER_ID);
+    const result = await service.createPhysicalSale(sale([{ productVariantId: VARIANT_A, quantity: 15 }]), OWNER_ID);
+    expect(result).toMatchObject({ subtotal: 150, totalBuyingCost: 105, grossProfit: 45 });
+    expect(result.items[0]).toMatchObject({
+      quantity: 15,
+      quantityUnit: "PIECE",
+      unitSellingPrice: 10,
+      sellingPriceTier: "EGG_BULK",
+      grossLineRevenue: 150,
+    });
+    expect(state.variants[0].availableStock).toBe(5);
   });
 
   it("keeps website and manual orders out of the physical-sales list", async () => {

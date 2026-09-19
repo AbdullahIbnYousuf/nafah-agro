@@ -3,7 +3,7 @@ import { z } from "zod";
 const slug = z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/).refine((value) => Number(value) >= 0);
 const uuid = z.string().uuid();
-const productKind = z.enum(["PACKAGED", "LOOSE_WEIGHT", "LOOSE_VOLUME"]);
+const productKind = z.enum(["PACKAGED", "LOOSE_WEIGHT", "LOOSE_VOLUME", "EGG"]);
 const optionalReason = (fallback: string) => z.string().trim().max(300).optional()
   .transform((value) => value || fallback);
 
@@ -31,10 +31,22 @@ export const productCreateSchema = z.object({
   initialVariant: z.object({
     name: z.string().trim().max(120).default(""),
     sellingPrice: money,
+    bulkSellingPrice: money.optional(),
     lowStockThreshold: z.number().int().min(0).max(2_000_000_000).default(5),
   }).strict(),
   priceReason: optionalReason("প্রাথমিক দাম"),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.kind !== "EGG") return;
+  const regular = Number(value.initialVariant.sellingPrice);
+  const bulk = Number(value.initialVariant.bulkSellingPrice);
+  if (!value.initialVariant.bulkSellingPrice || regular <= 0 || bulk <= 0 || bulk >= regular) {
+    context.addIssue({
+      code: "custom",
+      path: ["initialVariant", "bulkSellingPrice"],
+      message: "১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।",
+    });
+  }
+});
 
 export const productUpdateSchema = z.object({
   name: z.string().trim().min(1).max(180).optional(),
@@ -53,9 +65,17 @@ export const productUpdateSchema = z.object({
 export const productKindChangeSchema = z.object({
   kind: productKind,
   sellingPrice: money,
+  bulkSellingPrice: money.optional(),
   lowStockThreshold: z.number().int().min(0).max(2_000_000_000),
   reason: optionalReason("পণ্যের ধরন পরিবর্তন"),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.kind !== "EGG") return;
+  const regular = Number(value.sellingPrice);
+  const bulk = Number(value.bulkSellingPrice);
+  if (!value.bulkSellingPrice || regular <= 0 || bulk <= 0 || bulk >= regular) {
+    context.addIssue({ code: "custom", path: ["bulkSellingPrice"], message: "১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।" });
+  }
+});
 
 export const variantCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -79,6 +99,7 @@ export const variantUpdateSchema = z.object({
 
 export const priceChangeSchema = z.object({
   sellingPrice: money,
+  bulkSellingPrice: money.optional(),
   reason: optionalReason("দাম পরিবর্তন"),
 }).strict();
 
@@ -87,6 +108,7 @@ export const bulkPriceChangeSchema = z.object({
   updates: z.array(z.object({
     variantId: uuid,
     sellingPrice: money,
+    bulkSellingPrice: money.optional(),
   }).strict()).min(2).max(100),
 }).strict().superRefine((value, context) => {
   const ids = value.updates.map((update) => update.variantId);

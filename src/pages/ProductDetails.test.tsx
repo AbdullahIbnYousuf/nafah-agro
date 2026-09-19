@@ -97,6 +97,40 @@ describe('product pack/size selection', () => {
     expect(await screen.findByRole('link', { name: 'পিছনে যান' })).toHaveAttribute('href', '/shop');
   });
 
+  it('shows both egg rates and stores tier data in the cart item', async () => {
+    const original = { kind: product.kind, price: product.price, bulkSellingPrice: product.bulkSellingPrice, bulkMinimumQuantity: product.bulkMinimumQuantity, variants: product.variants };
+    product.kind = 'EGG';
+    product.price = 12;
+    product.bulkSellingPrice = 10;
+    product.bulkMinimumQuantity = 15;
+    product.variants = [{
+      ...product.variants![0],
+      id: 'egg-variant',
+      name: 'Default',
+      sellingPrice: 12,
+      bulkSellingPrice: 10,
+      bulkMinimumQuantity: 15,
+    }];
+    try {
+      render(
+        <MemoryRouter initialEntries={['/products/premium-miniket-rice']}>
+          <Routes><Route path="/products/:slug" element={<ProductDetails />} /></Routes>
+        </MemoryRouter>,
+      );
+      expect(await screen.findByText('১–১৪টি: ৳12 প্রতি ডিম · ১৫টি বা বেশি: ৳10 প্রতি ডিম')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'কার্টে অ্যাড করুন' }));
+      await waitFor(() => expect(mocks.addItem).toHaveBeenCalledWith(expect.objectContaining({
+        productVariantId: 'egg-variant',
+        productKind: 'EGG',
+        unitPrice: 12,
+        bulkSellingPrice: 10,
+        bulkMinimumQuantity: 15,
+      })));
+    } finally {
+      Object.assign(product, original);
+    }
+  });
+
   it('explains why a product without an active pack cannot be purchased', async () => {
     const originalVariants = product.variants;
     product.variants = originalVariants?.map((variant) => ({ ...variant, isActive: false }));

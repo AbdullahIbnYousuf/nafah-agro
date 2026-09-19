@@ -41,9 +41,12 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const [description, setDescription] = useState(editProduct?.description ?? '');
   const [kind, setKind] = useState<ProductKind>(editProduct?.kind ?? 'PACKAGED');
   const [price, setPrice] = useState(editProduct ? String(editProduct.price) : '');
+  const [bulkSellingPrice, setBulkSellingPrice] = useState(
+    editProduct?.bulkSellingPrice == null ? '' : String(editProduct.bulkSellingPrice),
+  );
   const initialThreshold = editProduct?.variants?.[0]?.lowStockThreshold ?? 5;
   const [lowStockThreshold, setLowStockThreshold] = useState(
-    String((editProduct?.kind ?? 'PACKAGED') === 'PACKAGED' ? initialThreshold : initialThreshold / 1_000),
+    String(['LOOSE_WEIGHT', 'LOOSE_VOLUME'].includes(editProduct?.kind ?? 'PACKAGED') ? initialThreshold / 1_000 : initialThreshold),
   );
   const [kindChangeReason, setKindChangeReason] = useState('');
   const [variantName, setVariantName] = useState(
@@ -68,6 +71,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
+  const isMeasuredKind = kind === 'LOOSE_WEIGHT' || kind === 'LOOSE_VOLUME';
 
   useEffect(() => {
     getProductTags().then(setAllTags).catch(() => {});
@@ -118,12 +122,19 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
     e.preventDefault();
     if (!name.trim()) return toast.error('পণ্যের নাম দিন');
     if (!isEdit && (!price || isNaN(Number(price)))) return toast.error('সঠিক দাম দিন');
+    if (kind === 'EGG' && (
+      !bulkSellingPrice
+      || Number(price) <= 0
+      || Number(bulkSellingPrice) <= 0
+      || Number(bulkSellingPrice) >= Number(price)
+    )) return toast.error('১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম দিন');
     if (!categoryId) return toast.error('ক্যাটাগরি নির্বাচন করুন');
     const thresholdNumber = Number(lowStockThreshold);
-    if (!Number.isFinite(thresholdNumber) || thresholdNumber < 0 || (kind !== 'PACKAGED' && thresholdNumber * 1_000 % 1 !== 0)) {
+    const measured = isMeasuredKind;
+    if (!Number.isFinite(thresholdNumber) || thresholdNumber < 0 || (measured && thresholdNumber * 1_000 % 1 !== 0) || (!measured && !Number.isInteger(thresholdNumber))) {
       return toast.error('সঠিক কম স্টকের লিমিট দিন');
     }
-    const thresholdBase = kind === 'PACKAGED' ? Math.round(thresholdNumber) : Math.round(thresholdNumber * 1_000);
+    const thresholdBase = measured ? Math.round(thresholdNumber * 1_000) : Math.round(thresholdNumber);
     const kindChanged = isEdit && kind !== (editProduct.kind ?? 'PACKAGED');
     setSaving(true);
     try {
@@ -139,6 +150,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         slug: isEdit ? editProduct.slug : slugify(name.trim()),
         description: description.trim(),
         price: Number(price),
+        bulkSellingPrice: kind === 'EGG' ? Number(bulkSellingPrice) : null,
         stock: editProduct?.stock ?? 0,
         variantName: variantName.trim(),
         kind,
@@ -156,6 +168,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
           updated = await changeProductKind(editProduct.id, {
             kind,
             sellingPrice: Number(price),
+            bulkSellingPrice: kind === 'EGG' ? Number(bulkSellingPrice) : undefined,
             lowStockThreshold: thresholdBase,
             reason: kindChangeReason.trim() || undefined,
           });
@@ -241,22 +254,42 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                     const next = event.target.value as ProductKind;
                     setKind(next);
                     setVariantName('');
-                    setLowStockThreshold(next === 'PACKAGED' ? '5' : '5');
+                    setLowStockThreshold('5');
+                    if (next !== 'EGG') setBulkSellingPrice('');
                   }}
                 >
                   <option value="PACKAGED">প্যাকেট বা নির্দিষ্ট সাইজ</option>
                   <option value="LOOSE_WEIGHT">খোলা পণ্য, ওজনে বিক্রি</option>
                   <option value="LOOSE_VOLUME">খোলা পণ্য, লিটারে বিক্রি</option>
+                  <option value="EGG">ডিম</option>
                 </select>
                 <p className="mt-1 text-xs text-muted-foreground">বর্তমান ধরন: {productKindLabel(kind)}</p>
               </div>
+
+              {kind === 'EGG' && <div>
+                <Label htmlFor="bulk-price">১৫টি বা তার বেশি হলে প্রতি ডিমের দাম (টাকা) *</Label>
+                <Input
+                  id="bulk-price"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={bulkSellingPrice}
+                  onChange={(event) => setBulkSellingPrice(event.target.value)}
+                  disabled={isEdit && kind === (editProduct?.kind ?? 'PACKAGED')}
+                  placeholder="০"
+                  className="mt-1 bg-card"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">১৫টি বা তার বেশি নিলে এই দাম পুরো পরিমাণে প্রযোজ্য হবে।</p>
+              </div>}
 
               <div>
                 <Label htmlFor="price">{kind === 'LOOSE_WEIGHT'
                   ? 'প্রতি কেজি বিক্রির দাম (টাকা) *'
                   : kind === 'LOOSE_VOLUME'
                     ? 'প্রতি লিটার বিক্রির দাম (টাকা) *'
-                    : isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
+                    : kind === 'EGG'
+                      ? '১–১৪টি হলে প্রতি ডিমের দাম (টাকা) *'
+                      : isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
                   <Input
                     id="price"
                     type="number"
@@ -272,8 +305,8 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               </div>
 
               {(kind !== 'PACKAGED' || (isEdit && kind !== (editProduct?.kind ?? 'PACKAGED'))) && <div>
-                <Label htmlFor="low-stock-threshold">কম স্টকের লিমিট ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : 'ইউনিট'})</Label>
-                <Input id="low-stock-threshold" type="number" min="0" step={kind === 'PACKAGED' ? '1' : '0.001'} value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} className="mt-1 bg-card" />
+                <Label htmlFor="low-stock-threshold">কম স্টকের লিমিট ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : kind === 'EGG' ? 'টি ডিম' : 'ইউনিট'})</Label>
+                <Input id="low-stock-threshold" type="number" min="0" step={isMeasuredKind ? '0.001' : '1'} value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} className="mt-1 bg-card" />
               </div>}
 
               {isEdit && kind !== (editProduct?.kind ?? 'PACKAGED') && <div>

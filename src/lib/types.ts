@@ -8,15 +8,18 @@ export interface Category {
 }
 
 export type Role = 'OWNER' | 'CUSTOMER';
-export type ProductKind = 'PACKAGED' | 'LOOSE_WEIGHT' | 'LOOSE_VOLUME';
+export type ProductKind = 'PACKAGED' | 'LOOSE_WEIGHT' | 'LOOSE_VOLUME' | 'EGG';
 export type QuantityUnit = 'PIECE' | 'GRAM' | 'MILLILITER';
 export type AmountUnit = 'PIECE' | 'KG' | 'G' | 'LITER' | 'ML';
+export type SellingPriceTier = 'REGULAR' | 'EGG_BULK';
 
 export interface ProductVariant {
   id: string;
   name: string;
   sku: string;
   sellingPrice: number;
+  bulkSellingPrice?: number | null;
+  bulkMinimumQuantity?: number | null;
   availableStock: number;
   reservedStock: number;
   lowStockThreshold: number;
@@ -28,6 +31,7 @@ export interface SellingPriceHistoryEntry {
   id: string;
   previousPrice: number | null;
   newPrice: number;
+  priceTier: SellingPriceTier;
   reason: string;
   changedByProfileId: string;
   changedBy: {
@@ -152,6 +156,7 @@ export interface PhysicalSaleItem {
   sku: string;
   quantity: number;
   unitSellingPrice: number;
+  sellingPriceTier?: SellingPriceTier;
   grossLineRevenue: number;
   allocatedDiscount: number;
   netLineRevenue: number;
@@ -299,6 +304,8 @@ export interface Product {
   description: string;
   kind?: ProductKind;
   price: number;
+  bulkSellingPrice?: number | null;
+  bulkMinimumQuantity?: number | null;
   categoryId: string;
   category?: Category;
   images: string[];
@@ -331,6 +338,9 @@ export interface CartItem {
   variantName: string;
   quantity: number;
   unitPrice: number;
+  productKind?: ProductKind;
+  bulkSellingPrice?: number | null;
+  bulkMinimumQuantity?: number | null;
   imageUrl?: string;
 }
 
@@ -355,6 +365,7 @@ export interface UnifiedOrderItem {
   sku: string;
   quantity: number;
   unitSellingPrice: number;
+  sellingPriceTier?: SellingPriceTier;
   grossLineRevenue: number;
   allocatedDiscount: number;
   netLineRevenue: number;

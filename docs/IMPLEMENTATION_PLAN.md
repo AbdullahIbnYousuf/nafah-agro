@@ -33,6 +33,8 @@ Status: complete in code; real Supabase/Cloudinary acceptance remains.
   selling-price update history have an OWNER-only, audited permanent-delete
   path. Used records remain
   deactivate-only; remote Cloudinary cleanup remains manual.
+- Egg products use one hidden option, whole-piece stock, paired regular/15+
+  prices, tiered immutable history, and normal storefront Active/Show controls.
 
 ## Milestone 3 — Purchases, FIFO, physical-shop sales
 
@@ -48,6 +50,9 @@ Status: complete in code; real PostgreSQL concurrency acceptance remains.
 - Packaged and physical-shop-only loose products use independent FIFO pools.
   Loose weight/volume is stored exactly as grams/millilitres while owner inputs
   use kg/g or litre/ml and prices remain rates per kg/litre.
+- Egg FIFO remains piece-based. A centralized server rule prices 1–14 at the
+  regular rate and 15+ at the lower rate for the entire line across physical,
+  website, Facebook, phone, WhatsApp, and other manual sales.
 
 ## Milestone 4 — Unified COD and manual delivery orders
 

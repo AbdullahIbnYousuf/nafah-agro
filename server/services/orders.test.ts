@@ -19,7 +19,7 @@ function createMemoryPrisma() {
   const state: any = {
     variants: [{
       id: VARIANT, productId: PRODUCT, name: "500 g", sku: "HONEY-500",
-      currentSellingPrice: "500.00", availableStock: 5, reservedStock: 0, isActive: true,
+      currentSellingPrice: "500.00", bulkSellingPrice: null, availableStock: 5, reservedStock: 0, isActive: true,
       product: {
         id: PRODUCT,
         name: "Raw Honey",
@@ -228,6 +228,29 @@ describe("unified PostgreSQL orders", () => {
     const service = createUnifiedOrderService(prisma);
     await expect(service.createWebsiteOrder(websiteInput())).rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
     await expect(service.createManualOrder(manualInput())).rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
+  });
+
+  it("prices egg lines on the server at 14 and 15 for website and manual orders", async () => {
+    const website = createMemoryPrisma();
+    website.state.variants[0].product.kind = "EGG";
+    website.state.variants[0].currentSellingPrice = "12.00";
+    website.state.variants[0].bulkSellingPrice = "10.00";
+    const websiteOrder = await createUnifiedOrderService(website.prisma).createWebsiteOrder(websiteInput({
+      items: [{ productVariantId: VARIANT, quantity: 14 }],
+    }));
+    expect(websiteOrder.order).toMatchObject({ subtotal: 168 });
+    expect(website.state.items[0]).toMatchObject({ unitSellingPrice: "12.00", sellingPriceTier: "REGULAR", grossLineRevenue: "168.00" });
+
+    const manual = createMemoryPrisma();
+    manual.state.variants[0].product.kind = "EGG";
+    manual.state.variants[0].currentSellingPrice = "12.00";
+    manual.state.variants[0].bulkSellingPrice = "10.00";
+    const manualOrder = await createUnifiedOrderService(manual.prisma).createManualOrder(manualInput({
+      initialStatus: "PENDING",
+      items: [{ productVariantId: VARIANT, quantity: 15 }],
+    }), OWNER);
+    expect(manualOrder).toMatchObject({ subtotal: 150 });
+    expect(manual.state.items[0]).toMatchObject({ unitSellingPrice: "10.00", sellingPriceTier: "EGG_BULK", grossLineRevenue: "150.00" });
   });
 
   it("applies Show to website checkout but not to manual delivery orders", async () => {

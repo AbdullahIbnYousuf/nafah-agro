@@ -129,7 +129,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
             </div>
           </form>}
 
-          {!isPackaged && <p className="rounded-lg border bg-muted/40 p-4 text-sm">{productKindLabel(product.kind)} পণ্য। দাম {rateLabel(product.kind)} হিসেবে রাখা হয় এবং এই পণ্যে আলাদা প্যাক/সাইজ অ্যাড করা যায় না।</p>}
+          {!isPackaged && <p className="rounded-lg border bg-muted/40 p-4 text-sm">{productKindLabel(product.kind)} পণ্য। {product.kind === 'EGG' ? '১–১৪টি এবং ১৫টি বা তার বেশি ডিমের দাম আলাদাভাবে রাখা হয়।' : `দাম ${rateLabel(product.kind)} হিসেবে রাখা হয়।`} এই পণ্যে আলাদা প্যাক/সাইজ অ্যাড করা যায় না।</p>}
 
           <div className="space-y-4">
             {variants.map((variant) => (
@@ -162,10 +162,12 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
 
 function VariantEditor({ variant, product, onUpdated }: { variant: ProductVariant; product: Product; onUpdated: (product: Product) => void }) {
   const isPackaged = (product.kind ?? 'PACKAGED') === 'PACKAGED';
-  const quantityScale = isPackaged ? 1 : 1_000;
+  const isEgg = product.kind === 'EGG';
+  const quantityScale = product.kind === 'LOOSE_WEIGHT' || product.kind === 'LOOSE_VOLUME' ? 1_000 : 1;
   const [name, setName] = useState(variant.name);
   const [threshold, setThreshold] = useState(String(variant.lowStockThreshold / quantityScale));
   const [newPrice, setNewPrice] = useState('');
+  const [newBulkPrice, setNewBulkPrice] = useState('');
   const [priceReason, setPriceReason] = useState('');
   const [history, setHistory] = useState<SellingPriceHistoryEntry[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -199,10 +201,20 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
       toast.error('নতুন দাম দিন');
       return;
     }
+    if (isEgg && (newBulkPrice === '' || Number(newBulkPrice) <= 0 || Number(newBulkPrice) >= Number(newPrice))) {
+      toast.error('১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম দিন');
+      return;
+    }
     setSaving(true);
     try {
-      onUpdated(await changeSellingPrice(variant.id, Number(newPrice), priceReason.trim() || undefined));
+      onUpdated(await changeSellingPrice(
+        variant.id,
+        Number(newPrice),
+        priceReason.trim() || undefined,
+        isEgg ? Number(newBulkPrice) : undefined,
+      ));
       setNewPrice('');
+      setNewBulkPrice('');
       setPriceReason('');
       setHistory(await getSellingPriceHistory(variant.id));
       toast.success('দাম আপডেট হয়েছে');
@@ -250,12 +262,13 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 
       <div className="grid sm:grid-cols-2 gap-3">
         {isPackaged && <Field label="প্যাক/সাইজের নাম"><Input value={name.toLowerCase() === 'default' ? '' : name} onChange={(event) => setName(event.target.value)} placeholder="যেমন: ১ কেজি" /></Field>}
-        <Field label={`${UI_TERMS.stock.lowLimit} (${isPackaged ? 'ইউনিট' : product.kind === 'LOOSE_WEIGHT' ? 'কেজি' : 'লিটার'})`}><Input type="number" min="0" step={isPackaged ? '1' : '0.001'} value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
+        <Field label={`${UI_TERMS.stock.lowLimit} (${isEgg ? 'টি ডিম' : isPackaged ? 'ইউনিট' : product.kind === 'LOOSE_WEIGHT' ? 'কেজি' : 'লিটার'})`}><Input type="number" min="0" step={quantityScale === 1 ? '1' : '0.001'} value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
       </div>
       <div className="text-right"><Button type="button" size="sm" disabled={saving} onClick={() => void saveMetadata()}><Save size={14} className="mr-1" />তথ্য সেভ করুন</Button></div>
 
-      <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end border-t pt-4">
-        <Field label={`বর্তমান দাম: ৳${variant.sellingPrice} (${rateLabel(product.kind)})`}><Input type="number" min="0" step="0.01" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} placeholder="নতুন দাম" /></Field>
+      <div className={`grid gap-3 items-end border-t pt-4 ${isEgg ? 'sm:grid-cols-[1fr_1fr_2fr_auto]' : 'sm:grid-cols-[1fr_2fr_auto]'}`}>
+        <Field label={isEgg ? `১–১৪টি: ৳${variant.sellingPrice} প্রতি ডিম` : `বর্তমান দাম: ৳${variant.sellingPrice} (${rateLabel(product.kind)})`}><Input type="number" min="0" step="0.01" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} placeholder="নতুন দাম" /></Field>
+        {isEgg && <Field label={`১৫টি+: ৳${variant.bulkSellingPrice ?? 0} প্রতি ডিম`}><Input type="number" min="0" step="0.01" value={newBulkPrice} onChange={(event) => setNewBulkPrice(event.target.value)} placeholder="১৫টি+ দাম" /></Field>}
         <Field label="পরিবর্তনের কারণ (ঐচ্ছিক)"><Input value={priceReason} onChange={(event) => setPriceReason(event.target.value)} /></Field>
         <Button type="button" disabled={saving} onClick={() => void updatePrice()}>দাম সেভ করুন</Button>
       </div>
@@ -266,7 +279,7 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 }
 
 function PriceHistory({ entries }: { entries: SellingPriceHistoryEntry[] }) {
-  return <div className="border-t pt-4 overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left py-2">সময়</th><th className="text-right">পুরনো</th><th className="text-right">নতুন</th><th className="text-left pl-3">কারণ</th><th className="text-left pl-3">পরিবর্তনকারী</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id} className="border-t"><td className="py-2">{formatAppDateTime(entry.effectiveAt)}</td><td className="text-right">{entry.previousPrice === null ? 'প্রথম মূল্য' : `৳${entry.previousPrice}`}</td><td className="text-right">৳{entry.newPrice}</td><td className="pl-3">{entry.reason}</td><td className="pl-3">{entry.changedBy.fullName} ({entry.changedBy.role})</td></tr>)}</tbody></table>{entries.length === 0 && <p className="text-muted-foreground">আগের কোনো রেকর্ড নেই</p>}</div>;
+  return <div className="border-t pt-4 overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left py-2">সময়</th><th className="text-left pl-3">দামের ধরন</th><th className="text-right">পুরনো</th><th className="text-right">নতুন</th><th className="text-left pl-3">কারণ</th><th className="text-left pl-3">পরিবর্তনকারী</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id} className="border-t"><td className="py-2">{formatAppDateTime(entry.effectiveAt)}</td><td className="pl-3">{entry.priceTier === 'EGG_BULK' ? '১৫টি বা তার বেশি' : 'সাধারণ'}</td><td className="text-right">{entry.previousPrice === null ? 'প্রথম মূল্য' : `৳${entry.previousPrice}`}</td><td className="text-right">৳{entry.newPrice}</td><td className="pl-3">{entry.reason}</td><td className="pl-3">{entry.changedBy.fullName} ({entry.changedBy.role})</td></tr>)}</tbody></table>{entries.length === 0 && <p className="text-muted-foreground">আগের কোনো রেকর্ড নেই</p>}</div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

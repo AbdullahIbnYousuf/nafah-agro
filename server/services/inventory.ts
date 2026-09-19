@@ -21,6 +21,7 @@ import type {
 import { consumeAvailableFifo, type FifoAllocation } from "./stockAllocation.js";
 import { quantityCost, quantityUnitForKind, toBaseQuantity } from "../lib/quantity.js";
 import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
+import { sellingPriceForQuantity } from "../lib/pricing.js";
 
 interface InventoryHttpError extends Error {
   status: number;
@@ -168,6 +169,7 @@ function saleDto(sale: SaleRecord) {
       sku: item.skuSnapshot,
       quantity: item.quantity,
       unitSellingPrice: moneyNumber(item.unitSellingPrice),
+      sellingPriceTier: item.sellingPriceTier,
       grossLineRevenue: moneyNumber(item.grossLineRevenue),
       allocatedDiscount: moneyNumber(item.allocatedDiscount),
       netLineRevenue: moneyNumber(item.netLineRevenue),
@@ -915,10 +917,16 @@ export function createInventoryService(prisma: PrismaClient) {
           const variant = byId.get(item.productVariantId)!;
           return toBaseQuantity(item.amount, item.amountUnit, variant.product.kind);
         });
-        const lineTotals = sortedItems.map((item, index) => {
+        const prices = sortedItems.map((item, index) => {
           const variant = byId.get(item.productVariantId)!;
-          return quantityCost(variant.currentSellingPrice, quantities[index], variant.product.kind);
+          return sellingPriceForQuantity({
+            kind: variant.product.kind,
+            regularPrice: variant.currentSellingPrice,
+            bulkPrice: variant.bulkSellingPrice,
+            baseQuantity: quantities[index],
+          });
         });
+        const lineTotals = prices.map((price) => price.lineTotal);
         const subtotal = lineTotals.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
         const discount = asMoney(input.discountTotal);
         if (discount.gt(subtotal)) {
@@ -1004,7 +1012,8 @@ export function createInventoryService(prisma: PrismaClient) {
             skuSnapshot: variant.sku,
             quantity: quantities[index],
             quantityUnit: quantityUnitForKind(variant.product.kind),
-            unitSellingPrice: variant.currentSellingPrice,
+            unitSellingPrice: prices[index].unitPrice,
+            sellingPriceTier: prices[index].tier,
             grossLineRevenue: lineTotals[index],
             allocatedDiscount: discounts[index],
             netLineRevenue,

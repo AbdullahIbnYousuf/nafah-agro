@@ -112,7 +112,7 @@ export default function Admin() {
         <Link to="/" className="flex min-h-11 items-center gap-1.5 text-sm text-primary-foreground/80"><ArrowLeft size={16} />সাইটে ফিরুন</Link>
       </header>
       <main className="min-w-0 flex-1 p-4 pb-24 md:p-8">
-        {!reminderHidden && creditReminder && creditReminder.overdueCount + creditReminder.dueTodayCount > 0 && <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"><HandCoins size={19} /><div className="min-w-0 flex-1"><strong>বাকি যোগাযোগ বাকি আছে</strong><p className="text-sm">সময় পার হয়েছে {creditReminder.overdueCount}টি, আজ যোগাযোগ {creditReminder.dueTodayCount}টি</p></div><Button asChild size="sm"><Link to="/admin/dues">বাকি হিসাব দেখুন</Link></Button><Button type="button" size="icon" variant="ghost" aria-label="এইবার বন্ধ রাখুন" onClick={() => { sessionStorage.setItem('nafah_credit_reminder_hidden', '1'); setReminderHidden(true); }}><X size={17} /></Button></div>}
+        {!reminderHidden && creditReminder && creditReminder.overdueCount + creditReminder.dueTodayCount > 0 && <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"><HandCoins size={19} /><div className="min-w-0 flex-1"><strong>বাকি রিমাইন্ডার</strong><p className="text-sm">সময় পার হয়েছে {creditReminder.overdueCount}টি, আজ যোগাযোগ {creditReminder.dueTodayCount}টি</p></div><Button asChild size="sm"><Link to="/admin/dues">বাকি হিসাব দেখুন</Link></Button><Button type="button" size="icon" variant="ghost" aria-label="এইবার বন্ধ রাখুন" onClick={() => { sessionStorage.setItem('nafah_credit_reminder_hidden', '1'); setReminderHidden(true); }}><X size={17} /></Button></div>}
         <Outlet />
       </main>
       <nav aria-label="মোবাইল পরিচালনা বিভাগ" className="fixed inset-x-0 bottom-0 z-30 border-t border-primary-foreground/15 bg-primary px-1 pb-[env(safe-area-inset-bottom)] text-primary-foreground shadow-[0_-6px_20px_rgba(0,0,0,0.12)] md:hidden">
@@ -135,10 +135,10 @@ interface ProductsOutletContext {
 }
 
 function getProductShopVisibility(product: Product, categories: Category[]) {
-  const isPackaged = (product.kind ?? 'PACKAGED') === 'PACKAGED';
+  const isOnlineProduct = ['PACKAGED', 'EGG'].includes(product.kind ?? 'PACKAGED');
   const category = categories.find((item) => item.id === product.categoryId);
 
-  if (!isPackaged) {
+  if (!isOnlineProduct) {
     return { visible: false, reason: '', guidance: '' };
   }
   if (!category || category.isActive === false) {
@@ -206,8 +206,8 @@ export function AdminProducts() {
     return products.filter((product) => {
       const category = categories.find((item) => item.id === product.categoryId);
       const effectiveActive = product.isActive !== false && category?.isActive !== false;
-      const isPackaged = (product.kind ?? 'PACKAGED') === 'PACKAGED';
-      const effectiveVisible = isPackaged
+      const isOnlineProduct = ['PACKAGED', 'EGG'].includes(product.kind ?? 'PACKAGED');
+      const effectiveVisible = isOnlineProduct
         && effectiveActive
         && product.isVisibleInShop !== false
         && category?.isVisibleInShop !== false;
@@ -217,7 +217,7 @@ export function AdminProducts() {
       if (activeFilter === 'ACTIVE' && !effectiveActive) return false;
       if (activeFilter === 'INACTIVE' && effectiveActive) return false;
       if (visibilityFilter === 'SHOW' && !effectiveVisible) return false;
-      if (visibilityFilter === 'HIDDEN' && (!isPackaged || effectiveVisible)) return false;
+      if (visibilityFilter === 'HIDDEN' && (!isOnlineProduct || effectiveVisible)) return false;
       return true;
     });
   }, [activeFilter, categories, categoryFilter, productQuery, products, visibilityFilter]);
@@ -317,13 +317,14 @@ export function AdminProducts() {
         const changingVisible = statusSaving && statusTarget?.product.id === product.id && statusTarget.setting === 'VISIBLE';
         const shopVisibility = getProductShopVisibility(product, categories);
         const isPackaged = (product.kind ?? 'PACKAGED') === 'PACKAGED';
+        const isOnlineProduct = isPackaged || product.kind === 'EGG';
         const inactiveContentClass = effectiveActive ? '' : 'opacity-60';
         return <tr key={product.id} className="border-t">
-          <td className={`p-3 ${inactiveContentClass}`}><div className="flex min-w-52 items-center gap-3"><ProductThumbnail key={product.images[0] ?? 'no-image'} product={product} /><div className="min-w-0"><div className="break-words font-medium">{product.name}</div><span className="mt-1 inline-block rounded bg-muted px-2 py-0.5 text-xs">{productKindLabel(product.kind)}</span>{isPackaged && (shopVisibility.visible ? <Link to={`/products/${encodeURIComponent(product.slug)}`} target="_blank" rel="noopener noreferrer" className="ml-2 mt-1 inline-flex min-h-8 items-center gap-1 text-xs text-secondary hover:underline">গ্রাহক পেজ <ExternalLink size={13} aria-hidden="true" /></Link> : <Tooltip><TooltipTrigger asChild><button type="button" className="ml-2 mt-1 inline-flex min-h-8 cursor-help items-center gap-1 rounded text-xs font-medium text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><EyeOff size={13} aria-hidden="true" />গ্রাহক পেজ লুকানো</button></TooltipTrigger><TooltipPortal><TooltipContent className="max-w-[min(22rem,calc(100vw-2rem))] p-3 leading-relaxed">{shopVisibility.guidance}</TooltipContent></TooltipPortal></Tooltip>)}</div></div></td>
-          <td className={`p-3 text-right ${inactiveContentClass}`}>৳{product.price}<div className="text-xs text-muted-foreground">{rateLabel(product.kind)}</div></td>
+          <td className={`p-3 ${inactiveContentClass}`}><div className="flex min-w-52 items-center gap-3"><ProductThumbnail key={product.images[0] ?? 'no-image'} product={product} /><div className="min-w-0"><div className="break-words font-medium">{product.name}</div><span className="mt-1 inline-block rounded bg-muted px-2 py-0.5 text-xs">{productKindLabel(product.kind)}</span>{isOnlineProduct && (shopVisibility.visible ? <Link to={`/products/${encodeURIComponent(product.slug)}`} target="_blank" rel="noopener noreferrer" className="ml-2 mt-1 inline-flex min-h-8 items-center gap-1 text-xs text-secondary hover:underline">গ্রাহক পেজ <ExternalLink size={13} aria-hidden="true" /></Link> : <Tooltip><TooltipTrigger asChild><button type="button" className="ml-2 mt-1 inline-flex min-h-8 cursor-help items-center gap-1 rounded text-xs font-medium text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><EyeOff size={13} aria-hidden="true" />গ্রাহক পেজ লুকানো</button></TooltipTrigger><TooltipPortal><TooltipContent className="max-w-[min(22rem,calc(100vw-2rem))] p-3 leading-relaxed">{shopVisibility.guidance}</TooltipContent></TooltipPortal></Tooltip>)}</div></div></td>
+          <td className={`p-3 text-right ${inactiveContentClass}`}>৳{product.price}<div className="text-xs text-muted-foreground">{rateLabel(product.kind)}</div>{product.kind === 'EGG' && product.bulkSellingPrice != null && <div className="text-xs text-secondary">১৫টি+ ৳{product.bulkSellingPrice}</div>}</td>
           <td className={`p-3 text-center ${inactiveContentClass}`}>{isPackaged ? product.variants?.length ?? 0 : 'প্রযোজ্য নয়'}</td>
           <td className="p-3"><div className="flex min-w-36 items-center justify-center gap-2"><Switch className="data-[state=unchecked]:border-amber-700 data-[state=unchecked]:bg-amber-700 disabled:opacity-100" checked={effectiveActive} disabled={changingActive} onCheckedChange={(checked) => openStatusChange(product, 'ACTIVE', checked, category)} aria-label={`${product.name} অ্যাকটিভ`} /><span className={`text-sm font-medium ${effectiveActive ? 'text-green-800' : 'text-amber-900'}`}>{effectiveActive ? 'অ্যাকটিভ' : 'ইনঅ্যাকটিভ'}</span>{changingActive && <Loader2 size={15} className="animate-spin" aria-label="পরিবর্তন হচ্ছে" />}</div></td>
-          <td className="p-3">{isPackaged ? <div className="flex min-w-28 items-center justify-center gap-2"><Switch className="data-[state=unchecked]:border-amber-700 data-[state=unchecked]:bg-amber-700 disabled:opacity-100" checked={effectiveVisible} disabled={changingVisible} onCheckedChange={(checked) => openStatusChange(product, 'VISIBLE', checked, category)} aria-label={`${product.name} অনলাইন শপ`} /><span className={`text-sm font-medium ${effectiveVisible ? 'text-green-800' : 'text-amber-900'}`}>{effectiveVisible ? 'শো' : 'হাইড'}</span>{changingVisible && <Loader2 size={15} className="animate-spin" aria-label="পরিবর্তন হচ্ছে" />}</div> : <span className="block text-center text-muted-foreground">প্রযোজ্য নয়</span>}</td>
+          <td className="p-3">{isOnlineProduct ? <div className="flex min-w-28 items-center justify-center gap-2"><Switch className="data-[state=unchecked]:border-amber-700 data-[state=unchecked]:bg-amber-700 disabled:opacity-100" checked={effectiveVisible} disabled={changingVisible} onCheckedChange={(checked) => openStatusChange(product, 'VISIBLE', checked, category)} aria-label={`${product.name} অনলাইন শপ`} /><span className={`text-sm font-medium ${effectiveVisible ? 'text-green-800' : 'text-amber-900'}`}>{effectiveVisible ? 'শো' : 'হাইড'}</span>{changingVisible && <Loader2 size={15} className="animate-spin" aria-label="পরিবর্তন হচ্ছে" />}</div> : <span className="block text-center text-muted-foreground">প্রযোজ্য নয়</span>}</td>
           <td className={`whitespace-nowrap p-3 text-right ${inactiveContentClass}`}><button type="button" aria-label={isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'} title={isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'} onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="পণ্য সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button><Button type="button" size="sm" variant={product.canDelete ? 'destructive' : 'outline'} aria-disabled={!product.canDelete} className="ml-2" onClick={() => { if (!product.canDelete) { toast.error('এই পণ্যের স্টক, দাম পরিবর্তন, বিক্রি, অর্ডার বা স্টক আপডেটের রেকর্ড আছে। তাই এটি মুছতে পারবেন না। প্রয়োজনে পণ্যটি ইনঅ্যাকটিভ করুন।'); return; } setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button></td>
         </tr>;
       })}
@@ -518,7 +519,7 @@ export function AdminCategories() {
   }
   const activeImpactCount = statusProducts.filter((product) => product.isActive !== false).length;
   const visibleImpactCount = statusProducts.filter((product) =>
-    (product.kind ?? 'PACKAGED') === 'PACKAGED' && product.isActive !== false && product.isVisibleInShop !== false).length;
+    ['PACKAGED', 'EGG'].includes(product.kind ?? 'PACKAGED') && product.isActive !== false && product.isVisibleInShop !== false).length;
   return <div><h1 className="text-2xl font-bold mb-6">ক্যাটাগরি</h1><div className="mb-6 grid max-w-lg gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="নতুন ক্যাটাগরি" /><Button onClick={() => void add()}>অ্যাড করুন</Button></div><div className="space-y-2 max-w-3xl">
     {[...items].sort((left, right) =>
       Number(right.isActive !== false) - Number(left.isActive !== false)

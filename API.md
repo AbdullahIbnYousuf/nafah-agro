@@ -45,7 +45,7 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `GET` | `/api/v1/admin/categories` | OWNER | All categories |
 | `POST/PATCH` | `/api/v1/categories`, `/categories/:id` | OWNER | Create/edit category and independently set Active or Show |
 | `DELETE` | `/api/v1/categories/:id` | OWNER | Permanently delete an empty category only |
-| `GET` | `/api/v1/products`, `/products/:slug` | Public | Active packaged storefront catalog set to Show |
+| `GET` | `/api/v1/products`, `/products/:slug` | Public | Active packaged and egg storefront catalog set to Show |
 | `GET` | `/api/v1/admin/products`, `/admin/products/:id` | OWNER | Full catalog list and direct product lookup, including inactive records |
 | `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product and independently set Active or Show |
 | `PATCH` | `/api/v1/products/:id/kind` | OWNER | Correct an entirely unused product type |
@@ -113,11 +113,22 @@ snapshots remain for compatibility but are not part of the owner or customer UI.
 The initial pack/size name may be blank; an additional pack/size requires the
 existing internal default to be given a meaningful name first.
 
-Products expose `kind`: `PACKAGED`, `LOOSE_WEIGHT`, or `LOOSE_VOLUME`.
+Products expose `kind`: `PACKAGED`, `LOOSE_WEIGHT`, `LOOSE_VOLUME`, or `EGG`.
 Loose products keep one hidden internal variant and cannot receive more
-pack/size options. Public catalog endpoints return only `PACKAGED`; owner
-catalog endpoints return every type. The kind-correction endpoint is rejected
+pack/size options. Egg products also keep one hidden internal variant and expose
+`bulkSellingPrice` plus the fixed `bulkMinimumQuantity: 15`. Their regular price
+applies to 1–14 eggs; at 15 or more, the lower bulk rate applies to the entire
+line. Public catalog endpoints return `PACKAGED` and `EGG`; owner catalog
+endpoints return every type. The kind-correction endpoint is rejected
 after stock, purchases, adjustments, sales, or a real price change exists.
+
+Egg create, kind-correction, single-price, and bulk-price writes submit the
+regular `sellingPrice` together with `bulkSellingPrice`. Both must be positive,
+and the bulk rate must be lower. Price history records `REGULAR` and `EGG_BULK`
+independently. Order-item responses include `sellingPriceTier`, preserving the
+server-selected rate used at sale time. Website and manual order quantities stay
+positive whole integers; physical-sale egg amounts use `PIECE` and must also
+resolve to a whole number.
 
 Purchase, adjustment, and physical-sale writes use `amount` and `amountUnit`:
 

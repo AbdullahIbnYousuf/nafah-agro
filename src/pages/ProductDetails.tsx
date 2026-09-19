@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ShoppingCart, CreditCard, Leaf, ArrowLeft, Loader2, Plus, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import { packSizeCustomerLabel, visiblePackSize } from '@/lib/productOptions';
+import { sellingPriceForQuantity } from '@/lib/quantity';
 
 const ProductDetails = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -82,10 +83,16 @@ const ProductDetails = () => {
   const activeVariants = (product.variants ?? []).filter(variant => variant.isActive);
   const selectedVariant = activeVariants.find(variant => variant.id === selectedVariantId)
     ?? activeVariants[0];
-  const currentPrice = selectedVariant?.sellingPrice ?? product.price;
-
   const cartItem = items.find(i => i.productVariantId === selectedVariant?.id);
   const quantityInCart = cartItem?.quantity ?? 0;
+  const regularPrice = selectedVariant?.sellingPrice ?? product.price;
+  const bulkSellingPrice = selectedVariant?.bulkSellingPrice ?? product.bulkSellingPrice;
+  const currentPricing = sellingPriceForQuantity({
+    kind: product.kind,
+    regularPrice,
+    bulkPrice: bulkSellingPrice,
+    quantity: Math.max(quantityInCart, 1),
+  });
 
   const handleAddToCart = () => {
     if (!selectedVariant) return toast.error('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
@@ -100,7 +107,12 @@ const ProductDetails = () => {
         productName: product.name,
         variantName: selectedVariant.name,
         quantity: 1,
-        unitPrice: currentPrice,
+        unitPrice: regularPrice,
+        ...(product.kind === 'EGG' ? {
+          productKind: product.kind,
+          bulkSellingPrice,
+          bulkMinimumQuantity: product.bulkMinimumQuantity,
+        } : {}),
         imageUrl: product.images[0],
       });
       toast.success('কার্টে অ্যাড হয়েছে!');
@@ -127,7 +139,12 @@ const ProductDetails = () => {
         productName: product.name,
         variantName: selectedVariant.name,
         quantity: 1,
-        unitPrice: currentPrice,
+        unitPrice: regularPrice,
+        ...(product.kind === 'EGG' ? {
+          productKind: product.kind,
+          bulkSellingPrice,
+          bulkMinimumQuantity: product.bulkMinimumQuantity,
+        } : {}),
         imageUrl: product.images[0],
       });
     }
@@ -205,7 +222,15 @@ const ProductDetails = () => {
             )}
             <p className="text-muted-foreground mb-6 leading-relaxed">{product.description}</p>
 
-            <div className="text-3xl font-bold text-secondary mb-6">৳{currentPrice}</div>
+            <div className="mb-6">
+              <div className="text-3xl font-bold text-secondary">৳{currentPricing.unitPrice}</div>
+              {product.kind === 'EGG' && bulkSellingPrice != null && <div className="mt-1 text-sm text-muted-foreground">
+                ১–১৪টি: ৳{regularPrice} প্রতি ডিম · ১৫টি বা বেশি: ৳{bulkSellingPrice} প্রতি ডিম
+              </div>}
+              {product.kind === 'EGG' && quantityInCart > 0 && <div className="mt-2 text-sm font-medium text-secondary">
+                কার্টে {quantityInCart}টি, তাই {currentPricing.tier === 'EGG_BULK' ? '১৫টি+ দাম' : 'সাধারণ দাম'} প্রযোজ্য
+              </div>}
+            </div>
 
             {activeVariants.length > 1 && (
               <div className="mb-6">

@@ -36,7 +36,9 @@ const ProductCard = ({ product, priority = false }: Props) => {
         <h3 className="font-semibold text-foreground group-hover:text-secondary transition-colors line-clamp-1">
           {product.name}
         </h3>
-        <p className="mt-1 text-lg font-bold text-secondary">৳{product.price}</p>
+        {product.kind === 'EGG' && product.bulkSellingPrice != null
+          ? <div className="mt-1"><p className="text-lg font-bold text-secondary">৳{product.price} <span className="text-xs font-normal">প্রতি ডিম</span></p><p className="text-xs text-muted-foreground">১৫টি+: ৳{product.bulkSellingPrice} প্রতি ডিম</p></div>
+          : <p className="mt-1 text-lg font-bold text-secondary">৳{product.price}</p>}
         {product.tags?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {product.tags.slice(0, 3).map(tag => (

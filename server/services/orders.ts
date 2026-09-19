@@ -9,6 +9,7 @@ import type {
 } from "../schemas/orders.js";
 import { reserveAvailableFifo, stockError, type FifoAllocation } from "./stockAllocation.js";
 import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
+import { sellingPriceForQuantity } from "../lib/pricing.js";
 
 const orderInclude = {
   createdBy: { select: { fullName: true, role: true } },
@@ -88,6 +89,7 @@ function orderDto(order: OrderRecord) {
       sku: item.skuSnapshot,
       quantity: item.quantity,
       unitSellingPrice: moneyNumber(item.unitSellingPrice),
+      sellingPriceTier: item.sellingPriceTier,
       grossLineRevenue: moneyNumber(item.grossLineRevenue),
       allocatedDiscount: moneyNumber(item.allocatedDiscount),
       netLineRevenue: moneyNumber(item.netLineRevenue),
@@ -198,13 +200,22 @@ async function createOrderBase(
   const invalidVariant = variants.some((variant) =>
     !variant.product.isActive
     || variant.product.category?.isActive === false
-    || (variant.product.kind ?? "PACKAGED") !== "PACKAGED"
+    || !["PACKAGED", "EGG"].includes(variant.product.kind ?? "PACKAGED")
     || (input.source === "WEBSITE" && (variant.product.isVisibleInShop === false || variant.product.category?.isVisibleInShop === false)));
   if (variants.length !== sortedItems.length || invalidVariant) {
     throw orderError(404, "SELLABLE_VARIANT_NOT_FOUND", "এক বা একাধিক প্যাক/সাইজ ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
   }
   const byId = new Map(variants.map((variant) => [variant.id, variant]));
-  const lineTotals = sortedItems.map((item) => money(byId.get(item.productVariantId)!.currentSellingPrice).mul(item.quantity));
+  const prices = sortedItems.map((item) => {
+    const variant = byId.get(item.productVariantId)!;
+    return sellingPriceForQuantity({
+      kind: variant.product.kind,
+      regularPrice: variant.currentSellingPrice,
+      bulkPrice: variant.bulkSellingPrice,
+      baseQuantity: item.quantity,
+    });
+  });
+  const lineTotals = prices.map((price) => price.lineTotal);
   const subtotal = lineTotals.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
   const discount = money(input.discountTotal);
   if (discount.gt(subtotal)) throw orderError(400, "DISCOUNT_EXCEEDS_SUBTOTAL", "Discount cannot exceed subtotal.");
@@ -247,7 +258,8 @@ async function createOrderBase(
       skuSnapshot: variant.sku,
       quantity: item.quantity,
       quantityUnit: "PIECE",
-      unitSellingPrice: variant.currentSellingPrice,
+      unitSellingPrice: prices[index].unitPrice,
+      sellingPriceTier: prices[index].tier,
       grossLineRevenue: lineTotals[index],
       allocatedDiscount: discounts[index],
       netLineRevenue: lineTotals[index].minus(discounts[index]),

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CartItem } from '@/lib/types';
+import { sellingPriceForQuantity } from '@/lib/quantity';
 
 interface CartContextType {
   items: CartItem[];
@@ -64,7 +65,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
-  const totalPrice = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const totalPrice = items.reduce((sum, item) => {
+    const price = sellingPriceForQuantity({
+      kind: item.productKind,
+      regularPrice: item.unitPrice,
+      bulkPrice: item.bulkSellingPrice,
+      quantity: item.quantity,
+    });
+    return sum + price.unitPrice * item.quantity;
+  }, 0);
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
 
   return (

@@ -35,4 +35,17 @@ describe('ProductCard routing', () => {
     expect(screen.getByRole('img', { name: 'Rice' })).toHaveAttribute('loading', 'eager');
     expect(screen.getByRole('img', { name: 'Rice' })).toHaveAttribute('fetchpriority', 'high');
   });
+
+  it('shows both regular and 15+ egg rates', () => {
+    render(<MemoryRouter><ProductCard product={{
+      ...product,
+      name: 'দেশি ডিম',
+      kind: 'EGG',
+      price: 12,
+      bulkSellingPrice: 10,
+      bulkMinimumQuantity: 15,
+    }} /></MemoryRouter>);
+    expect(screen.getByText('৳12')).toBeInTheDocument();
+    expect(screen.getByText('১৫টি+: ৳10 প্রতি ডিম')).toBeInTheDocument();
+  });
 });

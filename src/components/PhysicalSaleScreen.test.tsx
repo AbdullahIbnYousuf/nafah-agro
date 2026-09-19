@@ -120,6 +120,28 @@ const packagedProduct: Product = {
   }],
 };
 
+const eggProduct: Product = {
+  ...packagedProduct,
+  id: '30000000-0000-4000-8000-000000000003',
+  name: 'দেশি ডিম',
+  slug: 'deshi-eggs',
+  kind: 'EGG',
+  price: 12,
+  bulkSellingPrice: 10,
+  bulkMinimumQuantity: 15,
+  stock: 50,
+  variants: [{
+    ...product.variants![0],
+    id: '40000000-0000-4000-8000-000000000003',
+    name: 'Default',
+    sellingPrice: 12,
+    bulkSellingPrice: 10,
+    bulkMinimumQuantity: 15,
+    availableStock: 50,
+    lowStockThreshold: 10,
+  }],
+};
+
 describe('physical sale history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -188,6 +210,22 @@ describe('physical sale history', () => {
     expect(screen.queryByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' })).not.toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' })).toHaveValue(2.5);
     expect(screen.getByText('তালিকায় আছে')).toBeInTheDocument();
+  });
+
+  it('recalculates an egg line immediately when it crosses 15', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [eggProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'দেশি ডিম পরিমাণ বেছে নিন' }));
+    const amount = screen.getByRole('spinbutton', { name: 'দেশি ডিম পরিমাণ' });
+    expect(screen.getByLabelText('দেশি ডিম একক')).toHaveTextContent('টি ডিম');
+    fireEvent.change(amount, { target: { value: '14' } });
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
+    expect(screen.getAllByText('৳168.00').length).toBeGreaterThan(0);
+    expect(screen.getByText(/সাধারণ দাম/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'দেশি ডিম পরিমাণ' }), { target: { value: '15' } });
+    expect(screen.getAllByText('৳150.00').length).toBeGreaterThan(0);
+    expect(screen.getByText(/১৫টি\+ দাম/)).toBeInTheDocument();
   });
 
   it('explains how to make an out-of-stock product available', async () => {

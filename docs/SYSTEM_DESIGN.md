@@ -153,7 +153,7 @@ products
 - name
 - slug: unique
 - description
-- kind: PACKAGED | LOOSE_WEIGHT | LOOSE_VOLUME
+- kind: PACKAGED | LOOSE_WEIGHT | LOOSE_VOLUME | EGG
 - featured
 - is_active
 - created_at
@@ -174,6 +174,7 @@ product_variants
 - name
 - sku: unique
 - current_selling_price
+- bulk_selling_price: nullable; required by application rules for EGG
 - available_stock
 - reserved_stock
 - low_stock_threshold
@@ -184,7 +185,10 @@ product_variants
 
 Every product has at least one internal variant. Packaged products may have
 multiple visible pack/size options. Loose products have exactly one hidden
-internal variant. Variant stock totals are maintained transactionally for fast
+internal variant. Egg products also have one hidden internal variant, whole-piece
+stock, and a fixed 15-piece threshold. The centralized pricing service selects
+`REGULAR` for 1–14 or `EGG_BULK` for 15+ and applies that rate to the whole line.
+Variant stock totals are maintained transactionally for fast
 reads but must equal the totals derived from open stock batches.
 
 ### Selling-price history
@@ -195,6 +199,7 @@ selling_price_history
 - product_variant_id
 - previous_price
 - new_price
+- price_tier: REGULAR | EGG_BULK
 - reason
 - changed_by_profile_id
 - effective_at

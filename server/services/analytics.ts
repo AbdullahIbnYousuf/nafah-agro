@@ -599,7 +599,7 @@ export function buildAnalyticsDashboard(input: {
   const inventory = input.stockBatches.reduce((totals, batch) => {
     const onHand = batch.availableQuantity + batch.reservedQuantity;
     const kind = batch.productVariant?.product?.kind ?? "PACKAGED";
-    const unit = kind === "PACKAGED"
+    const unit = kind === "PACKAGED" || kind === "EGG"
       ? "pieces"
       : kind === "LOOSE_WEIGHT" ? "grams" : "milliliters";
     totals.available[unit] += batch.availableQuantity;
@@ -615,7 +615,7 @@ export function buildAnalyticsDashboard(input: {
   });
   const stockVariantDto = (variant: AnalyticsVariantRecord) => {
     const kind = variant.product.kind ?? "PACKAGED";
-    const divisor = kind === "PACKAGED" ? 1 : 1_000;
+    const divisor = kind === "LOOSE_WEIGHT" || kind === "LOOSE_VOLUME" ? 1_000 : 1;
     const quantityUnit = kind === "LOOSE_WEIGHT" ? "KG" : kind === "LOOSE_VOLUME" ? "LITER" : "PIECE";
     return ({
     productVariantId: variant.id,

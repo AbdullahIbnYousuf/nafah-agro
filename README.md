@@ -26,6 +26,9 @@ orders, returns, analytics, and Cloudinary uploads.
 - Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
   are physical-shop-only, use exact gram/millilitre stock internally, and show
   owner inputs and balances in kg/g or litre/ml.
+- `EGG` products use one whole-piece FIFO stock pool and two server-enforced
+  selling rates: the regular rate for 1–14 eggs and a lower rate for the whole
+  line at 15 or more. Eggs are available in the storefront and every sales channel.
 - OWNER-only permanent deletion for empty categories and products with no stock,
   adjustment, order, or selling-price update history; used catalog records
   remain deactivate-only.

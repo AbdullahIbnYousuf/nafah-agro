@@ -75,6 +75,25 @@ describe('strict API input contracts', () => {
     ] }).reason).toBe('একসাথে দাম পরিবর্তন');
   });
 
+  it('requires a positive lower 15+ price for egg products', () => {
+    const base = { name: 'Eggs', slug: 'eggs', categoryId, kind: 'EGG' as const };
+    expect(productCreateSchema.safeParse({
+      ...base,
+      initialVariant: { name: '', sellingPrice: '12', bulkSellingPrice: '10' },
+    }).success).toBe(true);
+    expect(productCreateSchema.safeParse({
+      ...base,
+      initialVariant: { name: '', sellingPrice: '12' },
+    }).success).toBe(false);
+    expect(productCreateSchema.safeParse({
+      ...base,
+      initialVariant: { name: '', sellingPrice: '12', bulkSellingPrice: '12' },
+    }).success).toBe(false);
+    expect(productKindChangeSchema.safeParse({
+      kind: 'EGG', sellingPrice: '12', bulkSellingPrice: '13', lowStockThreshold: 5,
+    }).success).toBe(false);
+  });
+
   it('uses truthful defaults when cancellation and return reasons are omitted', () => {
     expect(orderLifecycleSchema.parse({ action: 'CANCEL' }).reason).toBe('অর্ডার বাতিল');
     expect(orderLifecycleSchema.parse({ action: 'FAILED_DELIVERY' }).reason).toBe('ডেলিভারি ব্যর্থ');

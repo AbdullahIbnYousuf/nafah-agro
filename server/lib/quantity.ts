@@ -1,6 +1,6 @@
 import { Prisma } from "../generated/prisma/client.js";
 
-export type ProductKindValue = "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME";
+export type ProductKindValue = "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME" | "EGG";
 export type AmountUnit = "PIECE" | "KG" | "G" | "LITER" | "ML";
 export type QuantityUnitValue = "PIECE" | "GRAM" | "MILLILITER";
 
@@ -13,7 +13,7 @@ export function quantityUnitForKind(kind: ProductKindValue): QuantityUnitValue {
 }
 
 export function quantityScale(kind: ProductKindValue) {
-  return kind === "PACKAGED" ? 1 : 1_000;
+  return kind === "LOOSE_WEIGHT" || kind === "LOOSE_VOLUME" ? 1_000 : 1;
 }
 
 export function allowedAmountUnits(kind: ProductKindValue): AmountUnit[] {

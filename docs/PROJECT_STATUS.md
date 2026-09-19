@@ -78,6 +78,11 @@ is not approved for production until the external gates in this document and
   gram/millilitre stock, and use per-kg/per-litre FIFO rates. Public and manual
   delivery-order APIs reject them, while owner inventory, physical sales,
   returns, alerts, valuation, and analytics preserve their quantity units.
+- Added the local egg-product foundation. Egg products keep one hidden variant,
+  whole-piece FIFO stock, paired regular and 15+ prices, independent immutable
+  price-tier history, and a price-tier snapshot on every order item. The same
+  centralized server rule protects website, physical, Facebook, phone,
+  WhatsApp, and other manual sales from client-side price manipulation.
 - Removed active obsolete deployment/auth references and all native
   `alert`/`prompt`/`confirm` workflows. Order transitions, returns, delivery-rate
   edits, category edits, and loss warnings now use application dialogs with
@@ -240,6 +245,10 @@ cross-origin-frontend, and separate-backend variables are not used.
 - Apply `202609110001_catalog_visibility` before using the new category and
   product Show controls. It adds two default-true flags and does not rewrite
   stock, prices, orders, or historical records.
+- Apply `202609200001_egg_pricing` before creating egg products. It adds the
+  `EGG` kind, nullable bulk-price storage, immutable price tiers, and order-item
+  tier snapshots. Existing products, stock quantities, prices, and orders keep
+  their current values and default to the regular tier.
 - Perform a real authorized Cloudinary upload and render, plus invalid MIME,
   oversize, over-count, and CUSTOMER-denial checks.
 - Enter client-approved Dhaka and Outside-Dhaka charges, approved opening stock

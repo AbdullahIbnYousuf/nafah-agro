@@ -69,14 +69,18 @@ transaction as that product's variants.
 
 Every sellable product has at least one internal variant. Products without visible choices use a hidden default; owners and customers work with the simpler `প্যাক/সাইজ` label.
 
-Product types are `PACKAGED`, `LOOSE_WEIGHT`, and `LOOSE_VOLUME`. Packaged
+Product types are `PACKAGED`, `LOOSE_WEIGHT`, `LOOSE_VOLUME`, and `EGG`. Packaged
 products retain fixed pack/size choices and can be sold online or in the shop.
 Loose weight and loose volume are separate, physical-shop-only products with
 one hidden internal variant and independent FIFO stock. Their selling and buying
 prices are rates per kg or litre. Their exact stored stock unit is gram or
-millilitre; existing products remain packaged pieces.
+millilitre; existing products remain packaged pieces. Egg products use a separate
+whole-piece FIFO pool with one hidden variant. A regular per-egg rate applies to
+1–14 eggs, and a required lower rate applies to the entire line at 15 or more.
+Eggs are available through the storefront, physical shop, and manual channels.
 
-Historical order items permanently retain product, variant, internal SKU, quantity, selling-price, discount, buying-cost, revenue, and gross-profit snapshots.
+Historical order items permanently retain product, variant, internal SKU, quantity,
+selling-price tier, selling-price, discount, buying-cost, revenue, and gross-profit snapshots.
 
 ## 5. Purchases and FIFO inventory
 

@@ -290,6 +290,9 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
       initialVariant: {
         name: product.variantName?.trim() ?? '',
         sellingPrice: String(product.price),
+        bulkSellingPrice: product.kind === 'EGG' && product.bulkSellingPrice != null
+          ? String(product.bulkSellingPrice)
+          : undefined,
         lowStockThreshold: product.initialLowStockThreshold ?? 5,
       },
       priceReason: 'প্রাথমিক দাম',
@@ -318,19 +321,33 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
 export function changeProductKind(id: string, input: {
   kind: ProductKind;
   sellingPrice: number;
+  bulkSellingPrice?: number;
   lowStockThreshold: number;
   reason?: string;
 }): Promise<Product> {
   return requestV1<Product>(`/products/${id}/kind`, {
     method: 'PATCH',
-    body: JSON.stringify({ ...input, sellingPrice: String(input.sellingPrice) }),
+    body: JSON.stringify({
+      ...input,
+      sellingPrice: String(input.sellingPrice),
+      bulkSellingPrice: input.bulkSellingPrice == null ? undefined : String(input.bulkSellingPrice),
+    }),
   });
 }
 
-export async function changeSellingPrice(variantId: string, price: number, reason?: string): Promise<Product> {
+export async function changeSellingPrice(
+  variantId: string,
+  price: number,
+  reason?: string,
+  bulkSellingPrice?: number,
+): Promise<Product> {
   return requestV1<Product>(`/variants/${variantId}/selling-price`, {
     method: 'PATCH',
-    body: JSON.stringify({ sellingPrice: String(price), reason }),
+    body: JSON.stringify({
+      sellingPrice: String(price),
+      bulkSellingPrice: bulkSellingPrice == null ? undefined : String(bulkSellingPrice),
+      reason,
+    }),
   });
 }
 
@@ -376,7 +393,7 @@ export function getSellingPriceHistory(variantId: string): Promise<SellingPriceH
 }
 
 export function bulkChangeSellingPrices(
-  updates: Array<{ variantId: string; sellingPrice: number }>,
+  updates: Array<{ variantId: string; sellingPrice: number; bulkSellingPrice?: number }>,
   reason?: string,
 ): Promise<Product[]> {
   return requestV1<Product[]>('/variants/selling-prices/bulk', {
@@ -386,6 +403,7 @@ export function bulkChangeSellingPrices(
       updates: updates.map((update) => ({
         variantId: update.variantId,
         sellingPrice: String(update.sellingPrice),
+        bulkSellingPrice: update.bulkSellingPrice == null ? undefined : String(update.bulkSellingPrice),
       })),
     }),
   });

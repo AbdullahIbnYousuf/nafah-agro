@@ -12,6 +12,7 @@ import type {
   VariantCreate,
   VariantUpdate,
 } from "../schemas/catalog.js";
+import { EGG_BULK_MINIMUM_QUANTITY, validateEggPrices } from "../lib/pricing.js";
 
 const publicProductInclude = {
   category: { select: { id: true, name: true, slug: true, isActive: true, isVisibleInShop: true } },
@@ -88,14 +89,14 @@ function isDeleteConstraintConflict(error: unknown) {
   return code === "P2003" || code === "P2014";
 }
 
-function hasNoBusinessHistory(variant: ProductRecord["variants"][number]) {
+function hasNoBusinessHistory(variant: ProductRecord["variants"][number], kind: ProductRecord["kind"]) {
   if (!("_count" in variant)) return false;
   return variant.availableStock === 0
     && variant.reservedStock === 0
     && variant._count.stockBatches === 0
     && variant._count.stockAdjustments === 0
     && variant._count.salesOrderItems === 0
-    && variant._count.priceHistory <= 1;
+    && variant._count.priceHistory <= (kind === "EGG" ? 2 : 1);
 }
 
 function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
@@ -119,16 +120,22 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
     youtubeLinks: product.youtubeLinks,
     attributes: product.attributes,
     price: defaultVariant ? Number(defaultVariant.currentSellingPrice) : 0,
+    bulkSellingPrice: defaultVariant?.bulkSellingPrice === null || defaultVariant?.bulkSellingPrice === undefined
+      ? null
+      : Number(defaultVariant.bulkSellingPrice),
+    bulkMinimumQuantity: (product.kind ?? "PACKAGED") === "EGG" ? EGG_BULK_MINIMUM_QUANTITY : null,
     stock: visibleVariants.reduce((total, variant) => total + variant.availableStock, 0),
     sku: defaultVariant?.sku,
     variantName: defaultVariant?.name,
     defaultVariantId: defaultVariant?.id,
-    canDelete: includeInactiveVariants && product.variants.every(hasNoBusinessHistory),
+    canDelete: includeInactiveVariants && product.variants.every((variant) => hasNoBusinessHistory(variant, product.kind)),
     variants: visibleVariants.map((variant) => ({
       id: variant.id,
       name: variant.name,
       sku: variant.sku,
       sellingPrice: Number(variant.currentSellingPrice),
+      bulkSellingPrice: variant.bulkSellingPrice === null ? null : Number(variant.bulkSellingPrice),
+      bulkMinimumQuantity: (product.kind ?? "PACKAGED") === "EGG" ? EGG_BULK_MINIMUM_QUANTITY : null,
       availableStock: variant.availableStock,
       reservedStock: variant.reservedStock,
       lowStockThreshold: variant.lowStockThreshold,
@@ -166,7 +173,7 @@ export function createCatalogService(prisma: PrismaClient) {
         }),
         prisma.product.findMany({
           where: {
-            kind: "PACKAGED",
+            kind: { in: ["PACKAGED", "EGG"] },
             isActive: true,
             isVisibleInShop: true,
             category: { isActive: true, isVisibleInShop: true },
@@ -224,7 +231,7 @@ export function createCatalogService(prisma: PrismaClient) {
     },
     async listProducts(input: ProductList, includeInactive = false) {
       const where: Prisma.ProductWhereInput = {
-        ...(includeInactive ? {} : { kind: "PACKAGED", isActive: true, isVisibleInShop: true, category: {
+        ...(includeInactive ? {} : { kind: { in: ["PACKAGED", "EGG"] }, isActive: true, isVisibleInShop: true, category: {
           isActive: true,
           isVisibleInShop: true,
           ...(input.category ? { slug: input.category } : {}),
@@ -272,7 +279,7 @@ export function createCatalogService(prisma: PrismaClient) {
       const product = await prisma.product.findFirst({
         where: {
           slug,
-          kind: "PACKAGED",
+          kind: { in: ["PACKAGED", "EGG"] },
           isActive: true,
           isVisibleInShop: true,
           category: { isActive: true, isVisibleInShop: true },
@@ -286,6 +293,9 @@ export function createCatalogService(prisma: PrismaClient) {
       return readProduct(id, true);
     },
     async createProduct(input: ProductCreate, actorId: string) {
+      if ((input.kind ?? "PACKAGED") === "EGG") {
+        validateEggPrices(input.initialVariant.sellingPrice, input.initialVariant.bulkSellingPrice);
+      }
       for (let attempt = 0; attempt < 100; attempt += 1) {
         const candidateSlug = productSlugCandidate(input.slug, attempt);
         try {
@@ -308,6 +318,7 @@ export function createCatalogService(prisma: PrismaClient) {
                   name: (input.kind ?? "PACKAGED") === "PACKAGED" ? input.initialVariant.name || "Default" : "Default",
                   sku: internalSku(variantId),
                   currentSellingPrice: input.initialVariant.sellingPrice,
+                  bulkSellingPrice: (input.kind ?? "PACKAGED") === "EGG" ? input.initialVariant.bulkSellingPrice : null,
                   lowStockThreshold: input.initialVariant.lowStockThreshold,
                   isDefault: true,
                 } },
@@ -321,6 +332,16 @@ export function createCatalogService(prisma: PrismaClient) {
               reason: input.priceReason,
               changedByProfileId: actorId,
             } });
+            if ((input.kind ?? "PACKAGED") === "EGG") {
+              await transaction.sellingPriceHistory.create({ data: {
+                variantId: product.variants[0].id,
+                previousPrice: null,
+                newPrice: input.initialVariant.bulkSellingPrice!,
+                priceTier: "EGG_BULK",
+                reason: input.priceReason,
+                changedByProfileId: actorId,
+              } });
+            }
             return product.id;
           });
           return readProduct(productId);
@@ -354,6 +375,7 @@ export function createCatalogService(prisma: PrismaClient) {
                 select: {
                   id: true,
                   currentSellingPrice: true,
+                  bulkSellingPrice: true,
                   availableStock: true,
                   reservedStock: true,
                   _count: { select: { stockBatches: true, stockAdjustments: true, salesOrderItems: true, priceHistory: true } },
@@ -367,22 +389,26 @@ export function createCatalogService(prisma: PrismaClient) {
             throw catalogError(409, "PRODUCT_KIND_LOCKED", "A product with multiple pack/size options cannot change type.");
           }
           const variant = product.variants[0];
+          if (input.kind === "EGG") validateEggPrices(input.sellingPrice, input.bulkSellingPrice);
           const used = variant.availableStock !== 0
             || variant.reservedStock !== 0
             || variant._count.stockBatches > 0
             || variant._count.stockAdjustments > 0
             || variant._count.salesOrderItems > 0
-            || variant._count.priceHistory > 1;
+            || variant._count.priceHistory > (product.kind === "EGG" ? 2 : 1);
           if (used) {
             throw catalogError(409, "PRODUCT_KIND_LOCKED", "Product type cannot change after stock, price updates, or sales exist.");
           }
           await transaction.product.update({ where: { id }, data: { kind: input.kind } });
           const priceChanged = Number(variant.currentSellingPrice) !== Number(input.sellingPrice);
+          const bulkPriceChanged = input.kind === "EGG"
+            && Number(variant.bulkSellingPrice) !== Number(input.bulkSellingPrice);
           await transaction.productVariant.update({
             where: { id: variant.id },
             data: {
               name: "Default",
               currentSellingPrice: input.sellingPrice,
+              bulkSellingPrice: input.kind === "EGG" ? input.bulkSellingPrice : null,
               lowStockThreshold: input.lowStockThreshold,
             },
           });
@@ -395,13 +421,23 @@ export function createCatalogService(prisma: PrismaClient) {
               changedByProfileId: actorId,
             } });
           }
+          if (bulkPriceChanged) {
+            await transaction.sellingPriceHistory.create({ data: {
+              variantId: variant.id,
+              previousPrice: product.kind === "EGG" ? variant.bulkSellingPrice : null,
+              newPrice: input.bulkSellingPrice!,
+              priceTier: "EGG_BULK",
+              reason: input.reason,
+              changedByProfileId: actorId,
+            } });
+          }
           await transaction.auditLog.create({ data: {
             actorProfileId: actorId,
             action: "UNUSED_PRODUCT_KIND_CHANGED",
             entityType: "PRODUCT",
             entityId: id,
             previousData: { kind: product.kind },
-            newData: { kind: input.kind, sellingPrice: input.sellingPrice, lowStockThreshold: input.lowStockThreshold },
+            newData: { kind: input.kind, sellingPrice: input.sellingPrice, bulkSellingPrice: input.bulkSellingPrice ?? null, lowStockThreshold: input.lowStockThreshold },
             reason: input.reason,
           } });
         });
@@ -422,6 +458,7 @@ export function createCatalogService(prisma: PrismaClient) {
               isActive: true,
               isVisibleInShop: true,
               images: true,
+              kind: true,
               variants: {
                 select: {
                   id: true,
@@ -430,7 +467,7 @@ export function createCatalogService(prisma: PrismaClient) {
                   currentSellingPrice: true,
                   availableStock: true,
                   reservedStock: true,
-                  priceHistory: { select: { previousPrice: true }, take: 2 },
+                  priceHistory: { select: { previousPrice: true }, take: 3 },
                   _count: { select: { stockBatches: true, stockAdjustments: true, salesOrderItems: true } },
                 },
               },
@@ -447,7 +484,7 @@ export function createCatalogService(prisma: PrismaClient) {
             throw catalogError(409, "PRODUCT_HAS_HISTORY", "এই পণ্যের স্টক, ইনভেন্টরি বা অর্ডারের রেকর্ড আছে। তাই এটি মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
           }
           const hasPriceUpdates = product.variants.some((variant) =>
-            variant.priceHistory.length > 1
+            variant.priceHistory.length > (product.kind === "EGG" ? 2 : 1)
             || variant.priceHistory.some((history) => history.previousPrice !== null));
           if (hasPriceUpdates) {
             throw catalogError(409, "PRODUCT_HAS_PRICE_UPDATES", "এই পণ্যের দাম পরিবর্তনের রেকর্ড আছে। তাই এটি মুছতে পারবেন না, শুধু ইনঅ্যাকটিভ করতে পারবেন।");
@@ -496,7 +533,7 @@ export function createCatalogService(prisma: PrismaClient) {
           });
           if (!product) throw catalogError(404, "PRODUCT_NOT_FOUND", "Product not found");
           if ((product.kind ?? "PACKAGED") !== "PACKAGED") {
-            throw catalogError(409, "LOOSE_PRODUCT_SINGLE_OPTION", "Loose products use one measured stock and price option.");
+            throw catalogError(409, "LOOSE_PRODUCT_SINGLE_OPTION", "এই ধরনের পণ্যে একটি স্টক ও দামের অপশন থাকে। আলাদা প্যাক/সাইজ অ্যাড করা যায় না।");
           }
           if (product.variants.some((variant) => isUnnamedPackSize(variant.name))) {
             throw catalogError(
@@ -595,21 +632,30 @@ export function createCatalogService(prisma: PrismaClient) {
     },
     async changePrice(variantId: string, input: PriceChange, actorId: string) {
       const productId = await prisma.$transaction(async (transaction) => {
-        const variant = await transaction.productVariant.findUnique({ where: { id: variantId } });
+        const variant = await transaction.productVariant.findUnique({ where: { id: variantId }, include: { product: { select: { kind: true } } } });
         if (!variant) throw catalogError(404, "VARIANT_NOT_FOUND", "Variant not found");
-        if (Number(variant.currentSellingPrice) === Number(input.sellingPrice)) {
+        const productKind = variant.product?.kind ?? "PACKAGED";
+        if (productKind === "EGG") validateEggPrices(input.sellingPrice, input.bulkSellingPrice);
+        const regularChanged = Number(variant.currentSellingPrice) !== Number(input.sellingPrice);
+        const bulkChanged = productKind === "EGG"
+          && Number(variant.bulkSellingPrice) !== Number(input.bulkSellingPrice);
+        if (!regularChanged && !bulkChanged) {
           throw catalogError(400, "PRICE_UNCHANGED", "The new selling price must be different.");
         }
         await transaction.productVariant.update({
           where: { id: variantId },
-          data: { currentSellingPrice: input.sellingPrice },
+          data: {
+            currentSellingPrice: input.sellingPrice,
+            bulkSellingPrice: productKind === "EGG" ? input.bulkSellingPrice : null,
+          },
         });
-        await transaction.sellingPriceHistory.create({ data: {
-          variantId,
-          previousPrice: variant.currentSellingPrice,
-          newPrice: input.sellingPrice,
-          reason: input.reason,
-          changedByProfileId: actorId,
+        if (regularChanged) await transaction.sellingPriceHistory.create({ data: {
+          variantId, previousPrice: variant.currentSellingPrice, newPrice: input.sellingPrice,
+          priceTier: "REGULAR", reason: input.reason, changedByProfileId: actorId,
+        } });
+        if (bulkChanged) await transaction.sellingPriceHistory.create({ data: {
+          variantId, previousPrice: variant.bulkSellingPrice, newPrice: input.bulkSellingPrice!,
+          priceTier: "EGG_BULK", reason: input.reason, changedByProfileId: actorId,
         } });
         return variant.productId;
       });
@@ -618,24 +664,44 @@ export function createCatalogService(prisma: PrismaClient) {
     async bulkChangePrices(input: BulkPriceChange, actorId: string) {
       const productIds = await prisma.$transaction(async (transaction) => {
         const variantIds = input.updates.map((update) => update.variantId);
-        const variants = await transaction.productVariant.findMany({ where: { id: { in: variantIds } } });
+        const variants = await transaction.productVariant.findMany({
+          where: { id: { in: variantIds } },
+          include: { product: { select: { kind: true } } },
+        });
         if (variants.length !== variantIds.length) {
           throw catalogError(404, "VARIANT_NOT_FOUND", "One or more variants were not found; no prices were changed.");
         }
         const byId = new Map(variants.map((variant) => [variant.id, variant]));
         for (const update of input.updates) {
           const variant = byId.get(update.variantId)!;
-          if (Number(variant.currentSellingPrice) === Number(update.sellingPrice)) {
+          const productKind = variant.product?.kind ?? "PACKAGED";
+          if (productKind === "EGG") validateEggPrices(update.sellingPrice, update.bulkSellingPrice);
+          const regularChanged = Number(variant.currentSellingPrice) !== Number(update.sellingPrice);
+          const bulkChanged = productKind === "EGG"
+            && Number(variant.bulkSellingPrice) !== Number(update.bulkSellingPrice);
+          if (!regularChanged && !bulkChanged) {
             throw catalogError(400, "PRICE_UNCHANGED", `The selling price for ${variant.name} is unchanged; no prices were changed.`);
           }
           await transaction.productVariant.update({
             where: { id: update.variantId },
-            data: { currentSellingPrice: update.sellingPrice },
+            data: {
+              currentSellingPrice: update.sellingPrice,
+              bulkSellingPrice: productKind === "EGG" ? update.bulkSellingPrice : null,
+            },
           });
-          await transaction.sellingPriceHistory.create({ data: {
+          if (regularChanged) await transaction.sellingPriceHistory.create({ data: {
             variantId: update.variantId,
             previousPrice: variant.currentSellingPrice,
             newPrice: update.sellingPrice,
+            priceTier: "REGULAR",
+            reason: input.reason,
+            changedByProfileId: actorId,
+          } });
+          if (bulkChanged) await transaction.sellingPriceHistory.create({ data: {
+            variantId: update.variantId,
+            previousPrice: variant.bulkSellingPrice,
+            newPrice: update.bulkSellingPrice!,
+            priceTier: "EGG_BULK",
             reason: input.reason,
             changedByProfileId: actorId,
           } });
@@ -652,6 +718,7 @@ export function createCatalogService(prisma: PrismaClient) {
           id: true,
           previousPrice: true,
           newPrice: true,
+          priceTier: true,
           reason: true,
           changedByProfileId: true,
           changedBy: { select: { fullName: true, role: true } },

@@ -11,8 +11,10 @@ describe('quantity display helpers', () => {
     expect(amountUnitsForKind('PACKAGED')).toEqual(['PIECE']);
     expect(amountUnitsForKind('LOOSE_WEIGHT')).toEqual(['KG', 'G']);
     expect(amountUnitsForKind('LOOSE_VOLUME')).toEqual(['LITER', 'ML']);
+    expect(amountUnitsForKind('EGG')).toEqual(['PIECE']);
     expect(quantityUnitForKind('LOOSE_WEIGHT')).toBe('GRAM');
     expect(quantityUnitForKind('LOOSE_VOLUME')).toBe('MILLILITER');
+    expect(quantityUnitForKind('EGG')).toBe('PIECE');
   });
 
   it('converts measured input into exact base quantities', () => {
@@ -27,5 +29,6 @@ describe('quantity display helpers', () => {
     expect(formatQuantity(1_250, 'GRAM')).toContain('১.২৫ কেজি');
     expect(formatQuantity(500, 'MILLILITER')).toContain('০.৫ লিটার');
     expect(formatQuantity(3, 'PIECE')).toContain('৩ ইউনিট');
+    expect(formatQuantity(15, 'PIECE', 'EGG')).toContain('১৫ টি ডিম');
   });
 });
