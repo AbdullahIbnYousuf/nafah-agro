@@ -45,6 +45,16 @@ describe('customer-based credit manager', () => {
     expect(screen.getByPlaceholderText('ক্রেতার নাম বা ফোন')).toHaveValue('রহিম');
   });
 
+  it('searches automatically while typing without a separate search button', async () => {
+    render(<CreditSalesManager />);
+    await waitFor(() => expect(mocks.getCreditCustomers).toHaveBeenCalledWith({ state: 'OPEN', query: undefined, page: 1, limit: 30 }));
+
+    fireEvent.change(screen.getByLabelText('ক্রেতা খুঁজুন'), { target: { value: 'রহিম' } });
+
+    expect(screen.queryByRole('button', { name: 'খুঁজুন' })).not.toBeInTheDocument();
+    await waitFor(() => expect(mocks.getCreditCustomers).toHaveBeenCalledWith({ state: 'OPEN', query: 'রহিম', page: 1, limit: 30 }), { timeout: 1_500 });
+  });
+
   it('shows one customer total and loads combined previous records', async () => {
     render(<CreditSalesManager />);
     const customerButton = await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ });

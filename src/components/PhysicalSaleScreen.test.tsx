@@ -311,7 +311,7 @@ describe('physical sale history', () => {
     expect(screen.getByText('বাকি বিক্রির জন্য ক্রেতার নাম দিন।')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('ক্রেতার নাম'), { target: { value: 'করিম' } });
-    fireEvent.click(await screen.findByRole('button', { name: /করিম.*নতুন ক্রেতা হিসেবে অ্যাড করুন/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /করিম.*নামে নতুন ক্রেতা অ্যাড করুন/ }));
     const followUp = screen.getByLabelText('পরবর্তী যোগাযোগের তারিখ');
     expect((followUp as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     fireEvent.click(screen.getByRole('button', { name: 'বাকি বিক্রি সম্পন্ন করুন' }));
@@ -332,7 +332,7 @@ describe('physical sale history', () => {
     fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
     fireEvent.click(screen.getByRole('button', { name: 'বাকি' }));
     fireEvent.change(screen.getByLabelText('ক্রেতার নাম'), { target: { value: 'রহ' } });
-    fireEvent.click(await screen.findByRole('button', { name: 'রহিম' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'রহিম' }));
 
     expect(screen.getByLabelText('ক্রেতার ফোন')).toHaveValue('01300000000');
     expect(screen.getByLabelText('পরবর্তী যোগাযোগের তারিখ')).toHaveValue('2099-09-20');
@@ -344,5 +344,46 @@ describe('physical sale history', () => {
       creditCustomerId: '70000000-0000-4000-8000-000000000001', createCreditCustomer: false,
       customerName: 'রহিম', customerPhone: '01300000000', nextFollowUpDate: '2099-09-20',
     })));
+  });
+
+  it('allows a new customer whose name is part of an existing customer name', async () => {
+    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.suggestCreditCustomers.mockResolvedValue([{
+      id: '70000000-0000-4000-8000-000000000002', name: 'Alif', phone: null,
+      nextFollowUpDate: '2099-09-20', outstandingAmount: 100,
+    }]);
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ বেছে নিন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি' }));
+    fireEvent.change(screen.getByLabelText('ক্রেতার নাম'), { target: { value: 'Ali' } });
+
+    const customerNameInput = screen.getByRole('combobox', { name: 'ক্রেতার নাম' });
+    const existingOption = await screen.findByRole('option', { name: 'Alif' });
+    const createOption = screen.getByRole('option', { name: /Ali.*নামে নতুন ক্রেতা অ্যাড করুন/ });
+    fireEvent.keyDown(customerNameInput, { key: 'ArrowDown' });
+    expect(existingOption).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(customerNameInput, { key: 'ArrowDown' });
+    expect(createOption).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(customerNameInput, { key: 'Enter' });
+    expect(screen.getByText('নতুন ক্রেতা অ্যাড হবে')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি বিক্রি সম্পন্ন করুন' }));
+    await waitFor(() => expect(mocks.createPhysicalSale).toHaveBeenCalledWith(expect.objectContaining({
+      paymentMode: 'CREDIT', customerName: 'Ali', creditCustomerId: undefined, createCreditCustomer: true,
+    })));
+  });
+
+  it('does not offer duplicate creation when the typed name exactly matches a customer', async () => {
+    mocks.suggestCreditCustomers.mockResolvedValue([{
+      id: '70000000-0000-4000-8000-000000000002', name: '  ALI  ', phone: null,
+      nextFollowUpDate: null, outstandingAmount: 0,
+    }]);
+    renderScreen();
+    fireEvent.click(screen.getByRole('button', { name: 'বাকি' }));
+    fireEvent.change(screen.getByLabelText('ক্রেতার নাম'), { target: { value: 'ali' } });
+
+    expect(await screen.findByRole('option', { name: /ALI/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /নামে নতুন ক্রেতা অ্যাড করুন/ })).not.toBeInTheDocument();
   });
 });

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
+import { FilterField, FilterFields, FilterPanel, FilterRefreshButton, FilterResetButton, filterSelectClassName } from '@/components/ui/filter-panel';
 import ReturnOrderDialog, { type ReturnCondition } from '@/components/ReturnOrderDialog';
 import OrderActionDialog, { type OrderAction } from '@/components/OrderActionDialog';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
@@ -212,16 +213,16 @@ export default function UnifiedOrderManager() {
       {manualErrors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{manualErrors.submit}</p>}
       <div className="grid gap-2 sm:flex"><Button type="button" className="min-h-11 w-full sm:w-auto" variant="outline" onClick={() => setManualItems(current => [...current, { productVariantId: '', quantity: 1 }])}>আরও আইটেম</Button><Button type="button" className="min-h-11 w-full sm:w-auto" onClick={() => void saveManual()}>অর্ডার তৈরি করুন</Button></div>
     </section>}
-    <section className="grid md:grid-cols-4 xl:grid-cols-8 gap-2 mb-4 items-end">
-      <select aria-label="অর্ডারের উৎস" className="h-11 rounded border bg-background px-3 md:h-10" value={source} onChange={event => setSource(event.target.value as OrderSource | '')}><option value="">সব উৎস</option>{sources.map(value => <option key={value}>{value}</option>)}</select>
-      <select aria-label="অর্ডারের অবস্থা" className="h-11 rounded border bg-background px-3 md:h-10" value={status} onChange={event => setStatus(event.target.value as OrderStatus | '')}><option value="">সব অবস্থা</option>{statuses.map(value => <option key={value}>{value}</option>)}</select>
-      <Input aria-label="অর্ডার নম্বর" placeholder="অর্ডার নম্বর" value={orderNumber} onChange={event => setOrderNumber(event.target.value)} />
-      <Input aria-label="গ্রাহকের ফোন" placeholder="ফোন" value={phoneFilter} onChange={event => setPhoneFilter(event.target.value)} />
-      <div><Label htmlFor="orders-date-from">তারিখ থেকে</Label><FormattedDateInput id="orders-date-from" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /></div>
-      <div><Label htmlFor="orders-date-to">তারিখ পর্যন্ত</Label><FormattedDateInput id="orders-date-to" value={dateTo} onChange={event => setDateTo(event.target.value)} /></div>
-      <Button variant="outline" onClick={clearFilters} disabled={!hasActiveFilters}>ফিল্টার মুছুন</Button>
-      <Button variant="outline" onClick={() => void loadOrders()}><RefreshCw size={16} className="mr-2" />রিফ্রেশ</Button>
-    </section>
+    <FilterPanel className="mb-4" actions={<><FilterResetButton active={hasActiveFilters} onClick={clearFilters} /><FilterRefreshButton onClick={() => void loadOrders()} loading={loading} /></>}>
+      <FilterFields className="lg:grid-cols-3 xl:grid-cols-6">
+        <FilterField label="অর্ডারের উৎস"><select aria-label="অর্ডারের উৎস" className={filterSelectClassName} value={source} onChange={event => setSource(event.target.value as OrderSource | '')}><option value="">সব উৎস</option>{sources.map(value => <option key={value}>{value}</option>)}</select></FilterField>
+        <FilterField label="অর্ডারের স্ট্যাটাস"><select aria-label="অর্ডারের অবস্থা" className={filterSelectClassName} value={status} onChange={event => setStatus(event.target.value as OrderStatus | '')}><option value="">সব স্ট্যাটাস</option>{statuses.map(value => <option key={value}>{value}</option>)}</select></FilterField>
+        <FilterField label="অর্ডার নম্বর"><Input aria-label="অর্ডার নম্বর" placeholder="অর্ডার নম্বর লিখুন" value={orderNumber} onChange={event => setOrderNumber(event.target.value)} /></FilterField>
+        <FilterField label="গ্রাহকের ফোন"><Input aria-label="গ্রাহকের ফোন" placeholder="ফোন নম্বর লিখুন" value={phoneFilter} onChange={event => setPhoneFilter(event.target.value)} /></FilterField>
+        <FilterField label="তারিখ থেকে"><FormattedDateInput aria-label="অর্ডারের তারিখ থেকে" value={dateFrom} onChange={event => setDateFrom(event.target.value)} /></FilterField>
+        <FilterField label="তারিখ পর্যন্ত"><FormattedDateInput aria-label="অর্ডারের তারিখ পর্যন্ত" value={dateTo} onChange={event => setDateTo(event.target.value)} /></FilterField>
+      </FilterFields>
+    </FilterPanel>
     {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : <div className="space-y-3">{orders.map(order => <article key={order.id} className="bg-card border rounded-lg p-4"><div className="flex flex-wrap justify-between gap-3"><div><strong>{order.orderNumber}</strong><div className="text-sm">{order.source} · {order.status} · {order.customerName ?? 'গ্রাহক নেই'} · {order.customerPhone ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground">{formatAppDateTime(order.placedAt)}</div></div><div className="text-right"><div className="font-bold">মোট ৳{order.grandTotal}</div><div className="text-sm">ক্রয়মূল্য {order.totalBuyingCost === null ? 'প্রযোজ্য নয়' : `৳${order.totalBuyingCost}`} · লাভ {order.grossProfit === null ? 'প্রযোজ্য নয়' : `৳${order.grossProfit}`} · মার্জিন {order.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${order.grossProfitMargin}%`}</div></div></div>
         <div className="text-sm mt-3">{order.items.map(item => `${productPackLabel(item.productName, item.variantName)} × ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
         {order.statusReason && <div className="text-sm text-destructive mt-2">কারণ: {order.statusReason}</div>}

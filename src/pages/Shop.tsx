@@ -9,6 +9,12 @@ import ProductGridSkeleton from '@/components/ProductGridSkeleton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  FilterField,
+  FilterFields,
+  FilterPanel,
+  FilterResetButton,
+} from '@/components/ui/filter-panel';
 import { Search, X, Star, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatBanglaNumber } from '@/lib/utils';
@@ -162,7 +168,13 @@ const Shop = () => {
     setSearchParams(new URLSearchParams());
   }
 
-  const hasActiveFilters = !!(debouncedSearch || categoryFilter !== 'all' || tagFilter || featuredOnly);
+  const hasActiveFilters = !!(
+    debouncedSearch
+    || categoryFilter !== 'all'
+    || tagFilter
+    || featuredOnly
+    || sortBy !== 'newest'
+  );
 
   // Build compact page list: always show first/last + ±1 around current
   const pageList = Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -194,90 +206,97 @@ const Shop = () => {
             </Button>
           </div>
         )}
-        <div className="flex flex-wrap gap-3 mb-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-            <Input
-              placeholder="পণ্য খুঁজুন..."
-              value={search}
-              onChange={e => { syncingSearchFromUrl.current = false; setSearch(e.target.value); }}
-              className="pl-10 bg-card"
-            />
-            {search && (
-              <button aria-label="খোঁজার লেখা মুছুন" onClick={() => { syncingSearchFromUrl.current = true; setSearch(''); updateRouteParam('q', null, { replace: true }); }} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground md:h-10 md:w-10">
-                <X size={14} />
-              </button>
+        <FilterPanel
+          className="mb-6"
+          actions={<FilterResetButton active={hasActiveFilters} onClick={clearFilters} />}
+        >
+          <FilterFields className="lg:grid-cols-4">
+            <FilterField label="পণ্য">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                <Input
+                  aria-label="পণ্য খুঁজুন"
+                  placeholder="পণ্য খুঁজুন..."
+                  value={search}
+                  onChange={e => { syncingSearchFromUrl.current = false; setSearch(e.target.value); }}
+                  className="pl-10 pr-10"
+                />
+                {search && (
+                  <button aria-label="খোঁজার লেখা মুছুন" onClick={() => { syncingSearchFromUrl.current = true; setSearch(''); updateRouteParam('q', null, { replace: true }); }} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground md:h-10 md:w-10">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </FilterField>
+
+            <FilterField label="ক্যাটাগরি">
+              <Select value={categoryFilter} onValueChange={(value) => updateRouteParam('category', value === 'all' ? null : value)}>
+                <SelectTrigger aria-label="ক্যাটাগরি">
+                  <SelectValue placeholder="ক্যাটাগরি" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">সব ক্যাটাগরি</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            <FilterField label="ট্যাগ">
+              <Select value={tagFilter || '__all__'} onValueChange={(value) => updateRouteParam('tag', value === '__all__' ? null : value)}>
+                <SelectTrigger aria-label="ট্যাগ">
+                  <SelectValue placeholder="ট্যাগ" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">সব ট্যাগ</SelectItem>
+                  {allTags.map(t => (
+                    <SelectItem key={t} value={t}>#{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            <FilterField label="সাজানো">
+              <Select value={sortBy ?? 'newest'} onValueChange={(value) => updateRouteParam('sort', value === 'newest' ? null : value)}>
+                <SelectTrigger aria-label="সাজানো">
+                  <SelectValue placeholder="সর্ট করুন" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">নতুন আগে</SelectItem>
+                  <SelectItem value="oldest">পুরনো আগে</SelectItem>
+                  <SelectItem value="price_asc">দাম: কম → বেশি</SelectItem>
+                  <SelectItem value="price_desc">দাম: বেশি → কম</SelectItem>
+                  <SelectItem value="name_asc">নাম: ক → ঢ</SelectItem>
+                  <SelectItem value="name_desc">নাম: ঢ → ক</SelectItem>
+                </SelectContent>
+              </Select>
+            </FilterField>
+          </FilterFields>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => updateRouteParam('featured', featuredOnly ? null : '1')}
+              className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm transition-all md:min-h-9 ${
+                featuredOnly
+                  ? 'border-secondary bg-secondary/15 font-medium text-secondary'
+                  : 'border-border text-muted-foreground hover:border-secondary/50'
+              }`}
+            >
+              <Star size={13} fill={featuredOnly ? 'currentColor' : 'none'} />
+              ফিচার্ড পণ্য
+            </button>
+
+            {tagFilter && (
+              <span className="flex min-h-11 items-center gap-1 rounded-full bg-secondary/15 px-3 text-sm font-medium text-secondary md:min-h-9">
+                #{tagFilter}
+                <button aria-label={`${tagFilter} ট্যাগ মুছুন`} onClick={() => updateRouteParam('tag', null)} className="ml-0.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
+                  <X size={13} />
+                </button>
+              </span>
             )}
           </div>
-
-          <Select value={categoryFilter} onValueChange={(value) => updateRouteParam('category', value === 'all' ? null : value)}>
-            <SelectTrigger className="w-full sm:w-44 bg-card">
-              <SelectValue placeholder="ক্যাটাগরি" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">সব ক্যাটাগরি</SelectItem>
-              {categories.map(c => (
-                <SelectItem key={c.id} value={c.slug}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={tagFilter || '__all__'} onValueChange={(value) => updateRouteParam('tag', value === '__all__' ? null : value)}>
-            <SelectTrigger className="w-full sm:w-40 bg-card">
-              <SelectValue placeholder="ট্যাগ" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">সব ট্যাগ</SelectItem>
-              {allTags.map(t => (
-                <SelectItem key={t} value={t}>#{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sortBy ?? 'newest'} onValueChange={(value) => updateRouteParam('sort', value === 'newest' ? null : value)}>
-            <SelectTrigger className="w-full sm:w-48 bg-card">
-              <SelectValue placeholder="সর্ট করুন" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">নতুন আগে</SelectItem>
-              <SelectItem value="oldest">পুরনো আগে</SelectItem>
-              <SelectItem value="price_asc">দাম: কম → বেশি</SelectItem>
-              <SelectItem value="price_desc">দাম: বেশি → কম</SelectItem>
-              <SelectItem value="name_asc">নাম: ক → ঢ</SelectItem>
-              <SelectItem value="name_desc">নাম: ঢ → ক</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Secondary row: featured toggle + active chips + clear */}
-        <div className="flex flex-wrap items-center gap-2 mb-6">
-          <button
-            onClick={() => updateRouteParam('featured', featuredOnly ? null : '1')}
-            className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm transition-all md:min-h-9 ${
-              featuredOnly
-                ? 'border-secondary bg-secondary/15 text-secondary font-medium'
-                : 'border-border text-muted-foreground hover:border-secondary/50'
-            }`}
-          >
-            <Star size={13} fill={featuredOnly ? 'currentColor' : 'none'} />
-            ফিচার্ড পণ্য
-          </button>
-
-          {tagFilter && (
-            <span className="flex min-h-11 items-center gap-1 rounded-full bg-secondary/15 px-3 text-sm font-medium text-secondary md:min-h-9">
-              #{tagFilter}
-              <button aria-label={`${tagFilter} ট্যাগ মুছুন`} onClick={() => updateRouteParam('tag', null)} className="ml-0.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
-                <X size={13} />
-              </button>
-            </span>
-          )}
-
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="ml-auto min-h-11 rounded-md px-2 text-xs text-muted-foreground underline hover:bg-muted hover:text-destructive md:min-h-9">
-              সব ফিল্টার মুছুন
-            </button>
-          )}
-        </div>
+        </FilterPanel>
 
         {/* Results */}
         {loading ? (
@@ -327,11 +346,9 @@ const Shop = () => {
         ) : (
           <div className="text-center py-20 text-muted-foreground">
             <p className="text-lg">কোনো পণ্য পাওয়া যায়নি</p>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="mt-3 min-h-11 rounded-md px-3 text-sm text-secondary hover:bg-muted hover:underline">
-                ফিল্টার মুছে আবার চেষ্টা করুন
-              </button>
-            )}
+            <div className="mt-3 flex justify-center">
+              <FilterResetButton active={hasActiveFilters} onClick={clearFilters} />
+            </div>
           </div>
         )}
       </div>

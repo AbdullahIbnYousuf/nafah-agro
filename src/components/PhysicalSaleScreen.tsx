@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, Clock3, HandCoins, Plus, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Input } from '@/components/ui/input';
 import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
+import { FilterField, FilterFields, FilterForm, FilterPanel, FilterResetButton } from '@/components/ui/filter-panel';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import PhysicalSaleReturnDialog from '@/components/PhysicalSaleReturnDialog';
 import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales, returnPhysicalSale, suggestCreditCustomers } from '@/lib/api';
@@ -63,6 +64,10 @@ function dhakaDate(offsetDays = 0) {
   return value.toISOString().slice(0, 10);
 }
 
+function normalizeCustomerName(value: string) {
+  return value.trim().replace(/\s+/gu, ' ').normalize('NFKC').toLocaleLowerCase('bn-BD');
+}
+
 export default function PhysicalSaleScreen() {
   const [initialHistoryFilters] = useState(readPhysicalSaleHistoryFilters);
   const [products, setProducts] = useState<Product[]>([]);
@@ -78,6 +83,8 @@ export default function PhysicalSaleScreen() {
   const [creditCustomerSuggestions, setCreditCustomerSuggestions] = useState<CreditCustomerSuggestion[]>([]);
   const [loadingCustomerSuggestions, setLoadingCustomerSuggestions] = useState(false);
   const [customerSuggestionError, setCustomerSuggestionError] = useState('');
+  const [highlightedCustomerOption, setHighlightedCustomerOption] = useState(-1);
+  const [customerSuggestionsDismissed, setCustomerSuggestionsDismissed] = useState(false);
   const [newCreditCustomerConfirmed, setNewCreditCustomerConfirmed] = useState(false);
   const [discount, setDiscount] = useState('0');
   const [paymentMode, setPaymentMode] = useState<'PAID_NOW' | 'CREDIT'>('PAID_NOW');
@@ -138,6 +145,61 @@ export default function PhysicalSaleScreen() {
     return variants.filter(({ product, variant }) =>
       `${product.name} ${visiblePackSize(variant.name) ?? ''}`.toLowerCase().includes(normalized)).slice(0, 20);
   }, [query, variants]);
+  const hasExactCreditCustomerMatch = useMemo(() => {
+    const typedName = normalizeCustomerName(customerName);
+    return Boolean(typedName) && creditCustomerSuggestions.some(
+      (customer) => normalizeCustomerName(customer.name) === typedName,
+    );
+  }, [creditCustomerSuggestions, customerName]);
+  const canCreateCreditCustomer = Boolean(customerName.trim())
+    && !loadingCustomerSuggestions
+    && !customerSuggestionError
+    && !hasExactCreditCustomerMatch;
+  const creditCustomerOptionCount = creditCustomerSuggestions.length + (canCreateCreditCustomer ? 1 : 0);
+
+  function selectCreditCustomer(customer: CreditCustomerSuggestion) {
+    setSelectedCreditCustomer(customer);
+    setCustomerName(customer.name);
+    setCustomerPhone(customer.phone ?? '');
+    setNextFollowUpDate(customer.nextFollowUpDate ?? dhakaDate(7));
+    setCreditCustomerSuggestions([]);
+    setHighlightedCustomerOption(-1);
+    setCustomerSuggestionsDismissed(false);
+    setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined }));
+  }
+
+  function confirmNewCreditCustomer() {
+    setNewCreditCustomerConfirmed(true);
+    setNextFollowUpDate((current) => current || dhakaDate(7));
+    setCreditCustomerSuggestions([]);
+    setHighlightedCustomerOption(-1);
+    setCustomerSuggestionsDismissed(false);
+    setErrors((current) => ({ ...current, customerSelection: undefined }));
+  }
+
+  function handleCreditCustomerKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Escape') {
+      setCustomerSuggestionsDismissed(true);
+      setHighlightedCustomerOption(-1);
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return;
+    if (creditCustomerOptionCount === 0) return;
+    if (event.key === 'Enter') {
+      if (highlightedCustomerOption < 0) return;
+      event.preventDefault();
+      const customer = creditCustomerSuggestions[highlightedCustomerOption];
+      if (customer) selectCreditCustomer(customer);
+      else if (canCreateCreditCustomer) confirmNewCreditCustomer();
+      return;
+    }
+    event.preventDefault();
+    setCustomerSuggestionsDismissed(false);
+    setHighlightedCustomerOption((current) => {
+      if (event.key === 'ArrowDown') return current < creditCustomerOptionCount - 1 ? current + 1 : 0;
+      return current > 0 ? current - 1 : creditCustomerOptionCount - 1;
+    });
+  }
 
   useEffect(() => {
     if (!selectionDraft) return;
@@ -324,25 +386,31 @@ export default function PhysicalSaleScreen() {
         <div className="grid items-start gap-3 sm:grid-cols-2">
           <Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName ?? errors.customerSelection}>
             <div className="relative">
-              <Input aria-label="ক্রেতার নাম" autoComplete="off" value={customerName} onChange={(event) => {
+              <Input
+                aria-label="ক্রেতার নাম"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed && !customerSuggestionsDismissed && Boolean(customerName.trim())}
+                aria-controls="credit-customer-suggestions"
+                aria-activedescendant={highlightedCustomerOption >= 0 ? `credit-customer-option-${highlightedCustomerOption}` : undefined}
+                autoComplete="off"
+                value={customerName}
+                onFocus={() => setCustomerSuggestionsDismissed(false)}
+                onKeyDown={handleCreditCustomerKeyDown}
+                onChange={(event) => {
                 setCustomerName(event.target.value);
                 setSelectedCreditCustomer(null);
                 setNewCreditCustomerConfirmed(false);
+                setHighlightedCustomerOption(-1);
+                setCustomerSuggestionsDismissed(false);
                 setCustomerSuggestionError('');
                 setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined }));
               }} aria-invalid={Boolean(errors.customerName ?? errors.customerSelection)} />
-              {paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed && customerName.trim() && <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-lg">
+              {paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed && !customerSuggestionsDismissed && customerName.trim() && <div id="credit-customer-suggestions" role="listbox" aria-label="ক্রেতার নামের পরামর্শ" className="absolute z-30 mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-lg">
                 {loadingCustomerSuggestions && <div className="px-3 py-2 text-sm text-muted-foreground">খোঁজা হচ্ছে...</div>}
                 {!loadingCustomerSuggestions && customerSuggestionError && <div className="px-3 py-2 text-sm text-destructive">{customerSuggestionError}</div>}
-                {!loadingCustomerSuggestions && creditCustomerSuggestions.map((customer) => <button key={customer.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => {
-                  setSelectedCreditCustomer(customer);
-                  setCustomerName(customer.name);
-                  setCustomerPhone(customer.phone ?? '');
-                  setNextFollowUpDate(customer.nextFollowUpDate ?? dhakaDate(7));
-                  setCreditCustomerSuggestions([]);
-                  setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined }));
-                }}>{customer.name}</button>)}
-                {!loadingCustomerSuggestions && !customerSuggestionError && creditCustomerSuggestions.length === 0 && <button type="button" className="block w-full px-3 py-2 text-left text-sm font-medium text-secondary hover:bg-muted" onClick={() => { setNewCreditCustomerConfirmed(true); setNextFollowUpDate((current) => current || dhakaDate(7)); setErrors((current) => ({ ...current, customerSelection: undefined })); }}>“{customerName.trim()}” নতুন ক্রেতা হিসেবে অ্যাড করুন</button>}
+                {!loadingCustomerSuggestions && creditCustomerSuggestions.map((customer, index) => <button id={`credit-customer-option-${index}`} role="option" aria-selected={highlightedCustomerOption === index} key={customer.id} type="button" className={`block w-full px-3 py-2 text-left text-sm hover:bg-muted ${highlightedCustomerOption === index ? 'bg-muted' : ''}`} onMouseEnter={() => setHighlightedCustomerOption(index)} onClick={() => selectCreditCustomer(customer)}>{customer.name}</button>)}
+                {canCreateCreditCustomer && <button id={`credit-customer-option-${creditCustomerSuggestions.length}`} role="option" aria-selected={highlightedCustomerOption === creditCustomerSuggestions.length} type="button" className={`block w-full border-t px-3 py-2 text-left text-sm font-medium text-secondary hover:bg-muted ${highlightedCustomerOption === creditCustomerSuggestions.length ? 'bg-muted' : ''}`} onMouseEnter={() => setHighlightedCustomerOption(creditCustomerSuggestions.length)} onClick={confirmNewCreditCustomer}>“{customerName.trim()}” নামে নতুন ক্রেতা অ্যাড করুন</button>}
               </div>}
               {selectedCreditCustomer && <button type="button" className="mt-1 text-xs font-medium text-secondary hover:underline" onClick={() => { setSelectedCreditCustomer(null); setCustomerName(''); setCustomerPhone(''); }}>অন্য ক্রেতা বেছে নিন</button>}
               {newCreditCustomerConfirmed && <div className="mt-1 text-xs font-medium text-secondary">নতুন ক্রেতা অ্যাড হবে</div>}
@@ -367,29 +435,31 @@ export default function PhysicalSaleScreen() {
 
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
-      <form onSubmit={applyHistoryFilters} className="mb-4 grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-2 md:items-end xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_170px_170px_auto_auto]">
-        <Field label="পণ্য"><ProductHistorySearch
-          value={historyProduct}
-          products={products}
-          onChange={setHistoryProduct}
-          onSelect={(value) => {
-            setHistoryProduct(value);
-            const next = { product: value, query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo };
-            setHistoryFilters(next);
-            savePhysicalSaleHistoryFilters(next);
-          }}
-        /></Field>
-        <Field label="অন্য তথ্য"><Input
-          aria-label="ক্রেতা বা বিক্রির তথ্য"
-          value={historyQuery}
-          onChange={(event) => setHistoryQuery(event.target.value)}
-          placeholder="নাম, ফোন, বিক্রয় নম্বর বা মোট দাম"
-        /></Field>
-        <Field label="তারিখ থেকে"><FormattedDateInput aria-label="বিক্রির তারিখ থেকে" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></Field>
-        <Field label="তারিখ পর্যন্ত"><FormattedDateInput aria-label="বিক্রির তারিখ পর্যন্ত" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></Field>
-        <Button type="submit" variant="outline"><Search size={16} className="mr-2" />খুঁজুন</Button>
-        <Button type="button" variant="ghost" onClick={clearHistoryFilters} disabled={!historyProduct && !historyQuery && !historyDateFrom && !historyDateTo && !historyFilters.product && !historyFilters.query && !historyFilters.dateFrom && !historyFilters.dateTo}>ফিল্টার মুছুন</Button>
-      </form>
+      <FilterPanel className="mb-4" title="বিক্রির ফিল্টার" actions={<><Button type="submit" form="physical-sale-history-filters"><Search size={16} />খুঁজুন</Button><FilterResetButton active={Boolean(historyProduct || historyQuery || historyDateFrom || historyDateTo || historyFilters.product || historyFilters.query || historyFilters.dateFrom || historyFilters.dateTo)} onClick={clearHistoryFilters} /></>}>
+        <FilterForm id="physical-sale-history-filters" onSubmit={applyHistoryFilters}>
+          <FilterFields className="xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_170px_170px]">
+            <FilterField label="পণ্য"><ProductHistorySearch
+              value={historyProduct}
+              products={products}
+              onChange={setHistoryProduct}
+              onSelect={(value) => {
+                setHistoryProduct(value);
+                const next = { product: value, query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo };
+                setHistoryFilters(next);
+                savePhysicalSaleHistoryFilters(next);
+              }}
+            /></FilterField>
+            <FilterField label="অন্য তথ্য"><Input
+              aria-label="ক্রেতা বা বিক্রির তথ্য"
+              value={historyQuery}
+              onChange={(event) => setHistoryQuery(event.target.value)}
+              placeholder="নাম, ফোন, বিক্রয় নম্বর বা মোট দাম"
+            /></FilterField>
+            <FilterField label="তারিখ থেকে"><FormattedDateInput aria-label="বিক্রির তারিখ থেকে" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></FilterField>
+            <FilterField label="তারিখ পর্যন্ত"><FormattedDateInput aria-label="বিক্রির তারিখ পর্যন্ত" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></FilterField>
+          </FilterFields>
+        </FilterForm>
+      </FilterPanel>
       {recentSales.length === 0
         ? <div className="rounded-lg border bg-card px-4 py-10 text-center text-sm text-muted-foreground">এই খোঁজে কোনো বিক্রি পাওয়া যায়নি</div>
         : <div className="space-y-3">{recentSales.map((sale) => <PhysicalSaleHistoryCard key={sale.id} sale={sale} onReturn={() => setReturnSale(sale)} />)}</div>}

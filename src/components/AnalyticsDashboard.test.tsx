@@ -192,8 +192,8 @@ describe('analytics dashboard date controls', () => {
     expect(screen.queryByText('ফোন')).not.toBeInTheDocument();
     expect(screen.queryByText('হোয়াটসঅ্যাপ')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'চলমান COD অর্ডার বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/orders');
-    expect(screen.getByRole('link', { name: 'কম স্টকের প্যাক/সাইজ বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/inventory');
-    expect(screen.getByRole('link', { name: 'স্টক নেই এমন প্যাক/সাইজ বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/inventory');
+    expect(screen.getByRole('link', { name: 'কম স্টক বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/inventory');
+    expect(screen.getByRole('link', { name: 'স্টক নেই বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/inventory');
     expect(screen.getByRole('link', { name: 'বাকি হিসাব বিস্তারিত দেখুন' })).toHaveAttribute('href', '/admin/dues');
 
     fireEvent.click(screen.getByRole('button', { name: 'এই বছর' }));

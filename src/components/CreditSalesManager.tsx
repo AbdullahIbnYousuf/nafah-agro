@@ -5,6 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
+import { FilterField, FilterFields, FilterPanel, FilterResetButton } from '@/components/ui/filter-panel';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   ApiError,
   getCreditCustomer,
@@ -69,6 +71,7 @@ export default function CreditSalesManager() {
   const [state, setState] = useState<CreditSaleState>(initialView.state);
   const [queryDraft, setQueryDraft] = useState(initialView.query);
   const [query, setQuery] = useState(initialView.query);
+  const debouncedQuery = useDebounce(queryDraft, 350);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -93,6 +96,12 @@ export default function CreditSalesManager() {
     finally { setLoading(false); }
   }, [page, query, state]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const value = debouncedQuery.trim();
+    setQuery((current) => current === value ? current : value);
+    setPage(1);
+    saveView({ query: value });
+  }, [debouncedQuery]);
 
   async function toggleCustomer(customer: CreditCustomer) {
     if (expanded === customer.id) { setExpanded(null); return; }
@@ -106,6 +115,13 @@ export default function CreditSalesManager() {
     finally { setDetailLoading(null); }
   }
   function refreshed() { setDetails({}); void load(); }
+  function resetFilters() {
+    setState('OPEN');
+    setQueryDraft('');
+    setQuery('');
+    setPage(1);
+    saveView({ state: 'OPEN', query: '' });
+  }
 
   return <div className="space-y-6">
     <div><h1 className="text-2xl font-bold">বাকি হিসাব</h1><p className="text-sm text-muted-foreground">প্রতি ক্রেতার মোট বাকি, জমা টাকা এবং যোগাযোগের তারিখ দেখুন।</p></div>
@@ -115,13 +131,12 @@ export default function CreditSalesManager() {
       <SummaryCard label="আজ যোগাযোগ" value={summary ? `${summary.dueTodayCount} জন` : '...'} icon={<Phone size={18} />} />
       <SummaryCard label="বাকি থাকা ক্রেতা" value={summary ? `${summary.customerCount} জন` : '...'} icon={<CheckCircle2 size={18} />} />
     </div>
-    <section className="rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap gap-2">{states.map((item) => <Button key={item.value} size="sm" variant={state === item.value ? 'default' : 'outline'} onClick={() => { setState(item.value); setPage(1); saveView({ state: item.value }); }}>{item.label}</Button>)}</div>
-      <form onSubmit={(event) => { event.preventDefault(); const value = queryDraft.trim(); setQuery(value); setPage(1); saveView({ query: value }); }} className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} /><Input className="pl-10" value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="ক্রেতার নাম বা ফোন" /></div><Button type="submit">খুঁজুন</Button>
-        {query && <Button type="button" variant="ghost" onClick={() => { setQueryDraft(''); setQuery(''); setPage(1); saveView({ query: '' }); }}>খোঁজা মুছুন</Button>}
-      </form>
-    </section>
+    <FilterPanel title="বাকি ফিল্টার" actions={<FilterResetButton active={state !== 'OPEN' || Boolean(queryDraft.trim() || query)} onClick={resetFilters} />}>
+      <FilterFields className="lg:grid-cols-[minmax(240px,1fr)_minmax(0,2fr)] lg:items-end">
+        <FilterField label="ক্রেতা"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="ক্রেতা খুঁজুন" className="pl-10" value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="ক্রেতার নাম বা ফোন" /></div></FilterField>
+        <FilterField label="বাকির অবস্থা"><div className="flex min-h-11 flex-wrap items-center gap-2">{states.map((item) => <Button key={item.value} type="button" size="sm" variant={state === item.value ? 'default' : 'outline'} onClick={() => { setState(item.value); setPage(1); saveView({ state: item.value }); }}>{item.label}</Button>)}</div></FilterField>
+      </FilterFields>
+    </FilterPanel>
     {loading && <div className="flex min-h-48 items-center justify-center"><Loader2 className="animate-spin" /><span className="ml-2">বাকি হিসাব লোড হচ্ছে...</span></div>}
     {!loading && loadError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center"><p className="text-destructive">{loadError}</p><Button className="mt-3" onClick={() => void load()}>আবার চেষ্টা করুন</Button></div>}
     {!loading && !loadError && customers.length === 0 && <div className="rounded-xl border bg-card px-4 py-12 text-center text-muted-foreground">এই তালিকায় কোনো ক্রেতার বাকি নেই।</div>}

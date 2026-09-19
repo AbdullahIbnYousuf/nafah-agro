@@ -79,8 +79,8 @@ Do not use “সক্রিয়” or “নিষ্ক্রিয়” i
 - Keep “সংরক্ষিত ইউনিট” as written. Do not replace it with “অর্ডারের জন্য রাখা ইউনিট”.
 - Replace “উপলভ্য” in customer or owner-facing stock descriptions with a direct explanation:
   - উপলভ্য ইউনিট → বিক্রির জন্য থাকা ইউনিট
-  - উপলভ্য স্টক শূন্য → বিক্রির জন্য স্টক নেই
-  - উপলভ্য স্টক সতর্কতা সীমার মধ্যে → স্টক নির্ধারিত সীমায় নেমে এসেছে
+  - উপলভ্য স্টক শূন্য → বিক্রির জন্য কোনো স্টক নেই এমন অ্যাকটিভ আইটেম।
+  - উপলভ্য স্টক সতর্কতা সীমার মধ্যে → কম স্টকের লিমিটে পৌঁছানো অ্যাকটিভ আইটেম।
 - “ব্যাচ” is acceptable when the batch distinction matters. Prefer “স্টক ব্যাচ” when extra context is useful.
 
 ## FIFO wording

@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, EyeOff, HandCoins, ImageIcon, Loader2, Package, Plus, Settings2, Store, Tag, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, EyeOff, HandCoins, ImageIcon, Loader2, Package, Plus, Search, Settings2, Store, Tag, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Portal as TooltipPortal } from '@radix-ui/react-tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { FilterField, FilterFields, FilterPanel, FilterResetButton, filterSelectClassName } from '@/components/ui/filter-panel';
 import {
   createCategory,
   deleteUnusedCategory,
@@ -33,6 +34,39 @@ const InventoryManager = lazy(() => import('@/components/InventoryManager'));
 const PhysicalSaleScreen = lazy(() => import('@/components/PhysicalSaleScreen'));
 const UnifiedOrderManager = lazy(() => import('@/components/UnifiedOrderManager'));
 const CreditSalesManager = lazy(() => import('@/components/CreditSalesManager'));
+
+type ProductActiveFilter = 'ALL' | 'ACTIVE' | 'INACTIVE';
+type ProductVisibilityFilter = 'ALL' | 'SHOW' | 'HIDDEN';
+interface ProductFilters {
+  query: string;
+  categoryId: string;
+  active: ProductActiveFilter;
+  visibility: ProductVisibilityFilter;
+}
+const PRODUCT_FILTERS_KEY = 'nafah_admin_product_filters_v1';
+
+function readProductFilters(): ProductFilters {
+  const fallback: ProductFilters = { query: '', categoryId: '', active: 'ALL', visibility: 'ALL' };
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(PRODUCT_FILTERS_KEY) ?? '{}') as Partial<ProductFilters>;
+    return {
+      query: typeof parsed.query === 'string' ? parsed.query : '',
+      categoryId: typeof parsed.categoryId === 'string' ? parsed.categoryId : '',
+      active: parsed.active === 'ACTIVE' || parsed.active === 'INACTIVE' ? parsed.active : 'ALL',
+      visibility: parsed.visibility === 'SHOW' || parsed.visibility === 'HIDDEN' ? parsed.visibility : 'ALL',
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveProductFilters(filters: ProductFilters) {
+  try {
+    sessionStorage.setItem(PRODUCT_FILTERS_KEY, JSON.stringify(filters));
+  } catch {
+    // Filters remain usable when browser storage is unavailable.
+  }
+}
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w\u0980-\u09FF-]/g, '');
@@ -139,8 +173,13 @@ export function AdminDashboard() {
 }
 
 export function AdminProducts() {
+  const [initialFilters] = useState(readProductFilters);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [productQuery, setProductQuery] = useState(initialFilters.query);
+  const [categoryFilter, setCategoryFilter] = useState(initialFilters.categoryId);
+  const [activeFilter, setActiveFilter] = useState<ProductActiveFilter>(initialFilters.active);
+  const [visibilityFilter, setVisibilityFilter] = useState<ProductVisibilityFilter>(initialFilters.visibility);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Product>();
   const [deleting, setDeleting] = useState(false);
@@ -161,6 +200,50 @@ export function AdminProducts() {
       .finally(() => setLoading(false));
   }, []);
   useEffect(load, [load]);
+  const filtersActive = Boolean(productQuery.trim() || categoryFilter || activeFilter !== 'ALL' || visibilityFilter !== 'ALL');
+  const filteredProducts = useMemo(() => {
+    const query = productQuery.trim().toLocaleLowerCase('bn-BD');
+    return products.filter((product) => {
+      const category = categories.find((item) => item.id === product.categoryId);
+      const effectiveActive = product.isActive !== false && category?.isActive !== false;
+      const isPackaged = (product.kind ?? 'PACKAGED') === 'PACKAGED';
+      const effectiveVisible = isPackaged
+        && effectiveActive
+        && product.isVisibleInShop !== false
+        && category?.isVisibleInShop !== false;
+      if (query && ![product.name, ...(product.variants?.map((variant) => variant.name) ?? [])]
+        .some((value) => value.toLocaleLowerCase('bn-BD').includes(query))) return false;
+      if (categoryFilter && product.categoryId !== categoryFilter) return false;
+      if (activeFilter === 'ACTIVE' && !effectiveActive) return false;
+      if (activeFilter === 'INACTIVE' && effectiveActive) return false;
+      if (visibilityFilter === 'SHOW' && !effectiveVisible) return false;
+      if (visibilityFilter === 'HIDDEN' && (!isPackaged || effectiveVisible)) return false;
+      return true;
+    });
+  }, [activeFilter, categories, categoryFilter, productQuery, products, visibilityFilter]);
+
+  function updateProductFilters(update: Partial<ProductFilters>) {
+    const next = {
+      query: update.query ?? productQuery,
+      categoryId: update.categoryId ?? categoryFilter,
+      active: update.active ?? activeFilter,
+      visibility: update.visibility ?? visibilityFilter,
+    };
+    if (update.query !== undefined) setProductQuery(update.query);
+    if (update.categoryId !== undefined) setCategoryFilter(update.categoryId);
+    if (update.active !== undefined) setActiveFilter(update.active);
+    if (update.visibility !== undefined) setVisibilityFilter(update.visibility);
+    saveProductFilters(next);
+  }
+
+  function resetProductFilters() {
+    const next = { query: '', categoryId: '', active: 'ALL' as const, visibility: 'ALL' as const };
+    setProductQuery(next.query);
+    setCategoryFilter(next.categoryId);
+    setActiveFilter(next.active);
+    setVisibilityFilter(next.visibility);
+    saveProductFilters(next);
+  }
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -215,18 +298,16 @@ export function AdminProducts() {
   return <div>
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">পণ্য</h1><Button onClick={() => navigate('/admin/products/new')}><Plus size={16} className="mr-2" />নতুন পণ্য</Button></div>
     <Outlet context={{ categories, reloadProducts: load } satisfies ProductsOutletContext} />
+    <FilterPanel className="mb-4" title="পণ্যের ফিল্টার" actions={<FilterResetButton active={filtersActive} onClick={resetProductFilters} />}>
+      <FilterFields className="lg:grid-cols-4">
+        <FilterField label="পণ্য"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} /><Input aria-label="পণ্য বা প্যাক/সাইজ খুঁজুন" className="pl-10" value={productQuery} onChange={(event) => updateProductFilters({ query: event.target.value })} placeholder="পণ্যের নাম লিখে খুঁজুন" /></div></FilterField>
+        <FilterField label="ক্যাটাগরি"><select aria-label="পণ্যের ক্যাটাগরি" className={filterSelectClassName} value={categoryFilter} onChange={(event) => updateProductFilters({ categoryId: event.target.value })}><option value="">সব ক্যাটাগরি</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></FilterField>
+        <FilterField label="অ্যাকটিভ স্ট্যাটাস"><select aria-label="পণ্যের অ্যাকটিভ স্ট্যাটাস" className={filterSelectClassName} value={activeFilter} onChange={(event) => updateProductFilters({ active: event.target.value as ProductActiveFilter })}><option value="ALL">সব স্ট্যাটাস</option><option value="ACTIVE">অ্যাকটিভ</option><option value="INACTIVE">ইনঅ্যাকটিভ</option></select></FilterField>
+        <FilterField label="অনলাইন শপ"><select aria-label="পণ্যের অনলাইন শপ স্ট্যাটাস" className={filterSelectClassName} value={visibilityFilter} onChange={(event) => updateProductFilters({ visibility: event.target.value as ProductVisibilityFilter })}><option value="ALL">শো এবং হাইড</option><option value="SHOW">শো</option><option value="HIDDEN">হাইড</option></select></FilterField>
+      </FilterFields>
+    </FilterPanel>
     <div className="bg-card border rounded-lg overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="text-left p-3">নাম</th><th className="text-right p-3">দাম</th><th className="text-center p-3">প্যাক/সাইজ</th><th className="text-center p-3">অ্যাকটিভ</th><th className="text-center p-3">অনলাইন শপ</th><th className="p-3" /></tr></thead><tbody>
-      {[...products].sort((left, right) => {
-        const leftCategory = categories.find((item) => item.id === left.categoryId);
-        const rightCategory = categories.find((item) => item.id === right.categoryId);
-        const leftActive = left.isActive !== false && leftCategory?.isActive !== false;
-        const rightActive = right.isActive !== false && rightCategory?.isActive !== false;
-        const activeOrder = Number(rightActive) - Number(leftActive);
-        if (activeOrder !== 0) return activeOrder;
-        const leftVisible = leftActive && left.isVisibleInShop !== false && leftCategory?.isVisibleInShop !== false;
-        const rightVisible = rightActive && right.isVisibleInShop !== false && rightCategory?.isVisibleInShop !== false;
-        return Number(rightVisible) - Number(leftVisible);
-      }).map((product) => {
+      {filteredProducts.map((product) => {
         const category = categories.find((item) => item.id === product.categoryId);
         const categoryActive = category?.isActive !== false;
         const categoryVisible = categoryActive && category?.isVisibleInShop !== false;
@@ -246,7 +327,7 @@ export function AdminProducts() {
           <td className={`whitespace-nowrap p-3 text-right ${inactiveContentClass}`}><button type="button" aria-label={isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'} title={isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'} onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="পণ্য সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button><Button type="button" size="sm" variant={product.canDelete ? 'destructive' : 'outline'} aria-disabled={!product.canDelete} className="ml-2" onClick={() => { if (!product.canDelete) { toast.error('এই পণ্যের স্টক, দাম পরিবর্তন, বিক্রি, অর্ডার বা স্টক আপডেটের রেকর্ড আছে। তাই এটি মুছতে পারবেন না। প্রয়োজনে পণ্যটি ইনঅ্যাকটিভ করুন।'); return; } setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />মুছুন</Button></td>
         </tr>;
       })}
-    </tbody></table></div>
+    </tbody></table>{filteredProducts.length === 0 && <div className="border-t px-4 py-10 text-center text-sm text-muted-foreground"><p>এই ফিল্টারে কোনো পণ্য পাওয়া যায়নি।</p><div className="mt-3 flex justify-center"><FilterResetButton active={filtersActive} onClick={resetProductFilters} /></div></div>}</div>
     <Dialog open={Boolean(statusTarget)} onOpenChange={(open) => { if (!open && !statusSaving) { setStatusTarget(undefined); setStatusError(''); } }}><DialogContent><DialogHeader><DialogTitle>{statusTarget && `${statusTarget.product.name} ${statusTarget.nextValue ? (statusTarget.setting === 'ACTIVE' ? 'অ্যাকটিভ' : 'শো') : (statusTarget.setting === 'ACTIVE' ? 'ইনঅ্যাকটিভ' : 'হাইড')} করুন`}</DialogTitle><DialogDescription>{statusTarget && (statusTarget.setting === 'ACTIVE'
       ? statusTarget.nextValue
         ? 'পণ্যটি নতুন স্টক অ্যাড, ইনভেন্টরি ও বিক্রিতে ব্যবহার করা যাবে। পণ্যটির আগের শো বা হাইড সেটিং বদলাবে না।'

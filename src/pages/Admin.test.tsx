@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -67,6 +67,7 @@ const product = {
 describe('safe catalog deletion controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.removeItem('nafah_admin_product_filters_v1');
     mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
     mocks.getAdminProduct.mockResolvedValue(product);
     mocks.getAdminCategories.mockResolvedValue([
@@ -147,7 +148,7 @@ describe('safe catalog deletion controls', () => {
     expect(await screen.findByRole('img', { name: 'Unused Product পণ্যের ছবি' })).toHaveAttribute('src', product.images[0]);
     expect(screen.getByRole('link', { name: /গ্রাহক পেজ/ })).toHaveAttribute('href', '/products/unused-product');
     expect(screen.getAllByText('অ্যাকটিভ').length).toBeGreaterThan(0);
-    expect(screen.getByText('শো')).toBeInTheDocument();
+    expect(screen.getAllByText('শো').length).toBeGreaterThan(0);
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'প্যাক/সাইজ ও দাম' })).toBeInTheDocument();
 
@@ -171,6 +172,38 @@ describe('safe catalog deletion controls', () => {
 
     await waitFor(() => expect(mocks.setProductVisibleInShop).toHaveBeenCalledWith(product.id, false));
     expect(mocks.setProductActive).not.toHaveBeenCalled();
+  });
+
+  it('filters products consistently without moving a changed product to another row', async () => {
+    const secondProduct = {
+      ...product,
+      id: '10000000-0000-4000-8000-000000000002',
+      name: 'Second Product',
+      slug: 'second-product',
+    };
+    mocks.getAdminProducts.mockResolvedValueOnce({ data: [product, secondProduct], total: 2, page: 1, limit: 100, totalPages: 1 });
+    mocks.setProductActive.mockResolvedValueOnce({ ...product, isActive: false });
+    renderAdmin('/admin/products');
+
+    expect(await screen.findByRole('region', { name: 'পণ্যের ফিল্টার' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('switch', { name: 'Unused Product অ্যাকটিভ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ইনঅ্যাকটিভ করুন' }));
+    await waitFor(() => expect(mocks.setProductActive).toHaveBeenCalledWith(product.id, false));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Unused Product ইনঅ্যাকটিভ করুন' })).not.toBeInTheDocument());
+    expect(screen.getByRole('switch', { name: 'Unused Product অ্যাকটিভ' })).not.toBeChecked();
+
+    let rows = screen.getAllByRole('row').slice(1);
+    expect(within(rows[0]).getByText('Unused Product')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Second Product')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('পণ্যের অ্যাকটিভ স্ট্যাটাস'), { target: { value: 'INACTIVE' } });
+    rows = screen.getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByText('Unused Product')).toBeInTheDocument();
+    expect(screen.queryByText('Second Product')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ফিল্টার রিসেট' }));
+    expect(screen.getByText('Second Product')).toBeInTheDocument();
   });
 
   it('explains when an active product is hidden by its inactive category', async () => {
