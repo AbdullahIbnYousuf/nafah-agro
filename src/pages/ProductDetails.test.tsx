@@ -117,7 +117,7 @@ describe('product pack/size selection', () => {
           <Routes><Route path="/products/:slug" element={<ProductDetails />} /></Routes>
         </MemoryRouter>,
       );
-      expect(await screen.findByText('১–১৪টি: ৳12 প্রতি ডিম · ১৫টি বা বেশি: ৳10 প্রতি ডিম')).toBeInTheDocument();
+      expect(await screen.findByText('1–14টি: ৳12 প্রতি ডিম · 15টি বা বেশি: ৳10 প্রতি ডিম')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'কার্টে অ্যাড করুন' }));
       await waitFor(() => expect(mocks.addItem).toHaveBeenCalledWith(expect.objectContaining({
         productVariantId: 'egg-variant',

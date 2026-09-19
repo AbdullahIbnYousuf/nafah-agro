@@ -20,7 +20,7 @@ describe('product creation form', () => {
 
     expect(screen.queryByText('প্যাক/সাইজ (ঐচ্ছিক)')).not.toBeInTheDocument();
     expect(screen.queryByText('একাধিক প্যাক/সাইজ থাকলে এখানে প্রথমটির নাম দিন।')).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('যেমন: ১ কেজি')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('যেমন: 1 কেজি')).not.toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('স্লাগ (URL)')).not.toBeInTheDocument();
     expect(screen.queryByText(/^URL:/)).not.toBeInTheDocument();

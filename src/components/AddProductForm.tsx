@@ -127,7 +127,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
       || Number(price) <= 0
       || Number(bulkSellingPrice) <= 0
       || Number(bulkSellingPrice) >= Number(price)
-    )) return toast.error('১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম দিন');
+    )) return toast.error('15টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম দিন');
     if (!categoryId) return toast.error('ক্যাটাগরি নির্বাচন করুন');
     const thresholdNumber = Number(lowStockThreshold);
     const measured = isMeasuredKind;
@@ -267,7 +267,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               </div>
 
               {kind === 'EGG' && <div>
-                <Label htmlFor="bulk-price">১৫টি বা তার বেশি হলে প্রতি ডিমের দাম (টাকা) *</Label>
+                <Label htmlFor="bulk-price">15টি বা তার বেশি হলে প্রতি ডিমের দাম (টাকা) *</Label>
                 <Input
                   id="bulk-price"
                   type="number"
@@ -276,10 +276,10 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   value={bulkSellingPrice}
                   onChange={(event) => setBulkSellingPrice(event.target.value)}
                   disabled={isEdit && kind === (editProduct?.kind ?? 'PACKAGED')}
-                  placeholder="০"
+                  placeholder="0"
                   className="mt-1 bg-card"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">১৫টি বা তার বেশি নিলে এই দাম পুরো পরিমাণে প্রযোজ্য হবে।</p>
+                <p className="mt-1 text-xs text-muted-foreground">15টি বা তার বেশি নিলে এই দাম পুরো পরিমাণে প্রযোজ্য হবে।</p>
               </div>}
 
               <div>
@@ -288,7 +288,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   : kind === 'LOOSE_VOLUME'
                     ? 'প্রতি লিটার বিক্রির দাম (টাকা) *'
                     : kind === 'EGG'
-                      ? '১–১৪টি হলে প্রতি ডিমের দাম (টাকা) *'
+                      ? '1–14টি হলে প্রতি ডিমের দাম (টাকা) *'
                       : isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
                   <Input
                     id="price"
@@ -297,7 +297,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                     value={price}
                     onChange={e => setPrice(e.target.value)}
                     disabled={isEdit && kind === (editProduct?.kind ?? 'PACKAGED')}
-                    placeholder="০"
+                    placeholder="0"
                     className="mt-1 bg-card"
                   />
                   <p className="text-xs text-muted-foreground mt-1">{rateLabel(kind)} দাম</p>

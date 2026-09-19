@@ -147,7 +147,7 @@ describe('role-aware profile page', () => {
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'short' } });
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড আবার লিখুন'), { target: { value: 'short' } });
     fireEvent.submit(form);
-    expect(await screen.findByRole('alert')).toHaveTextContent('কমপক্ষে ৮ অক্ষরের');
+    expect(await screen.findByRole('alert')).toHaveTextContent('কমপক্ষে 8 অক্ষরের');
 
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'new-password' } });
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড আবার লিখুন'), { target: { value: 'other-password' } });

@@ -57,7 +57,7 @@ describe('pack/size management', () => {
 
     expect(screen.getByRole('heading', { name: 'প্যাক/সাইজ ও দাম' })).toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
-    fireEvent.change(screen.getAllByPlaceholderText('যেমন: ১ কেজি')[0], { target: { value: '1 kg' } });
+    fireEvent.change(screen.getAllByPlaceholderText('যেমন: 1 কেজি')[0], { target: { value: '1 kg' } });
     fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '900' } });
     fireEvent.click(screen.getByRole('button', { name: 'প্যাক/সাইজ অ্যাড করুন' }));
 

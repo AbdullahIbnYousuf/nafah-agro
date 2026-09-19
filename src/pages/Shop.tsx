@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/filter-panel';
 import { Search, X, Star, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
-import { formatBanglaNumber } from '@/lib/utils';
+import { formatNumber } from '@/lib/utils';
 
 const LIMIT = 12;
 const SORT_VALUES = ['newest', 'oldest', 'price_asc', 'price_desc', 'name_asc', 'name_desc'] as const;
@@ -193,7 +193,7 @@ const Shop = () => {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-bold sm:text-3xl">আমাদের পণ্যসমূহ</h1>
           {!loading && total > 0 && (
-            <span className="text-sm text-muted-foreground">মোট পণ্য: {formatBanglaNumber(total)}</span>
+            <span className="text-sm text-muted-foreground">মোট পণ্য: {formatNumber(total)}</span>
           )}
         </div>
 
@@ -215,8 +215,8 @@ const Shop = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
                 <Input
-                  aria-label="পণ্য খুঁজুন"
-                  placeholder="পণ্য খুঁজুন..."
+                  aria-label="পণ্য সার্চ করুন"
+                  placeholder="পণ্য সার্চ করুন..."
                   value={search}
                   onChange={e => { syncingSearchFromUrl.current = false; setSearch(e.target.value); }}
                   className="pl-10 pr-10"
@@ -332,7 +332,7 @@ const Shop = () => {
                       onClick={() => updateRouteParam('page', item === 1 ? null : String(item), { resetPage: false })}
                       className={`min-w-11 ${page === item ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : ''}`}
                     >
-                      {formatBanglaNumber(item)}
+                      {formatNumber(item)}
                     </Button>
                   )
                 )}

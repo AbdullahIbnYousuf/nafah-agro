@@ -46,6 +46,6 @@ describe('ProductCard routing', () => {
       bulkMinimumQuantity: 15,
     }} /></MemoryRouter>);
     expect(screen.getByText('৳12')).toBeInTheDocument();
-    expect(screen.getByText('১৫টি+: ৳10 প্রতি ডিম')).toBeInTheDocument();
+    expect(screen.getByText('15টি+: ৳10 প্রতি ডিম')).toBeInTheDocument();
   });
 });

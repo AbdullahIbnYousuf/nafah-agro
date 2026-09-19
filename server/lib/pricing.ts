@@ -11,14 +11,14 @@ export function validateEggPrices(
 ) {
   const regular = new Prisma.Decimal(regularPrice);
   if (bulkPrice === null || bulkPrice === undefined) {
-    throw Object.assign(new Error("ডিমের ১৫টি বা তার বেশি দামের রেট দিন।"), {
+    throw Object.assign(new Error("ডিমের 15টি বা তার বেশি দামের রেট দিন।"), {
       status: 400,
       code: "EGG_BULK_PRICE_REQUIRED",
     });
   }
   const bulk = new Prisma.Decimal(bulkPrice);
   if (regular.lte(0) || bulk.lte(0) || bulk.gte(regular)) {
-    throw Object.assign(new Error("১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।"), {
+    throw Object.assign(new Error("15টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।"), {
       status: 400,
       code: "INVALID_EGG_PRICES",
     });

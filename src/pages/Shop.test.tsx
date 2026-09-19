@@ -68,7 +68,7 @@ describe('shop URL filters', () => {
     });
     renderShop('/shop');
 
-    fireEvent.change(screen.getByPlaceholderText('পণ্য খুঁজুন...'), { target: { value: 'milk' } });
+    fireEvent.change(screen.getByPlaceholderText('পণ্য সার্চ করুন...'), { target: { value: 'milk' } });
     await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('q=milk'), { timeout: 1200 });
 
     fireEvent.click(screen.getByRole('button', { name: 'পরের পৃষ্ঠা' }));
@@ -102,7 +102,7 @@ describe('shop URL filters', () => {
     await waitFor(() => expect(mocks.getProducts).toHaveBeenCalledOnce());
     const firstSignal = mocks.getProducts.mock.calls[0][1] as AbortSignal;
 
-    fireEvent.change(screen.getByPlaceholderText('পণ্য খুঁজুন...'), { target: { value: 'rice' } });
+    fireEvent.change(screen.getByPlaceholderText('পণ্য সার্চ করুন...'), { target: { value: 'rice' } });
     await waitFor(() => expect(mocks.getProducts.mock.calls.length).toBeGreaterThan(1), { timeout: 1200 });
     expect(firstSignal.aborted).toBe(true);
   });

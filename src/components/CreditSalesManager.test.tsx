@@ -49,9 +49,9 @@ describe('customer-based credit manager', () => {
     render(<CreditSalesManager />);
     await waitFor(() => expect(mocks.getCreditCustomers).toHaveBeenCalledWith({ state: 'OPEN', query: undefined, page: 1, limit: 30 }));
 
-    fireEvent.change(screen.getByLabelText('ক্রেতা খুঁজুন'), { target: { value: 'রহিম' } });
+    fireEvent.change(screen.getByLabelText('ক্রেতা সার্চ করুন'), { target: { value: 'রহিম' } });
 
-    expect(screen.queryByRole('button', { name: 'খুঁজুন' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'সার্চ করুন' })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.getCreditCustomers).toHaveBeenCalledWith({ state: 'OPEN', query: 'রহিম', page: 1, limit: 30 }), { timeout: 1_500 });
   });
 

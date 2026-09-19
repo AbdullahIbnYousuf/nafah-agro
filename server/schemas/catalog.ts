@@ -43,7 +43,7 @@ export const productCreateSchema = z.object({
     context.addIssue({
       code: "custom",
       path: ["initialVariant", "bulkSellingPrice"],
-      message: "১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।",
+      message: "15টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।",
     });
   }
 });
@@ -73,7 +73,7 @@ export const productKindChangeSchema = z.object({
   const regular = Number(value.sellingPrice);
   const bulk = Number(value.bulkSellingPrice);
   if (!value.bulkSellingPrice || regular <= 0 || bulk <= 0 || bulk >= regular) {
-    context.addIssue({ code: "custom", path: ["bulkSellingPrice"], message: "১৫টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।" });
+    context.addIssue({ code: "custom", path: ["bulkSellingPrice"], message: "15টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম হতে হবে।" });
   }
 });
 

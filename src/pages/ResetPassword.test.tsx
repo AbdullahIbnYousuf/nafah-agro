@@ -58,7 +58,7 @@ describe('password recovery page', () => {
   it('requires at least eight matching characters', async () => {
     renderPage();
     submitPasswords('short', 'short');
-    expect(await screen.findByRole('alert')).toHaveTextContent('কমপক্ষে ৮ অক্ষরের');
+    expect(await screen.findByRole('alert')).toHaveTextContent('কমপক্ষে 8 অক্ষরের');
     expect(mocks.completePasswordRecovery).not.toHaveBeenCalled();
 
     submitPasswords('new-password', 'different-password');

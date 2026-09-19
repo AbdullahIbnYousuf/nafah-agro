@@ -186,8 +186,8 @@ describe('analytics dashboard date controls', () => {
     expect(screen.getByText('ওয়েবসাইট')).toBeInTheDocument();
     expect(screen.getByText('দোকান')).toBeInTheDocument();
     expect(screen.getByText('অন্যান্য')).toBeInTheDocument();
-    expect(screen.getByText('১৮টি সম্পন্ন অর্ডার')).toBeInTheDocument();
-    expect(screen.getByText('৳১,৮০০')).toBeInTheDocument();
+    expect(screen.getByText('18টি সম্পন্ন অর্ডার')).toBeInTheDocument();
+    expect(screen.getByText('৳1,800')).toBeInTheDocument();
     expect(screen.queryByText('ফেসবুক')).not.toBeInTheDocument();
     expect(screen.queryByText('ফোন')).not.toBeInTheDocument();
     expect(screen.queryByText('হোয়াটসঅ্যাপ')).not.toBeInTheDocument();
@@ -211,7 +211,7 @@ describe('analytics dashboard date controls', () => {
     fireEvent.change(screen.getByLabelText('তারিখ থেকে'), { target: { value: '2025-01-01' } });
     fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-04-15' } });
     expect(screen.getByRole('button', { name: 'প্রয়োগ করুন' })).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent('সর্বোচ্চ ৩৬৬ দিন');
+    expect(screen.getByRole('alert')).toHaveTextContent('সর্বোচ্চ 366 দিন');
   });
 
   it('switches the comparison chart from sales to profit while keeping two lines', async () => {
@@ -222,7 +222,7 @@ describe('analytics dashboard date controls', () => {
 
     expect(screen.getByText('প্রতিদিনের লাভ তুলনা')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'লাভ' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getAllByText('৳২৫০').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('৳250').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId(/^line-/)).toHaveLength(2);
   });
 
@@ -240,8 +240,8 @@ describe('analytics dashboard date controls', () => {
 
     expect(screen.getByText(/01\/08\/2026.*07\/08\/2026/)).toBeInTheDocument();
     expect(screen.getByText(/01\/07\/2026.*07\/07\/2026/)).toBeInTheDocument();
-    expect(screen.getByText('৳১,০০০')).toBeInTheDocument();
-    expect(screen.getByText('৳৮০০')).toBeInTheDocument();
+    expect(screen.getByText('৳1,000')).toBeInTheDocument();
+    expect(screen.getByText('৳800')).toBeInTheDocument();
   });
 
   it('restores the last valid custom range and chart choice after refresh', async () => {

@@ -154,7 +154,7 @@ describe('streamlined inventory workspace', () => {
     await waitFor(() => expect(productSelect).toHaveValue(rice.productVariantId));
 
     fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '1' } });
-    fireEvent.change(screen.getByPlaceholderText('যেমন: ক্ষতিগ্রস্ত ২ ইউনিট'), { target: { value: 'ভাঙা প্যাকেট' } });
+    fireEvent.change(screen.getByPlaceholderText('যেমন: ক্ষতিগ্রস্ত 2 ইউনিট'), { target: { value: 'ভাঙা প্যাকেট' } });
     fireEvent.click(screen.getByRole('button', { name: 'রিভিউ করুন' }));
 
     expect(await screen.findByRole('heading', { name: 'স্টক আপডেট কনফার্ম করুন' })).toBeInTheDocument();
@@ -223,7 +223,7 @@ describe('streamlined inventory workspace', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'কম স্টকের লিমিট' }), { target: { value: '1.2345' } });
     fireEvent.click(screen.getByRole('button', { name: 'সেভ করুন' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('দশমিকের পর সর্বোচ্চ ৩ ঘর');
+    expect(await screen.findByRole('alert')).toHaveTextContent('দশমিকের পর সর্বোচ্চ 3 ঘর');
     expect(mocks.updateVariant).not.toHaveBeenCalled();
   });
 });

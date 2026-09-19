@@ -1,6 +1,6 @@
 import type { AmountUnit, ProductKind, QuantityUnit } from './types';
 
-const numberFormat = new Intl.NumberFormat('bn-BD', { maximumFractionDigits: 3 });
+const numberFormat = new Intl.NumberFormat('en-BD', { maximumFractionDigits: 3 });
 
 export function resolvedProductKind(kind?: ProductKind): ProductKind {
   return kind ?? 'PACKAGED';

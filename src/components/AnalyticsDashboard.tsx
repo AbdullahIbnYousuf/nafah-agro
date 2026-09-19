@@ -55,9 +55,9 @@ const presets: Array<{ value: QuickPreset; label: string }> = [
   { value: 'year', label: 'এই বছর' },
 ];
 
-const banglaNumber = new Intl.NumberFormat('bn-BD', { maximumFractionDigits: 2 });
+const numberFormatter = new Intl.NumberFormat('en-BD', { maximumFractionDigits: 2 });
 const axisNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
-const graphMonthFormatter = new Intl.DateTimeFormat('bn-BD-u-ca-gregory', {
+const graphMonthFormatter = new Intl.DateTimeFormat('bn-BD-u-ca-gregory-nu-latn', {
   month: 'long', year: 'numeric',
 });
 const CUSTOM_RANGE_MAX_DAYS = 366;
@@ -92,11 +92,11 @@ function presetRange(preset: QuickPreset, today: string) {
 }
 
 function money(value: number | null) {
-  return value === null ? 'প্রযোজ্য নয়' : `৳${banglaNumber.format(value)}`;
+  return value === null ? 'প্রযোজ্য নয়' : `৳${numberFormatter.format(value)}`;
 }
 
 function count(value: number | null) {
-  return value === null ? 'প্রযোজ্য নয়' : banglaNumber.format(value);
+  return value === null ? 'প্রযোজ্য নয়' : numberFormatter.format(value);
 }
 
 function dateLabel(value: string) {
@@ -165,7 +165,7 @@ function customRangeError(range: { from: string; to: string }) {
     (Date.parse(`${range.to}T00:00:00.000Z`) - Date.parse(`${range.from}T00:00:00.000Z`))
       / DAY_MS,
   ) + 1;
-  return days > CUSTOM_RANGE_MAX_DAYS ? 'নিজস্ব সময়সীমা সর্বোচ্চ ৩৬৬ দিন হতে পারে।' : '';
+  return days > CUSTOM_RANGE_MAX_DAYS ? 'নিজস্ব সময়সীমা সর্বোচ্চ 366 দিন হতে পারে।' : '';
 }
 
 function readDashboardPreferences(today: string): DashboardPreferences {
@@ -202,8 +202,8 @@ function Change({ metric, suffix = '%' }: { metric: ComparedAnalyticsMetric; suf
   const positive = metric.absoluteChange >= 0;
   const Icon = positive ? ArrowUpRight : ArrowDownRight;
   const value = metric.percentChange === null
-    ? `${positive ? '+' : ''}${banglaNumber.format(metric.absoluteChange)}`
-    : `${positive ? '+' : ''}${banglaNumber.format(metric.percentChange)}${suffix}`;
+    ? `${positive ? '+' : ''}${numberFormatter.format(metric.absoluteChange)}`
+    : `${positive ? '+' : ''}${numberFormatter.format(metric.percentChange)}${suffix}`;
   return (
     <span className={`inline-flex items-center gap-1 text-xs ${positive ? 'text-secondary' : 'text-destructive'}`}>
       <Icon size={14} />{value} আগের সময়ের তুলনায়
@@ -282,7 +282,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
               <td className="p-3"><strong>{productPackLabel(row.productName, row.variantName)}</strong></td>
               <td className="p-3 text-right">{formatMajorQuantity(row.quantity, row.quantityUnit)}</td>
               <td className="p-3 text-right">{money(row.productRevenue)}</td>
-              {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(row.grossMargin)}%`}</td></>}
+              {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'প্রযোজ্য নয়' : `${numberFormatter.format(row.grossMargin)}%`}</td></>}
             </tr>
           ))}
         </tbody>
@@ -329,7 +329,7 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
     { label: 'নগদে বিক্রি', detail: 'সঙ্গে সঙ্গে বা ডেলিভারির সময় টাকা পাওয়া পণ্য বিক্রি।', metric: data.summary.cashProductRevenue, icon: CircleDollarSign },
     { label: 'বাকিতে বিক্রি', detail: 'এই সময়ে বাকিতে দেওয়া পণ্যের মোট দাম।', metric: data.summary.creditProductRevenue, icon: HandCoins },
     { label: 'মোট লাভ', detail: 'পণ্য আয় থেকে বিক্রি হওয়া পণ্যের ক্রয়মূল্য বাদ দেওয়ার পর।', metric: data.summary.grossProfit, icon: TrendingUp },
-    { label: 'লাভের মার্জিন', detail: 'প্রতি ১০০ টাকার পণ্য আয়ে কত টাকা লাভ হয়েছে।', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${banglaNumber.format(value)}%`, icon: TrendingUp },
+    { label: 'লাভের মার্জিন', detail: 'প্রতি 100 টাকার পণ্য আয়ে কত টাকা লাভ হয়েছে।', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${numberFormatter.format(value)}%`, icon: TrendingUp },
     { label: 'ডেলিভারড অর্ডার', detail: 'দোকানের সম্পন্ন বিক্রি ও গ্রাহকের কাছে পৌঁছানো অর্ডারের সংখ্যা।', metric: data.summary.recognizedOrderCount, formatter: count, icon: ClipboardList },
     { label: 'ডেলিভারি চার্জ', detail: 'ডেলিভারড অর্ডার থেকে নেওয়া মোট ডেলিভারি চার্জ।', metric: data.summary.deliveryCharges, icon: Truck },
   ];

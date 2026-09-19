@@ -225,10 +225,10 @@ const ProductDetails = () => {
             <div className="mb-6">
               <div className="text-3xl font-bold text-secondary">৳{currentPricing.unitPrice}</div>
               {product.kind === 'EGG' && bulkSellingPrice != null && <div className="mt-1 text-sm text-muted-foreground">
-                ১–১৪টি: ৳{regularPrice} প্রতি ডিম · ১৫টি বা বেশি: ৳{bulkSellingPrice} প্রতি ডিম
+                1–14টি: ৳{regularPrice} প্রতি ডিম · 15টি বা বেশি: ৳{bulkSellingPrice} প্রতি ডিম
               </div>}
               {product.kind === 'EGG' && quantityInCart > 0 && <div className="mt-2 text-sm font-medium text-secondary">
-                কার্টে {quantityInCart}টি, তাই {currentPricing.tier === 'EGG_BULK' ? '১৫টি+ দাম' : 'সাধারণ দাম'} প্রযোজ্য
+                কার্টে {quantityInCart}টি, তাই {currentPricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'} প্রযোজ্য
               </div>}
             </div>
 

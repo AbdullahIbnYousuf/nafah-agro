@@ -26,7 +26,7 @@ export default function ResetPassword() {
     event.preventDefault();
     setError('');
     if (password.length < 8) {
-      setError('পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।');
+      setError('পাসওয়ার্ড কমপক্ষে 8 অক্ষরের হতে হবে।');
       return;
     }
     if (password !== confirmation) {
@@ -76,7 +76,7 @@ export default function ResetPassword() {
               <div className="mb-7 text-center">
                 <h1 className="text-3xl font-bold text-foreground">নতুন পাসওয়ার্ড দিন</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  কমপক্ষে ৮ অক্ষরের একটি নতুন পাসওয়ার্ড দিন।
+                  কমপক্ষে 8 অক্ষরের একটি নতুন পাসওয়ার্ড দিন।
                 </p>
               </div>
 

@@ -9,8 +9,8 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-const banglaNumberFormatter = new Intl.NumberFormat("bn-BD");
+const numberFormatter = new Intl.NumberFormat("en-BD");
 
-export function formatBanglaNumber(value: number): string {
-  return banglaNumberFormatter.format(value);
+export function formatNumber(value: number): string {
+  return numberFormatter.format(value);
 }

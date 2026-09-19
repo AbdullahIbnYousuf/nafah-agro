@@ -26,9 +26,9 @@ describe('quantity display helpers', () => {
   });
 
   it('formats stored base quantities in owner-friendly major units', () => {
-    expect(formatQuantity(1_250, 'GRAM')).toContain('১.২৫ কেজি');
-    expect(formatQuantity(500, 'MILLILITER')).toContain('০.৫ লিটার');
-    expect(formatQuantity(3, 'PIECE')).toContain('৩ ইউনিট');
-    expect(formatQuantity(15, 'PIECE', 'EGG')).toContain('১৫ টি ডিম');
+    expect(formatQuantity(1_250, 'GRAM')).toContain('1.25 কেজি');
+    expect(formatQuantity(500, 'MILLILITER')).toContain('0.5 লিটার');
+    expect(formatQuantity(3, 'PIECE')).toContain('3 ইউনিট');
+    expect(formatQuantity(15, 'PIECE', 'EGG')).toContain('15 টি ডিম');
   });
 });

@@ -202,7 +202,7 @@ describe('physical sale history', () => {
     fireEvent.click(screen.getByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' }));
     fireEvent.change(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' }), { target: { value: '11' } });
     fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('স্টকে সর্বোচ্চ ১০ কেজি আছে।');
+    expect(screen.getByRole('alert')).toHaveTextContent('স্টকে সর্বোচ্চ 10 কেজি আছে।');
 
     fireEvent.change(screen.getByRole('spinbutton', { name: 'খোলা মিনিকেট চাল পরিমাণ' }), { target: { value: '2.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
@@ -225,7 +225,7 @@ describe('physical sale history', () => {
 
     fireEvent.change(screen.getByRole('spinbutton', { name: 'দেশি ডিম পরিমাণ' }), { target: { value: '15' } });
     expect(screen.getAllByText('৳150.00').length).toBeGreaterThan(0);
-    expect(screen.getByText(/১৫টি\+ দাম/)).toBeInTheDocument();
+    expect(screen.getByText(/15টি\+ দাম/)).toBeInTheDocument();
   });
 
   it('explains how to make an out-of-stock product available', async () => {
@@ -249,7 +249,7 @@ describe('physical sale history', () => {
     await screen.findByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' });
 
     fireEvent.click(screen.getByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ বেছে নিন' }));
-    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'বিক্রির পণ্য খুঁজুন' }));
+    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'বিক্রির পণ্য সার্চ করুন' }));
 
     expect(screen.queryByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' })).not.toBeInTheDocument();
     expect(screen.getByText('বাম পাশ থেকে পণ্য অ্যাড করুন')).toBeInTheDocument();
@@ -260,15 +260,15 @@ describe('physical sale history', () => {
 
     expect(await screen.findByText('PS-20260815-TEST')).toBeInTheDocument();
     expect(screen.getByText('খোলা মিনিকেট চাল')).toBeInTheDocument();
-    expect(screen.getByText('২ কেজি')).toBeInTheDocument();
+    expect(screen.getByText('2 কেজি')).toBeInTheDocument();
     expect(screen.getByText('রহিম · 01300000000')).toBeInTheDocument();
     expect(screen.getAllByText('৳180.00')).not.toHaveLength(0);
-    expect(screen.queryByText(/২ কেজি × ৳100\.00 প্রতি কেজি/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/2 কেজি × ৳100\.00 প্রতি কেজি/)).not.toBeInTheDocument();
     expect(screen.queryByText('বিক্রি করেছেন: দোকান মালিক')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'PS-20260815-TEST বিস্তারিত দেখুন' }));
 
-    expect(screen.getByText(/২ কেজি × ৳100\.00 প্রতি কেজি/)).toBeInTheDocument();
+    expect(screen.getByText(/2 কেজি × ৳100\.00 প্রতি কেজি/)).toBeInTheDocument();
     expect(screen.getByText('বিক্রি করেছেন: দোকান মালিক')).toBeInTheDocument();
     expect(screen.getAllByText('৳120.00')).not.toHaveLength(0);
     expect(screen.getAllByText('৳60.00')).not.toHaveLength(0);
@@ -304,7 +304,7 @@ describe('physical sale history', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'ক্রেতা বা বিক্রির তথ্য' }), {
       target: { value: '01300000000' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'খুঁজুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'সার্চ করুন' }));
 
     await waitFor(() => expect(mocks.getPhysicalSales).toHaveBeenLastCalledWith({
       limit: 50,
@@ -318,7 +318,7 @@ describe('physical sale history', () => {
     renderScreen();
     await screen.findByRole('button', { name: /খোলা মিনিকেট চাল/ });
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'বিক্রির পণ্য খুঁজুন' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'বিক্রির পণ্য সার্চ করুন' }), {
       target: { value: 'সরিষার তেল' },
     });
 
