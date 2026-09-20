@@ -78,7 +78,7 @@ describe('password recovery page', () => {
     mocks.completePasswordRecovery.mockRejectedValue(new Error('Recovery link expired'));
     renderPage();
     submitPasswords('new-password', 'new-password');
-    expect(await screen.findByRole('alert')).toHaveTextContent('লিংকটি সঠিক নয় অথবা এর মেয়াদ শেষ হয়েছে');
+    expect(await screen.findByRole('alert')).toHaveTextContent('লিংকটি সঠিক নয় অথবা লিংক এক্সপায়ার হয়েছে');
     expect(screen.queryByText('login destination')).not.toBeInTheDocument();
   });
 });

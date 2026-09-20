@@ -16,7 +16,7 @@ describe('route presentation effects', () => {
     expect(titleForPath('/admin/inventory/purchase')).toBe('নতুন স্টক অ্যাড | নাফাহ এগ্রো');
     expect(titleForPath('/admin/inventory/adjustment')).toBe('স্টক আপডেট | নাফাহ এগ্রো');
     expect(titleForPath('/reset-password')).toBe('পাসওয়ার্ড পরিবর্তন | নাফাহ এগ্রো');
-    expect(titleForPath('/missing')).toBe('পৃষ্ঠা পাওয়া যায়নি | নাফাহ এগ্রো');
+    expect(titleForPath('/missing')).toBe('পেজ পাওয়া যায়নি | নাফাহ এগ্রো');
   });
 
   it('sets the browser title and scrolls to the top after routing', async () => {

@@ -153,8 +153,8 @@ const Shop = () => {
       .catch((error) => {
         if (error instanceof ApiError && error.code === 'REQUEST_CANCELLED') return;
         setProductsError(error instanceof ApiError && error.code === 'REQUEST_TIMEOUT'
-          ? 'পণ্য লোড হতে বেশি সময় লাগছে। আবার চেষ্টা করুন।'
-          : 'পণ্য লোড করা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।');
+          ? 'পণ্য লোড হতে বেশি সময় লাগছে। রিট্রাই করুন।'
+          : 'পণ্য লোড করা যায়নি। ইন্টারনেট কানেকশন দেখে রিট্রাই করুন।');
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -202,7 +202,7 @@ const Shop = () => {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <span>{filtersError}</span>
             <Button variant="outline" size="sm" onClick={() => setFiltersReloadKey((key) => key + 1)}>
-              <RefreshCw size={14} className="mr-2" /> আবার চেষ্টা করুন
+              <RefreshCw size={14} className="mr-2" /> রিট্রাই করুন
             </Button>
           </div>
         )}
@@ -222,7 +222,7 @@ const Shop = () => {
                   className="pl-10 pr-10"
                 />
                 {search && (
-                  <button aria-label="খোঁজার লেখা মুছুন" onClick={() => { syncingSearchFromUrl.current = true; setSearch(''); updateRouteParam('q', null, { replace: true }); }} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground md:h-10 md:w-10">
+                  <button aria-label="সার্চের লেখা ক্লিয়ার করুন" onClick={() => { syncingSearchFromUrl.current = true; setSearch(''); updateRouteParam('q', null, { replace: true }); }} className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground md:h-10 md:w-10">
                     <X size={14} />
                   </button>
                 )}
@@ -290,7 +290,7 @@ const Shop = () => {
             {tagFilter && (
               <span className="flex min-h-11 items-center gap-1 rounded-full bg-secondary/15 px-3 text-sm font-medium text-secondary md:min-h-9">
                 #{tagFilter}
-                <button aria-label={`${tagFilter} ট্যাগ মুছুন`} onClick={() => updateRouteParam('tag', null)} className="ml-0.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
+                <button aria-label={`${tagFilter} ট্যাগ রিমুভ করুন`} onClick={() => updateRouteParam('tag', null)} className="ml-0.5 flex h-8 w-8 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
                   <X size={13} />
                 </button>
               </span>
@@ -305,7 +305,7 @@ const Shop = () => {
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-16 text-center">
             <p className="text-sm text-destructive">{productsError}</p>
             <Button variant="outline" className="mt-4" onClick={() => setProductsReloadKey((key) => key + 1)}>
-              <RefreshCw size={16} className="mr-2" /> আবার চেষ্টা করুন
+              <RefreshCw size={16} className="mr-2" /> রিট্রাই করুন
             </Button>
           </div>
         ) : products.length > 0 ? (
@@ -317,7 +317,7 @@ const Shop = () => {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-10">
-                <Button aria-label="আগের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => updateRouteParam('page', page > 2 ? String(page - 1) : null, { resetPage: false })} disabled={page === 1}>
+                <Button aria-label="আগের পেজ" variant="outline" size="sm" className="min-w-11" onClick={() => updateRouteParam('page', page > 2 ? String(page - 1) : null, { resetPage: false })} disabled={page === 1}>
                   <ChevronLeft size={16} />
                 </Button>
 
@@ -337,7 +337,7 @@ const Shop = () => {
                   )
                 )}
 
-                <Button aria-label="পরের পৃষ্ঠা" variant="outline" size="sm" className="min-w-11" onClick={() => updateRouteParam('page', String(page + 1), { resetPage: false })} disabled={page === totalPages}>
+                <Button aria-label="পরের পেজ" variant="outline" size="sm" className="min-w-11" onClick={() => updateRouteParam('page', String(page + 1), { resetPage: false })} disabled={page === totalPages}>
                   <ChevronRight size={16} />
                 </Button>
               </div>

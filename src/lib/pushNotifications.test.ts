@@ -74,7 +74,7 @@ describe('browser push helpers', () => {
   it('reports denied permission without attempting a subscription', async () => {
     const { pushManager } = browser(null, 'denied');
     expect(await getPushAvailability()).toBe('denied');
-    await expect(enablePushNotifications()).rejects.toThrow('অনুমতি');
+    await expect(enablePushNotifications()).rejects.toThrow('পারমিশন');
     expect(pushManager.subscribe).not.toHaveBeenCalled();
   });
 

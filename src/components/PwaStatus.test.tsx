@@ -26,10 +26,10 @@ describe('PWA status notices', () => {
 
   it('shows the safe offline limitation only while disconnected', () => {
     const { rerender } = render(<OfflineNotice />);
-    expect(screen.queryByText('ইন্টারনেট সংযোগ নেই।')).not.toBeInTheDocument();
+    expect(screen.queryByText('ইন্টারনেট কানেকশন নেই।')).not.toBeInTheDocument();
     mocks.pwa.isOffline = true;
     rerender(<OfflineNotice />);
-    expect(screen.getByText('ইন্টারনেট সংযোগ নেই।')).toBeInTheDocument();
+    expect(screen.getByText('ইন্টারনেট কানেকশন নেই।')).toBeInTheDocument();
     expect(screen.getByText(/স্টক, অর্ডার ও বিক্রির কাজ করতে ইন্টারনেট লাগবে/)).toBeInTheDocument();
   });
 

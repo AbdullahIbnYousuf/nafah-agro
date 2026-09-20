@@ -157,8 +157,8 @@ describe('analytics dashboard date controls', () => {
     render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
 
     await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-01'));
-    const currentStatusHeading = screen.getByRole('heading', { name: 'এখনকার অবস্থা' });
-    expect(screen.getByText('এগুলো সব সময় বর্তমান অবস্থা দেখায়।')).toBeInTheDocument();
+    const currentStatusHeading = screen.getByRole('heading', { name: 'এখনকার স্ট্যাটাস' });
+    expect(screen.getByText('এগুলো সব সময় বর্তমান স্ট্যাটাস দেখায়।')).toBeInTheDocument();
     expect(currentStatusHeading.compareDocumentPosition(screen.getByLabelText('তারিখ থেকে')) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-07');
     expect(screen.queryByRole('button', { name: 'নিজস্ব সময়সীমা' })).not.toBeInTheDocument();

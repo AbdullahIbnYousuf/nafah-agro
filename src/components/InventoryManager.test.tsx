@@ -154,7 +154,7 @@ describe('streamlined inventory workspace', () => {
     await waitFor(() => expect(productSelect).toHaveValue(rice.productVariantId));
 
     fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '1' } });
-    fireEvent.change(screen.getByPlaceholderText('যেমন: ক্ষতিগ্রস্ত 2 ইউনিট'), { target: { value: 'ভাঙা প্যাকেট' } });
+    fireEvent.change(screen.getByPlaceholderText('যেমন: DAMAGED 2 ইউনিট'), { target: { value: 'ভাঙা প্যাকেট' } });
     fireEvent.click(screen.getByRole('button', { name: 'রিভিউ করুন' }));
 
     expect(await screen.findByRole('heading', { name: 'স্টক আপডেট কনফার্ম করুন' })).toBeInTheDocument();
@@ -176,11 +176,11 @@ describe('streamlined inventory workspace', () => {
     renderInventory();
     await screen.findByText('মিনিকেট চাল · ৫ কেজি');
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'স্টকের অবস্থা' }), { target: { value: 'LOW_STOCK' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'স্টকের স্ট্যাটাস' }), { target: { value: 'LOW_STOCK' } });
     const reset = await screen.findByRole('button', { name: 'ফিল্টার রিসেট' });
     fireEvent.click(reset);
 
-    expect(screen.getByRole('combobox', { name: 'স্টকের অবস্থা' })).toHaveValue('ALL');
+    expect(screen.getByRole('combobox', { name: 'স্টকের স্ট্যাটাস' })).toHaveValue('ALL');
     expect(screen.queryByRole('button', { name: 'ফিল্টার রিসেট' })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.getInventoryItems).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ALL', sort: 'URGENCY' })));
   });

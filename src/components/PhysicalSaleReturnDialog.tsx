@@ -70,7 +70,7 @@ function errorMessage(error: unknown) {
       if (messages.length > 0) return messages.join(' ');
     }
   }
-  return error instanceof Error ? error.message : 'ফেরত সম্পন্ন হয়নি। আবার চেষ্টা করুন।';
+  return error instanceof Error ? error.message : 'রিটার্ন সম্পন্ন হয়নি। রিট্রাই করুন।';
 }
 
 function alreadyRefunded(sale: PhysicalSale, itemId: string) {
@@ -122,7 +122,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
   async function submit() {
     if (!sale) return;
     if (selected.length === 0) {
-      setError('ফেরত নেওয়ার জন্য অন্তত একটি পণ্য বেছে নিন।');
+      setError('রিটার্নের জন্য কমপক্ষে একটি পণ্য সিলেক্ট করুন।');
       return;
     }
     if (selected.some(({ item, line, baseQuantity }) => (
@@ -130,7 +130,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
       || baseQuantity > item.returnableQuantity
       || !unitsFor(item.quantityUnit).includes(line.amountUnit)
     ))) {
-      setError('প্রতিটি পণ্যের ফেরত পরিমাণ সঠিকভাবে লিখুন।');
+      setError('প্রতিটি পণ্যের রিটার্ন পরিমাণ সঠিকভাবে লিখুন।');
       return;
     }
     const normalizedReason = reason.trim();
@@ -157,11 +157,11 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
   return <Dialog open={sale !== null} onOpenChange={(open) => { if (!open) close(); }}>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle>দোকানের পণ্য ফেরত</DialogTitle>
+        <DialogTitle>দোকানের প্রোডাক্ট রিটার্ন</DialogTitle>
         <DialogDescription>বিক্রয়: <strong className="text-foreground">{sale?.orderNumber}</strong></DialogDescription>
       </DialogHeader>
 
-      <section className="space-y-2" aria-label="ফেরত পণ্য বাছাই">
+      <section className="space-y-2" aria-label="রিটার্নের পণ্য সিলেক্ট করুন">
         {(sale?.items ?? []).map((item) => {
           const line = lines[item.id];
           const disabled = item.returnableQuantity <= 0;
@@ -180,13 +180,13 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
               <Label htmlFor={`return-item-${item.id}`} className="min-w-0 flex-1 cursor-pointer">
                 <span className="block font-medium">{productPackLabel(item.productName, item.variantName)}</span>
                 <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                  বিক্রি হয়েছিল {formatQuantity(item.quantity, item.quantityUnit)} · ফেরত নেওয়া যাবে {formatQuantity(item.returnableQuantity, item.quantityUnit)}
+                  বিক্রি হয়েছিল {formatQuantity(item.quantity, item.quantityUnit)} · রিটার্ন করা যাবে {formatQuantity(item.returnableQuantity, item.quantityUnit)}
                 </span>
               </Label>
             </div>
             {line.selected && <div className="mt-3 grid grid-cols-[minmax(0,1fr)_100px] gap-2 pl-7">
               <Input
-                aria-label={`${item.productName} ফেরত পরিমাণ`}
+                aria-label={`${item.productName} রিটার্ন পরিমাণ`}
                 type="number"
                 min="0"
                 step={line.amountUnit === 'KG' || line.amountUnit === 'LITER' ? '0.001' : '1'}
@@ -198,7 +198,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
                 }}
               />
               <select
-                aria-label={`${item.productName} ফেরত একক`}
+                aria-label={`${item.productName} রিটার্ন একক`}
                 className="h-11 rounded-md border bg-background px-2 md:h-10"
                 value={line.amountUnit}
                 disabled={submitting}
@@ -216,7 +216,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
       </section>
 
       <fieldset>
-        <legend className="mb-3 font-semibold">পণ্যের অবস্থা</legend>
+        <legend className="mb-3 font-semibold">পণ্যের স্ট্যাটাস</legend>
         <RadioGroup value={condition} onValueChange={(value) => setCondition(value as ReturnCondition)} className="grid gap-3 sm:grid-cols-2">
           <Label htmlFor="physical-return-sellable" className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${condition === 'SELLABLE' ? 'border-secondary bg-secondary/10' : ''}`}>
             <RadioGroupItem id="physical-return-sellable" value="SELLABLE" className="mt-1" />
@@ -231,17 +231,17 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
 
       <Alert variant={condition === 'DAMAGED' ? 'destructive' : 'default'}>
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>ফেরতের প্রভাব</AlertTitle>
+        <AlertTitle>রিটার্নের প্রভাব</AlertTitle>
         <AlertDescription>
           {condition === 'SELLABLE'
-            ? 'ফেরত পণ্য আগের ক্রয়মূল্যসহ স্টকে অ্যাড হবে।'
-            : 'ফেরত পণ্য স্টকে অ্যাড হবে না।'}
-          {' '}আনুমানিক ফেরত টাকা: <strong>৳{refundPreview.toFixed(2)}</strong>
+            ? 'রিটার্ন করা পণ্য আগের ক্রয়মূল্যসহ স্টকে অ্যাড হবে।'
+            : 'রিটার্ন করা পণ্য স্টকে অ্যাড হবে না।'}
+          {' '}আনুমানিক রিফান্ড: <strong>৳{refundPreview.toFixed(2)}</strong>
         </AlertDescription>
       </Alert>
 
       <div>
-        <Label htmlFor="physical-return-reason">ফেরতের কারণ (ঐচ্ছিক)</Label>
+        <Label htmlFor="physical-return-reason">রিটার্নের কারণ (ঐচ্ছিক)</Label>
         <Textarea
           id="physical-return-reason"
           className="mt-2"
@@ -257,7 +257,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close} disabled={submitting}>বন্ধ করুন</Button>
         <Button type="button" onClick={() => void submit()} disabled={submitting} aria-disabled={selected.length === 0}>
-          {submitting ? 'ফেরত কনফার্ম হচ্ছে…' : 'ফেরত কনফার্ম করুন'}
+          {submitting ? 'রিটার্ন কনফার্ম হচ্ছে…' : 'রিটার্ন কনফার্ম করুন'}
         </Button>
       </DialogFooter>
     </DialogContent>

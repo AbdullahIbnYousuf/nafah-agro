@@ -123,7 +123,7 @@ const ProductDetails = () => {
     if (!selectedVariant) return;
     if (quantityInCart <= 1) {
       removeItem(selectedVariant.id);
-      toast.success('কার্ট থেকে সরানো হয়েছে');
+      toast.success('কার্ট থেকে রিমুভ করা হয়েছে');
     } else {
       updateQuantity(selectedVariant.id, quantityInCart - 1);
       toast.success('কার্টে পরিমাণ কমানো হয়েছে');
@@ -234,7 +234,7 @@ const ProductDetails = () => {
 
             {activeVariants.length > 1 && (
               <div className="mb-6">
-                <h3 className="font-semibold mb-2">বিকল্প নির্বাচন করুন</h3>
+                <h3 className="font-semibold mb-2">বিকল্প সিলেক্ট করুন</h3>
                 <div className="flex flex-wrap gap-2">
                   {activeVariants.map(variant => (
                     <button

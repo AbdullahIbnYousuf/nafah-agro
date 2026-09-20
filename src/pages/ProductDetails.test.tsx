@@ -67,7 +67,7 @@ describe('product pack/size selection', () => {
     expect(await screen.findByText('Premium Miniket Rice')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'পিছনে যান' })).toHaveAttribute('href', '/shop?category=rice&page=2');
     await waitFor(() => expect(document.title).toBe('Premium Miniket Rice | নাফাহ এগ্রো'));
-    expect(screen.getByText('বিকল্প নির্বাচন করুন')).toBeInTheDocument();
+    expect(screen.getByText('বিকল্প সিলেক্ট করুন')).toBeInTheDocument();
     expect(screen.queryByText(/^Weight:/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '5 kg · ৳620' })).toHaveClass('min-h-11');
     expect(screen.getByRole('button', { name: 'কার্টে অ্যাড করুন' })).toHaveClass('min-h-12');

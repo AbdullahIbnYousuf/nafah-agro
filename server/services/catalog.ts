@@ -350,7 +350,7 @@ export function createCatalogService(prisma: PrismaClient) {
           rethrowCatalogWriteError(error);
         }
       }
-      throw catalogError(409, "DUPLICATE_SLUG", "পণ্যের জন্য আলাদা URL তৈরি করা যায়নি। আবার চেষ্টা করুন।");
+      throw catalogError(409, "DUPLICATE_SLUG", "পণ্যের জন্য আলাদা URL তৈরি করা যায়নি। রিট্রাই করুন।");
     },
     async updateProduct(id: string, input: ProductUpdate) {
       try {
@@ -591,7 +591,7 @@ export function createCatalogService(prisma: PrismaClient) {
               where: { productId: variant.productId, isActive: true },
             });
             if (activeCount <= 1) {
-              throw catalogError(409, "LAST_ACTIVE_VARIANT", "পণ্যটিতে অন্তত একটি অ্যাকটিভ প্যাক/সাইজ রাখতে হবে।");
+              throw catalogError(409, "LAST_ACTIVE_VARIANT", "পণ্যটিতে কমপক্ষে একটি অ্যাকটিভ প্যাক/সাইজ রাখতে হবে।");
             }
           }
           if (input.isDefault === false && variant.isDefault && input.isActive !== false) {
@@ -617,7 +617,7 @@ export function createCatalogService(prisma: PrismaClient) {
               where: { productId: variant.productId, isActive: true, id: { not: variantId } },
               orderBy: { createdAt: "asc" },
             });
-            if (!replacement) throw catalogError(409, "LAST_ACTIVE_VARIANT", "পণ্যটিতে অন্তত একটি অ্যাকটিভ প্যাক/সাইজ রাখতে হবে।");
+            if (!replacement) throw catalogError(409, "LAST_ACTIVE_VARIANT", "পণ্যটিতে কমপক্ষে একটি অ্যাকটিভ প্যাক/সাইজ রাখতে হবে।");
             await transaction.productVariant.update({
               where: { id: replacement.id },
               data: { isDefault: true },

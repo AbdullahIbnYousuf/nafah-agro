@@ -97,11 +97,11 @@ describe('strict API input contracts', () => {
   it('uses truthful defaults when cancellation and return reasons are omitted', () => {
     expect(orderLifecycleSchema.parse({ action: 'CANCEL' }).reason).toBe('অর্ডার বাতিল');
     expect(orderLifecycleSchema.parse({ action: 'FAILED_DELIVERY' }).reason).toBe('ডেলিভারি ব্যর্থ');
-    expect(orderLifecycleSchema.parse({ action: 'RETURN', condition: 'SELLABLE' }).reason).toBe('পণ্য ফেরত');
+    expect(orderLifecycleSchema.parse({ action: 'RETURN', condition: 'SELLABLE' }).reason).toBe('পণ্য রিটার্ন');
     expect(physicalSaleReturnSchema.parse({
       condition: 'DAMAGED',
       items: [{ salesOrderItemId: saleItemId, amount: '1', amountUnit: 'PIECE' }],
-    }).reason).toBe('দোকানের বিক্রি ফেরত');
+    }).reason).toBe('দোকানের বিক্রি রিটার্ন');
   });
 
   it('keeps safety-critical stock and payment-correction reasons required', () => {

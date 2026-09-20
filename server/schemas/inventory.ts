@@ -129,7 +129,7 @@ export const physicalSaleListSchema = z.object({
 
 export const physicalSaleReturnSchema = z.object({
   condition: z.enum(["SELLABLE", "DAMAGED"]),
-  reason: optionalReason("দোকানের বিক্রি ফেরত"),
+  reason: optionalReason("দোকানের বিক্রি রিটার্ন"),
   items: z.array(z.object({
     salesOrderItemId: uuid,
     amount,

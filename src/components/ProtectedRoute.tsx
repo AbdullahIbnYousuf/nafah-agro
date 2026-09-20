@@ -29,7 +29,7 @@ const ProtectedRoute = ({ children, roles }: ProtectedRouteProps) => {
           <h1 className="text-xl font-bold">অ্যাকাউন্ট লোড করা যায়নি</h1>
           <p className="mt-2 text-sm text-muted-foreground">{sessionError}</p>
           <Button className="mt-5" onClick={() => void retrySession()}>
-            <RefreshCw size={16} className="mr-2" /> আবার চেষ্টা করুন
+            <RefreshCw size={16} className="mr-2" /> রিট্রাই করুন
           </Button>
         </div>
       </div>

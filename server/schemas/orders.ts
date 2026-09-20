@@ -47,7 +47,7 @@ export const orderLifecycleSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("DELIVER") }).strict(),
   z.object({ action: z.literal("CANCEL"), reason: optionalReason("অর্ডার বাতিল") }).strict(),
   z.object({ action: z.literal("FAILED_DELIVERY"), reason: optionalReason("ডেলিভারি ব্যর্থ") }).strict(),
-  z.object({ action: z.literal("RETURN"), condition: z.enum(["SELLABLE", "DAMAGED"]), reason: optionalReason("পণ্য ফেরত") }).strict(),
+  z.object({ action: z.literal("RETURN"), condition: z.enum(["SELLABLE", "DAMAGED"]), reason: optionalReason("পণ্য রিটার্ন") }).strict(),
 ]);
 
 export const orderListSchema = z.object({

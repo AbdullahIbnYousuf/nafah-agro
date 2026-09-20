@@ -10,7 +10,7 @@ export function OfflineNotice() {
   return (
     <div className="fixed inset-x-3 top-3 z-[100] mx-auto flex max-w-xl items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-amber-950 shadow-lg" role="status">
       <WifiOff size={18} className="mt-0.5 shrink-0" />
-      <p className="text-sm"><strong>ইন্টারনেট সংযোগ নেই।</strong> লাইভ পণ্য, স্টক, অর্ডার ও বিক্রির কাজ করতে ইন্টারনেট লাগবে।</p>
+      <p className="text-sm"><strong>ইন্টারনেট কানেকশন নেই।</strong> লাইভ পণ্য, স্টক, অর্ডার ও বিক্রির কাজ করতে ইন্টারনেট লাগবে।</p>
     </div>
   );
 }

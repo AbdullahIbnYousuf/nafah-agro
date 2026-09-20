@@ -34,8 +34,8 @@ describe('whole-order return dialog', () => {
 
   it('submits a sellable whole-order return', async () => {
     const { onConfirm } = setup();
-    fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'Unopened products returned' } });
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
+    fireEvent.change(screen.getByLabelText('রিটার্নের কারণ (ঐচ্ছিক)'), { target: { value: 'Unopened products returned' } });
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
 
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('SELLABLE', 'Unopened products returned'));
   });
@@ -44,15 +44,15 @@ describe('whole-order return dialog', () => {
     const { onConfirm } = setup();
     fireEvent.click(screen.getByRole('radio', { name: /DAMAGED/ }));
     expect(screen.getByText(/পণ্যগুলো স্টকে অ্যাড হবে না/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'Package and products damaged' } });
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
+    fireEvent.change(screen.getByLabelText('রিটার্নের কারণ (ঐচ্ছিক)'), { target: { value: 'Package and products damaged' } });
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
 
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('DAMAGED', 'Package and products damaged'));
   });
 
   it('submits a return without requiring a reason', async () => {
     const { onConfirm } = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
 
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('SELLABLE', undefined));
   });
@@ -64,8 +64,8 @@ describe('whole-order return dialog', () => {
       });
     });
     setup(onConfirm);
-    fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'Customer return' } });
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
+    fireEvent.change(screen.getByLabelText('রিটার্নের কারণ (ঐচ্ছিক)'), { target: { value: 'Customer return' } });
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
 
     expect(await screen.findByText('Only a delivered order can be returned.')).toBeInTheDocument();
   });

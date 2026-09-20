@@ -448,7 +448,7 @@ export function createAccountService(
 
     async setOwnerActive(actorId, ownerId, input) {
       if (actorId === ownerId) {
-        throw accountError(400, "SELF_OWNER_STATUS_CHANGE", "নিজের অ্যাকটিভ বা ইনঅ্যাকটিভ অবস্থা পরিবর্তন করা যাবে না।");
+        throw accountError(400, "SELF_OWNER_STATUS_CHANGE", "নিজের অ্যাকটিভ বা ইনঅ্যাকটিভ স্ট্যাটাস আপডেট করা যাবে না।");
       }
       await prisma.$transaction(async (transaction) => {
         const previous = await transaction.profile.findFirst({

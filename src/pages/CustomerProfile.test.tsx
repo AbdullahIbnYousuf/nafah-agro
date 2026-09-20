@@ -360,14 +360,14 @@ describe('role-aware profile page', () => {
     });
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'অ্যাকাউন্ট মুছুন' }));
-    expect(screen.getByRole('dialog', { name: 'অব্যবহৃত ওনার অ্যাকাউন্ট মুছুন' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'অ্যাকাউন্ট ডিলিট করুন' }));
+    expect(screen.getByRole('dialog', { name: 'ব্যবহার হয়নি এমন ওনার অ্যাকাউন্ট ডিলিট করুন' })).toBeInTheDocument();
     expect(mocks.deleteUnusedOwner).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'বাতিল' }));
     expect(mocks.deleteUnusedOwner).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'অ্যাকাউন্ট মুছুন' }));
-    fireEvent.click(screen.getByRole('button', { name: 'স্থায়ীভাবে মুছুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'অ্যাকাউন্ট ডিলিট করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ডিলিট করুন' }));
     await waitFor(() => expect(mocks.deleteUnusedOwner).toHaveBeenCalledWith('owner-2'));
   });
 
@@ -385,8 +385,8 @@ describe('role-aware profile page', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'কাস্টমার করুন' }));
     expect(mocks.toastError).toHaveBeenCalledWith('পরিচালনার কাজ করেছেন, তাই এখন আর কাস্টমার করা যাবে না।');
-    fireEvent.click(screen.getByRole('button', { name: 'অ্যাকাউন্ট মুছুন' }));
-    expect(mocks.toastError).toHaveBeenCalledWith('এই অ্যাকাউন্টটি আগে কাস্টমার ছিল। মুছে না ফেলে কাস্টমার করুন।');
+    fireEvent.click(screen.getByRole('button', { name: 'অ্যাকাউন্ট ডিলিট করুন' }));
+    expect(mocks.toastError).toHaveBeenCalledWith('এই অ্যাকাউন্টটি আগে কাস্টমার ছিল। ডিলিট না করে কাস্টমার করুন।');
     expect(mocks.deleteUnusedOwner).not.toHaveBeenCalled();
   });
 

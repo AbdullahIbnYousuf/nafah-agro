@@ -7,9 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getErrorMessage } from '@/lib/utils';
 
 function recoveryErrorMessage(error: unknown) {
-  const message = getErrorMessage(error, 'পাসওয়ার্ড পরিবর্তন করা যায়নি। আবার চেষ্টা করুন।');
+  const message = getErrorMessage(error, 'পাসওয়ার্ড আপডেট করা যায়নি। রিট্রাই করুন।');
   if (/expired|invalid|recovery link/i.test(message)) {
-    return 'লিংকটি সঠিক নয় অথবা এর মেয়াদ শেষ হয়েছে। লগইন পেজ থেকে নতুন লিংক নিন।';
+    return 'লিংকটি সঠিক নয় অথবা লিংক এক্সপায়ার হয়েছে। লগইন পেজ থেকে নতুন লিংক নিন।';
   }
   return message;
 }
@@ -61,7 +61,7 @@ export default function ResetPassword() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">লিংকটি কাজ করছে না</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  লিংকটি সঠিক নয় অথবা এর মেয়াদ শেষ হয়েছে। লগইন পেজ থেকে নতুন লিংক নিন।
+                  লিংকটি সঠিক নয় অথবা লিংক এক্সপায়ার হয়েছে। লগইন পেজ থেকে নতুন লিংক নিন।
                 </p>
               </div>
               <Link

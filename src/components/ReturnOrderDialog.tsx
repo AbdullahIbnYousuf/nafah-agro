@@ -37,7 +37,7 @@ function apiErrorMessage(error: unknown) {
       if (messages.length > 0) return messages.join(' ');
     }
   }
-  return error instanceof Error ? error.message : 'ফেরত সম্পন্ন করা যায়নি। আবার চেষ্টা করুন।';
+  return error instanceof Error ? error.message : 'রিটার্ন সম্পন্ন করা যায়নি। রিট্রাই করুন।';
 }
 
 export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnOrderDialogProps) {
@@ -74,14 +74,14 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
   return <Dialog open={order !== null} onOpenChange={open => { if (!open) close(); }}>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle>পুরো অর্ডার ফেরত</DialogTitle>
+        <DialogTitle>পুরো অর্ডার রিটার্ন</DialogTitle>
         <DialogDescription>
-          অর্ডার: <strong className="text-foreground">{order?.orderNumber}</strong>। আংশিক ফেরত সমর্থিত নয়।
+          অর্ডার: <strong className="text-foreground">{order?.orderNumber}</strong>। আংশিক রিটার্ন করা যাবে না।
         </DialogDescription>
       </DialogHeader>
 
-      <section aria-label="ফেরত পণ্য" className="rounded-lg border p-4">
-        <h3 className="font-semibold mb-2">ফেরত পণ্যসমূহ</h3>
+      <section aria-label="রিটার্ন পণ্য" className="rounded-lg border p-4">
+        <h3 className="font-semibold mb-2">রিটার্ন পণ্য</h3>
         <div className="space-y-2">
           {order?.items.map(item => <div key={item.id} className="flex justify-between gap-4 text-sm">
             <span>{productPackLabel(item.productName, item.variantName)}</span>
@@ -91,7 +91,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
       </section>
 
       <fieldset>
-        <legend className="font-semibold mb-3">ফেরতের অবস্থা</legend>
+        <legend className="font-semibold mb-3">রিটার্ন স্ট্যাটাস</legend>
         <RadioGroup value={condition} onValueChange={value => setCondition(value as ReturnCondition)} className="grid sm:grid-cols-2 gap-3">
           <Label htmlFor="return-sellable" className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer ${condition === 'SELLABLE' ? 'border-secondary bg-secondary/10' : ''}`}>
             <RadioGroupItem id="return-sellable" value="SELLABLE" className="mt-1" />
@@ -110,12 +110,12 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
         <AlertDescription>
           {condition === 'SELLABLE'
             ? 'কনফার্ম করলে সব পণ্য আগের ক্রয়মূল্যসহ আবার বিক্রির স্টকে অ্যাড হবে।'
-            : 'অর্ডারটি ফেরত হিসেবে ধরা হবে, তবে ক্ষতিগ্রস্ত পণ্য স্টকে অ্যাড হবে না।'}
+            : 'অর্ডারটি রিটার্ন হিসেবে ধরা হবে, তবে DAMAGED পণ্য স্টকে অ্যাড হবে না।'}
         </AlertDescription>
       </Alert>
 
       <div>
-        <Label htmlFor="return-reason">ফেরতের কারণ (ঐচ্ছিক)</Label>
+        <Label htmlFor="return-reason">রিটার্নের কারণ (ঐচ্ছিক)</Label>
         <Textarea
           id="return-reason"
           value={reason}
@@ -131,7 +131,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
       <DialogFooter>
         <Button type="button" variant="outline" onClick={close} disabled={submitting}>বন্ধ করুন</Button>
         <Button type="button" onClick={() => void submit()} disabled={submitting}>
-          {submitting ? 'ফেরত কনফার্ম হচ্ছে…' : 'ফেরত কনফার্ম করুন'}
+          {submitting ? 'রিটার্ন কনফার্ম হচ্ছে…' : 'রিটার্ন কনফার্ম করুন'}
         </Button>
       </DialogFooter>
     </DialogContent>

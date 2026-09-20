@@ -58,8 +58,8 @@ const Index = () => {
       .catch((error) => {
         if (error instanceof ApiError && error.code === 'REQUEST_CANCELLED') return;
         setLoadError(error instanceof ApiError && error.code === 'REQUEST_TIMEOUT'
-          ? 'পণ্য লোড হতে বেশি সময় লাগছে। আবার চেষ্টা করুন।'
-          : 'পণ্য লোড করা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।');
+          ? 'পণ্য লোড হতে বেশি সময় লাগছে। রিট্রাই করুন।'
+          : 'পণ্য লোড করা যায়নি। ইন্টারনেট কানেকশন দেখে রিট্রাই করুন।');
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -161,7 +161,7 @@ const Index = () => {
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-8 text-center">
               <p className="text-sm text-destructive">{loadError}</p>
               <Button variant="outline" className="mt-4" onClick={retryFeatured}>
-                <RefreshCw size={16} className="mr-2" /> আবার চেষ্টা করুন
+                <RefreshCw size={16} className="mr-2" /> রিট্রাই করুন
               </Button>
             </div>
           ) : featured.length > 0 ? (

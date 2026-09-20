@@ -18,8 +18,7 @@ These words are clear and should normally remain:
 - ইনভেন্টরি
 - ইউনিট
 - স্টক
-- স্টক ব্যাচ
-- সমন্বয়
+- স্টক ব্যাচ, যখন ব্যাচের পার্থক্য বোঝানো দরকার
 - প্যাক/সাইজ
 - ক্যাটাগরি
 - ডেলিভারি
@@ -70,12 +69,40 @@ For active-state labels, actions, instructions, and errors, consistently use:
 
 Do not use “সক্রিয়” or “নিষ্ক্রিয়” in user-visible text. Keep technical names such as `isActive`, `ACTIVE`, `INACTIVE`, and audit-event values unchanged.
 
+## Approved easy mixed terms
+
+Use these familiar Bengali-script English terms consistently in visible UI:
+
+- নির্বাচন করুন / বেছে নিন → সিলেক্ট করুন
+- তথ্য, নাম, তারিখ, স্ট্যাটাস বদলান / পরিবর্তন করুন → প্রযোজ্য শব্দের সঙ্গে আপডেট করুন
+- ফেরত অর্ডার / পণ্য → রিটার্ন
+- ফেরত টাকা → রিফান্ড; নগদ ফেরত → ক্যাশ রিফান্ড
+- মুছুন → ডিলিট করুন
+- সরান / বাদ দিন → রিমুভ করুন
+- আবার চেষ্টা করুন → রিট্রাই করুন
+- অবস্থা → স্ট্যাটাস; প্রাথমিক অবস্থা → শুরুর স্ট্যাটাস
+- পৃষ্ঠা / পাতা → পেজ
+- বিবরণ → বিস্তারিত
+- অনুমতি → পারমিশন
+- ইন্টারনেট সংযোগ → ইন্টারনেট কানেকশন
+- অন্তত → কমপক্ষে
+- পরবর্তী যোগাযোগ → পরের যোগাযোগ
+
+Apply these by meaning, not as blind substring replacements. Keep “বাতিল”, “কারণ”, “যোগাযোগ”, “পরিমাণ”, “ক্রয়মূল্য”, “রেকর্ড”, “লাভ”, “দাম”, “স্টক”, and “বাকি” where they remain natural.
+
+Use context-specific text instead of the vague “প্রযোজ্য নয়”:
+
+- Pending order financial values: এখনও হিসাব হয়নি
+- Missing profit margin: লাভের হিসাব নেই
+- Product without pack/size: প্যাক/সাইজ নেই
+- Feature unavailable for that product: এই পণ্যের জন্য নেই
+
 ## Quantity and inventory wording
 
 - Keep the word “ইউনিট” whenever a number represents product or stock quantity.
 - Prefer “ধনাত্মক পরিমাণ” over “০-এর বেশি পরিমাণ”.
 - Prefer “ধনাত্মক ক্রয়মূল্য” over “০-এর বেশি ক্রয়মূল্য”.
-- “সমন্বয়” is acceptable. Use “স্টক সমন্বয়”, “সমন্বয়ের কারণ”, and “সমন্বয় সংরক্ষণ” where they accurately describe the operation.
+- Use “স্টক আপডেট”, “স্টক আপডেটের কারণ”, and “স্টক আপডেট কনফার্ম করুন” in the UI. Internal adjustment names remain unchanged.
 - Keep “সংরক্ষিত ইউনিট” as written. Do not replace it with “অর্ডারের জন্য রাখা ইউনিট”.
 - Replace “উপলভ্য” in customer or owner-facing stock descriptions with a direct explanation:
   - উপলভ্য ইউনিট → বিক্রির জন্য থাকা ইউনিট

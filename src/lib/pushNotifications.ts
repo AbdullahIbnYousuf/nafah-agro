@@ -65,7 +65,7 @@ export async function enablePushNotifications() {
   const permission = Notification.permission === 'default'
     ? await Notification.requestPermission()
     : Notification.permission;
-  if (permission !== 'granted') throw new Error('ব্রাউজারে নোটিফিকেশনের অনুমতি দেওয়া হয়নি।');
+  if (permission !== 'granted') throw new Error('ব্রাউজারে নোটিফিকেশন পারমিশন দেওয়া হয়নি।');
 
   const registration = await navigator.serviceWorker.ready;
   const existing = await registration.pushManager.getSubscription();
@@ -99,6 +99,6 @@ export async function testPushNotification() {
   const subscription = await currentPushSubscription();
   if (!subscription) throw new Error('এই ডিভাইসে আগে নোটিফিকেশন চালু করুন।');
   const result = await sendTestPush(subscription.endpoint);
-  if (result.sent !== 1) throw new Error('টেস্ট নোটিফিকেশন পাঠানো যায়নি। আবার চেষ্টা করুন।');
+  if (result.sent !== 1) throw new Error('টেস্ট নোটিফিকেশন পাঠানো যায়নি। রিট্রাই করুন।');
   return result;
 }

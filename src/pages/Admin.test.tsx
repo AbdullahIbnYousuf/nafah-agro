@@ -103,22 +103,22 @@ describe('safe catalog deletion controls', () => {
   it('closes product deletion without action and submits only after confirmation', async () => {
     renderAdmin('/admin/products');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'মুছুন' }));
-    expect(screen.getByRole('dialog', { name: 'অব্যবহৃত পণ্য মুছুন' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'ডিলিট' }));
+    expect(screen.getByRole('dialog', { name: 'ব্যবহার হয়নি এমন পণ্য ডিলিট করুন' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'বাতিল' }));
     expect(mocks.deleteUnusedProduct).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'মুছুন' }));
-    fireEvent.click(screen.getByRole('button', { name: 'স্থায়ীভাবে মুছুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ডিলিট' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ডিলিট করুন' }));
     await waitFor(() => expect(mocks.deleteUnusedProduct).toHaveBeenCalledWith(product.id));
   }, 10_000);
 
   it('requires explicit confirmation before deleting an empty category', async () => {
     renderAdmin('/admin/categories');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'মুছুন' }));
-    expect(screen.getByRole('dialog', { name: 'খালি ক্যাটাগরি মুছুন' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'স্থায়ীভাবে মুছুন' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'ডিলিট' }));
+    expect(screen.getByRole('dialog', { name: 'খালি ক্যাটাগরি ডিলিট করুন' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'ডিলিট করুন' }));
     await waitFor(() => expect(mocks.deleteUnusedCategory).toHaveBeenCalledWith(product.categoryId));
   });
 
@@ -129,13 +129,13 @@ describe('safe catalog deletion controls', () => {
     ]);
 
     const productView = renderAdmin('/admin/products');
-    fireEvent.click(await screen.findByRole('button', { name: 'মুছুন' }));
-    expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining('তাই এটি মুছতে পারবেন না'));
+    fireEvent.click(await screen.findByRole('button', { name: 'ডিলিট' }));
+    expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining('তাই এটি ডিলিট করতে পারবেন না'));
     expect(mocks.deleteUnusedProduct).not.toHaveBeenCalled();
     productView.unmount();
 
     renderAdmin('/admin/categories');
-    fireEvent.click(await screen.findByRole('button', { name: 'মুছুন' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'ডিলিট' }));
     expect(mocks.toastError).toHaveBeenCalledWith(expect.stringContaining('এই ক্যাটাগরিতে পণ্য আছে'));
     expect(mocks.deleteUnusedCategory).not.toHaveBeenCalled();
   });
@@ -296,7 +296,7 @@ describe('safe catalog deletion controls', () => {
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Empty Category অনলাইন শপ' }));
     const dialog = await screen.findByRole('dialog', { name: 'Empty Category হাইড করুন' });
-    expect(dialog).toHaveTextContent('স্টক অ্যাড, ইনভেন্টরি ও দোকানের বিক্রিতে কোনো পরিবর্তন হবে না');
+    expect(dialog).toHaveTextContent('স্টক অ্যাড, ইনভেন্টরি ও দোকানের বিক্রিতে কোনো আপডেট হবে না');
     fireEvent.click(screen.getByRole('button', { name: 'হাইড করুন' }));
 
     await waitFor(() => expect(mocks.setCategoryVisibleInShop).toHaveBeenCalledWith(product.categoryId, false));

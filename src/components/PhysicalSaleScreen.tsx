@@ -129,7 +129,7 @@ export default function PhysicalSaleScreen() {
       setCustomerSuggestionError('');
       void suggestCreditCustomers(customerName.trim())
         .then((values) => { if (active) setCreditCustomerSuggestions(values); })
-        .catch(() => { if (active) { setCreditCustomerSuggestions([]); setCustomerSuggestionError('ক্রেতার তালিকা দেখা যায়নি। আবার চেষ্টা করুন।'); } })
+        .catch(() => { if (active) { setCreditCustomerSuggestions([]); setCustomerSuggestionError('ক্রেতার তালিকা দেখা যায়নি। রিট্রাই করুন।'); } })
         .finally(() => { if (active) setLoadingCustomerSuggestions(false); });
     }, 200);
     return () => { active = false; window.clearTimeout(timeout); };
@@ -268,7 +268,7 @@ export default function PhysicalSaleScreen() {
     const nextErrors: typeof errors = {};
     if (lines.length === 0) {
       nextErrors.items = 'কমপক্ষে একটি পণ্য অ্যাড করুন।';
-      toast.error('বিক্রি সম্পন্ন করতে আগে অন্তত একটি পণ্য অ্যাড করুন।');
+      toast.error('বিক্রি সম্পন্ন করতে আগে কমপক্ষে একটি পণ্য অ্যাড করুন।');
     }
     if (lines.some((line) => {
       const base = toBaseQuantity(line.amount, line.amountUnit);
@@ -276,7 +276,7 @@ export default function PhysicalSaleScreen() {
     })) nextErrors.items = 'প্রতিটি পণ্যের সঠিক পরিমাণ দিন এবং বর্তমান স্টকের মধ্যে রাখুন।';
     if (customerPhone.trim() && (customerPhone.trim().length < 7 || customerPhone.trim().length > 30)) nextErrors.phone = 'ফোন নম্বর 7 থেকে 30 অক্ষরের মধ্যে লিখুন।';
     if (paymentMode === 'CREDIT' && !customerName.trim()) nextErrors.customerName = 'বাকি বিক্রির জন্য ক্রেতার নাম দিন।';
-    if (paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed) nextErrors.customerSelection = 'তালিকা থেকে ক্রেতা বেছে নিন অথবা নতুন ক্রেতা হিসেবে অ্যাড করুন।';
+    if (paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed) nextErrors.customerSelection = 'তালিকা থেকে ক্রেতা সিলেক্ট করুন অথবা নতুন ক্রেতা হিসেবে অ্যাড করুন।';
     if (paymentMode === 'CREDIT' && (!nextFollowUpDate || nextFollowUpDate < dhakaDate())) nextErrors.followUp = 'আজ বা পরের কোনো যোগাযোগের তারিখ দিন।';
     if (!Number.isFinite(discountNumber) || discountNumber < 0 || discountNumber > subtotal) nextErrors.discount = 'ডিসকাউন্ট শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
     if (Object.keys(nextErrors).length > 0) { setErrors(nextErrors); return; }
@@ -303,7 +303,7 @@ export default function PhysicalSaleScreen() {
       if (!confirmUnprofitable && error instanceof ApiError && error.code === 'UNPROFITABLE_SALE_CONFIRMATION_REQUIRED') {
         setProjectedLoss(error.details?.projectedGrossProfit ?? 'ক্ষতি হবে');
       } else if (error instanceof ApiError && error.code === 'DUPLICATE_CREDIT_CUSTOMER_NAME') {
-        setErrors({ customerSelection: 'এই নামে একজন ক্রেতা আগে থেকেই আছেন। নাম লিখে তালিকা থেকে তাকে বেছে নিন।' });
+        setErrors({ customerSelection: 'এই নামে একজন ক্রেতা আগে থেকেই আছেন। নাম লিখে তালিকা থেকে তাকে সিলেক্ট করুন।' });
       } else if (confirmUnprofitable) {
         throw error;
       } else {
@@ -320,7 +320,7 @@ export default function PhysicalSaleScreen() {
     setRecentSales((current) => current.map((sale) => sale.id === updated.id ? updated : sale));
     setCompleted((current) => current?.id === updated.id ? updated : current);
     setReturnSale(updated);
-    toast.success('পণ্য ফেরত সম্পন্ন হয়েছে');
+    toast.success('প্রোডাক্ট রিটার্ন সম্পন্ন হয়েছে');
   }
 
   function applyHistoryFilters(event: React.FormEvent) {
@@ -365,7 +365,7 @@ export default function PhysicalSaleScreen() {
                 aria-disabled={variant.availableStock <= 0}
                 aria-expanded={isOpen}
                 aria-controls={`physical-sale-selection-${variant.id}`}
-                aria-label={`${title} পরিমাণ বেছে নিন`}
+                aria-label={`${title} পরিমাণ সিলেক্ট করুন`}
                 className="w-full p-3 text-left"
               >
                 <div className="flex items-start justify-between gap-2"><div className="font-medium">{title}</div><ChevronDown size={17} className={`mt-0.5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
@@ -388,7 +388,7 @@ export default function PhysicalSaleScreen() {
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
         <div className="space-y-2">{lines.map((line) => { const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0; const pricing = sellingPriceForQuantity({ kind: line.product.kind, regularPrice: line.variant.sellingPrice, bulkPrice: line.variant.bulkSellingPrice, quantity: base }); return <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(line.product.kind)}{line.product.kind === 'EGG' ? ` · ${pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'}` : ''} · স্টক {formatQuantity(line.variant.availableStock, quantityUnitForKind(line.product.kind), line.product.kind)}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>; })}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
-        <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পরিশোধ</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
+        <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পেমেন্ট</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
         <div className="grid items-start gap-3 sm:grid-cols-2">
           <Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName ?? errors.customerSelection}>
             <div className="relative">
@@ -418,7 +418,7 @@ export default function PhysicalSaleScreen() {
                 {!loadingCustomerSuggestions && creditCustomerSuggestions.map((customer, index) => <button id={`credit-customer-option-${index}`} role="option" aria-selected={highlightedCustomerOption === index} key={customer.id} type="button" className={`block w-full px-3 py-2 text-left text-sm hover:bg-muted ${highlightedCustomerOption === index ? 'bg-muted' : ''}`} onMouseEnter={() => setHighlightedCustomerOption(index)} onClick={() => selectCreditCustomer(customer)}>{customer.name}</button>)}
                 {canCreateCreditCustomer && <button id={`credit-customer-option-${creditCustomerSuggestions.length}`} role="option" aria-selected={highlightedCustomerOption === creditCustomerSuggestions.length} type="button" className={`block w-full border-t px-3 py-2 text-left text-sm font-medium text-secondary hover:bg-muted ${highlightedCustomerOption === creditCustomerSuggestions.length ? 'bg-muted' : ''}`} onMouseEnter={() => setHighlightedCustomerOption(creditCustomerSuggestions.length)} onClick={confirmNewCreditCustomer}>“{customerName.trim()}” নামে নতুন ক্রেতা অ্যাড করুন</button>}
               </div>}
-              {selectedCreditCustomer && <button type="button" className="mt-1 text-xs font-medium text-secondary hover:underline" onClick={() => { setSelectedCreditCustomer(null); setCustomerName(''); setCustomerPhone(''); }}>অন্য ক্রেতা বেছে নিন</button>}
+              {selectedCreditCustomer && <button type="button" className="mt-1 text-xs font-medium text-secondary hover:underline" onClick={() => { setSelectedCreditCustomer(null); setCustomerName(''); setCustomerPhone(''); }}>অন্য ক্রেতা সিলেক্ট করুন</button>}
               {newCreditCustomerConfirmed && <div className="mt-1 text-xs font-medium text-secondary">নতুন ক্রেতা অ্যাড হবে</div>}
             </div>
           </Field>
@@ -429,7 +429,7 @@ export default function PhysicalSaleScreen() {
           <Metric label="এই বিক্রির পর" value={money(selectedCreditCustomer.outstandingAmount + Math.max(total, 0))} />
           <Metric label="যোগাযোগের তারিখ" value={formatAppDate(nextFollowUpDate) || 'তারিখ দিন'} />
         </div>}
-        {paymentMode === 'CREDIT' && <Field label="পরবর্তী যোগাযোগের তারিখ" error={errors.followUp}><FormattedDateInput aria-label="পরবর্তী যোগাযোগের তারিখ" min={dhakaDate()} value={nextFollowUpDate} onChange={(event) => { setNextFollowUpDate(event.target.value); setErrors((current) => ({ ...current, followUp: undefined })); }} aria-invalid={Boolean(errors.followUp)} /></Field>}
+        {paymentMode === 'CREDIT' && <Field label="পরের যোগাযোগের তারিখ" error={errors.followUp}><FormattedDateInput aria-label="পরের যোগাযোগের তারিখ" min={dhakaDate()} value={nextFollowUpDate} onChange={(event) => { setNextFollowUpDate(event.target.value); setErrors((current) => ({ ...current, followUp: undefined })); }} aria-invalid={Boolean(errors.followUp)} /></Field>}
         <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
         <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
         {errors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{errors.submit}</p>}
@@ -437,7 +437,7 @@ export default function PhysicalSaleScreen() {
       </section>
     </div>
 
-    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2>{completed.paymentMethod === 'CREDIT' && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">বাকি {money(completed.outstandingAmount)}</span>}</div><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label={completed.paymentMethod === 'CREDIT' ? 'পরবর্তী যোগাযোগ' : 'মার্জিন'} value={completed.paymentMethod === 'CREDIT' ? formatAppDate(completed.nextFollowUpDate) || 'বাকি শেষ' : completed.grossProfitMargin === null ? 'প্রযোজ্য নয়' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
+    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2>{completed.paymentMethod === 'CREDIT' && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">বাকি {money(completed.outstandingAmount)}</span>}</div><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label={completed.paymentMethod === 'CREDIT' ? 'পরের যোগাযোগ' : 'মার্জিন'} value={completed.paymentMethod === 'CREDIT' ? formatAppDate(completed.nextFollowUpDate) || 'বাকি শেষ' : completed.grossProfitMargin === null ? 'লাভের হিসাব নেই' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
 
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
@@ -511,7 +511,7 @@ function ProductHistorySearch({
       <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} />
       <Input
         role="combobox"
-        aria-label="পণ্য বেছে নিন"
+        aria-label="পণ্য সিলেক্ট করুন"
         aria-expanded={open}
         aria-controls="physical-sale-product-suggestions"
         aria-autocomplete="list"
@@ -520,7 +520,7 @@ function ProductHistorySearch({
         onFocus={() => setOpen(true)}
         onChange={(event) => { onChange(event.target.value); setOpen(true); }}
         onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }}
-        placeholder="পণ্য বেছে নিন বা নাম লিখুন"
+        placeholder="পণ্য সিলেক্ট করুন বা নাম লিখুন"
       />
     </div>
     {open && <div id="physical-sale-product-suggestions" role="listbox" aria-label="পণ্যের পরামর্শ" className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
@@ -583,7 +583,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
         <div className="flex items-center justify-between gap-4 sm:block sm:min-w-28 sm:text-right">
           <span className="text-xs text-muted-foreground">{sale.refundedAmount > 0 ? 'বর্তমান বিক্রি' : 'মোট দাম'}</span>
           <strong className="block text-lg text-primary">{money(sale.remainingRevenue)}</strong>
-          {sale.refundedAmount > 0 && <span className="block text-xs text-destructive">ফেরত {money(sale.refundedAmount)}</span>}
+          {sale.refundedAmount > 0 && <span className="block text-xs text-destructive">রিফান্ড {money(sale.refundedAmount)}</span>}
         </div>
         <div className="flex items-center justify-end gap-1 text-xs font-medium text-secondary">
           <span>{open ? 'বন্ধ করুন' : 'বিস্তারিত'}</span>
@@ -601,7 +601,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
               <div className="mt-0.5 text-sm text-muted-foreground">
                 {formatQuantity(item.quantity, item.quantityUnit)} × {money(item.unitSellingPrice)} {saleRateLabel(item.quantityUnit)}
               </div>
-              {item.returnedQuantity > 0 && <div className="mt-1 text-xs text-destructive">ফেরত নেওয়া হয়েছে {formatQuantity(item.returnedQuantity, item.quantityUnit)} · বাকি {formatQuantity(item.returnableQuantity, item.quantityUnit)}</div>}
+              {item.returnedQuantity > 0 && <div className="mt-1 text-xs text-destructive">রিটার্ন হয়েছে {formatQuantity(item.returnedQuantity, item.quantityUnit)} · বাকি {formatQuantity(item.returnableQuantity, item.quantityUnit)}</div>}
             </div>
             <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm sm:min-w-64 sm:text-right">
               <span className="text-muted-foreground">পণ্যের দাম</span><strong>{money(item.grossLineRevenue)}</strong>
@@ -614,24 +614,24 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <SaleSummaryMetric label="মূল মোট দাম" value={money(sale.grandTotal)} />
-          <SaleSummaryMetric label="ফেরত টাকা" value={`-${money(sale.refundedAmount)}`} negative={sale.refundedAmount > 0} />
+          <SaleSummaryMetric label="রিফান্ড" value={`-${money(sale.refundedAmount)}`} negative={sale.refundedAmount > 0} />
           <SaleSummaryMetric label="বর্তমান ক্রয়মূল্য" value={money(sale.remainingBuyingCost)} />
           <SaleSummaryMetric label="বর্তমান লাভ" value={money(sale.remainingGrossProfit)} negative={sale.remainingGrossProfit < 0} />
         </div>
-        {sale.paymentMethod === 'CREDIT' && <div className="mt-4 rounded-lg border bg-card p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>বাকি হিসাব</strong><span>{sale.nextFollowUpDate ? `পরবর্তী যোগাযোগ: ${sale.nextFollowUpDate}` : 'বাকি শেষ'}</span></div><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"><Metric label="জমা হয়েছে" value={money(sale.collectedAmount)} /><Metric label="এখনো বাকি" value={money(sale.outstandingAmount)} /><Metric label="পেমেন্ট" value={`${sale.creditPayments.filter((payment) => !payment.voidedAt).length}টি`} /></div></div>}
+        {sale.paymentMethod === 'CREDIT' && <div className="mt-4 rounded-lg border bg-card p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>বাকি হিসাব</strong><span>{sale.nextFollowUpDate ? `পরের যোগাযোগ: ${sale.nextFollowUpDate}` : 'বাকি শেষ'}</span></div><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"><Metric label="জমা হয়েছে" value={money(sale.collectedAmount)} /><Metric label="এখনো বাকি" value={money(sale.outstandingAmount)} /><Metric label="পেমেন্ট" value={`${sale.creditPayments.filter((payment) => !payment.voidedAt).length}টি`} /></div></div>}
         {sale.returns.length > 0 && <div className="mt-4 space-y-2">
-          <h3 className="text-sm font-semibold">আগের ফেরতের রেকর্ড</h3>
+          <h3 className="text-sm font-semibold">আগের রিটার্ন রেকর্ড</h3>
           {sale.returns.map((value) => <div key={value.id} className="rounded-lg border bg-card p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{formatAppDateTime(value.createdAt)}</span></div>
             <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
-            <div className="mt-1">ফেরত মূল্য {money(value.refundAmount)}{sale.paymentMethod === 'CREDIT' ? ` · বাকি কমেছে ${money(value.creditOffsetAmount)} · নগদ ফেরত ${money(value.cashRefundAmount)}` : ''} · কারণ: {value.reason}</div>
+            <div className="mt-1">রিফান্ড {money(value.refundAmount)}{sale.paymentMethod === 'CREDIT' ? ` · বাকি কমেছে ${money(value.creditOffsetAmount)} · ক্যাশ রিফান্ড ${money(value.cashRefundAmount)}` : ''} · কারণ: {value.reason}</div>
           </div>)}
         </div>}
         <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
           <span>বিক্রি করেছেন: {sale.createdBy.fullName}</span>
-          <span>বর্তমান লাভের মার্জিন: {remainingMargin === null ? 'প্রযোজ্য নয়' : `${remainingMargin.toFixed(2)}%`}</span>
+          <span>বর্তমান লাভের মার্জিন: {remainingMargin === null ? 'লাভের হিসাব নেই' : `${remainingMargin.toFixed(2)}%`}</span>
         </div>
-        <div className="mt-4 flex justify-end"><Button type="button" variant="outline" onClick={onReturn} disabled={!sale.items.some((item) => item.returnableQuantity > 0)}>{sale.items.some((item) => item.returnableQuantity > 0) ? 'পণ্য ফেরত নিন' : 'সব পণ্য ফেরত হয়েছে'}</Button></div>
+        <div className="mt-4 flex justify-end"><Button type="button" variant="outline" onClick={onReturn} disabled={!sale.items.some((item) => item.returnableQuantity > 0)}>{sale.items.some((item) => item.returnableQuantity > 0) ? 'প্রোডাক্ট রিটার্ন' : 'সব পণ্য রিটার্ন হয়েছে'}</Button></div>
       </div>
     </CollapsibleContent>
   </Collapsible>;

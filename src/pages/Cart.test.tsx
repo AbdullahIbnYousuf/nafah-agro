@@ -35,7 +35,7 @@ describe('cart unavailable checkout guidance', () => {
     render(<MemoryRouter><Cart /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: 'লগইন ছাড়াও অর্ডার করতে পারবেন' }));
 
-    expect(screen.getByRole('status')).toHaveTextContent('এই এলাকার ডেলিভারি চার্জ এখনো নির্ধারণ করা হয়নি');
+    expect(screen.getByRole('status')).toHaveTextContent('এই এলাকার ডেলিভারি চার্জ এখনো সেট করা হয়নি');
     const confirm = screen.getByRole('button', { name: 'অর্ডার কনফার্ম করুন' });
     expect(confirm).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(confirm);

@@ -50,7 +50,7 @@ describe('order list view preferences', () => {
       limit: 100,
     }));
     expect(screen.getByLabelText('অর্ডারের উৎস')).toHaveValue('WEBSITE');
-    expect(screen.getByLabelText('অর্ডারের অবস্থা')).toHaveValue('PENDING');
+    expect(screen.getByLabelText('অর্ডারের স্ট্যাটাস')).toHaveValue('PENDING');
     expect(screen.getByLabelText('অর্ডার নম্বর')).toHaveValue('NA-1001');
     expect(screen.getByLabelText('গ্রাহকের ফোন')).toHaveValue('01300000000');
   });

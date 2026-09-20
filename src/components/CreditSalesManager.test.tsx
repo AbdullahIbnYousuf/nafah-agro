@@ -59,7 +59,7 @@ describe('customer-based credit manager', () => {
     render(<CreditSalesManager />);
     const customerButton = await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ });
     fireEvent.click(customerButton);
-    expect(await screen.findByText('বিক্রির আগের রেকর্ড')).toBeInTheDocument();
+    expect(await screen.findByText('বিক্রির রেকর্ড')).toBeInTheDocument();
     expect(screen.getByText('PS-CREDIT-1')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /কল করুন/ })).not.toBeInTheDocument();
   });
@@ -74,8 +74,8 @@ describe('customer-based credit manager', () => {
 
   it('edits the customer name and allows an empty phone', async () => {
     render(<CreditSalesManager />); fireEvent.click(await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'তথ্য বদলান' }));
-    fireEvent.change(screen.getByLabelText('ক্রেতার নাম সম্পাদনা'), { target: { value: 'করিম' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'তথ্য আপডেট করুন' }));
+    fireEvent.change(screen.getByLabelText('ক্রেতার নাম আপডেট'), { target: { value: 'করিম' } });
     fireEvent.click(screen.getByRole('button', { name: 'সেভ করুন' }));
     await waitFor(() => expect(mocks.updateCreditCustomer).toHaveBeenCalledWith(customer.id, { name: 'করিম', phone: null }));
   });

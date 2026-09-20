@@ -17,9 +17,9 @@ import {
 const RECOVERY_CONFIRMATION = 'এই ইমেইলে অ্যাকাউন্ট থাকলে পাসওয়ার্ড পরিবর্তনের লিংক পাঠানো হয়েছে। ইনবক্স ও স্প্যাম ফোল্ডার দেখুন।';
 
 function recoveryErrorMessage(error: unknown) {
-  const message = getErrorMessage(error, 'ইমেইল পাঠানো যায়নি। কিছুক্ষণ পর আবার চেষ্টা করুন।');
+  const message = getErrorMessage(error, 'ইমেইল পাঠানো যায়নি। কিছুক্ষণ পর রিট্রাই করুন।');
   if (/rate limit|too many requests|security purposes/i.test(message)) {
-    return 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ অপেক্ষা করে আবার চেষ্টা করুন।';
+    return 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ অপেক্ষা করে রিট্রাই করুন।';
   }
   return message;
 }

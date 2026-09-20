@@ -71,7 +71,7 @@ describe('shop URL filters', () => {
     fireEvent.change(screen.getByPlaceholderText('পণ্য সার্চ করুন...'), { target: { value: 'milk' } });
     await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('q=milk'), { timeout: 1200 });
 
-    fireEvent.click(screen.getByRole('button', { name: 'পরের পৃষ্ঠা' }));
+    fireEvent.click(screen.getByRole('button', { name: 'পরের পেজ' }));
     await waitFor(() => {
       const location = screen.getByTestId('location').textContent ?? '';
       expect(location).toContain('q=milk');
@@ -92,7 +92,7 @@ describe('shop URL filters', () => {
     renderShop('/shop');
 
     expect(await screen.findByText(/পণ্য লোড করা যায়নি/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /আবার চেষ্টা করুন/ }));
+    fireEvent.click(screen.getByRole('button', { name: /রিট্রাই করুন/ }));
     await waitFor(() => expect(mocks.getProducts).toHaveBeenCalledTimes(2));
   });
 

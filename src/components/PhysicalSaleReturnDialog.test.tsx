@@ -60,7 +60,7 @@ function setup() {
 
 function selectItemAndReason() {
   fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.change(screen.getByLabelText('ফেরতের কারণ (ঐচ্ছিক)'), { target: { value: 'প্যাকেট নষ্ট ছিল' } });
+  fireEvent.change(screen.getByLabelText('রিটার্নের কারণ (ঐচ্ছিক)'), { target: { value: 'প্যাকেট নষ্ট ছিল' } });
 }
 
 describe('physical sale return dialog', () => {
@@ -74,7 +74,7 @@ describe('physical sale return dialog', () => {
   it('submits a SELLABLE return with the selected measured amount', async () => {
     const { onConfirm } = setup();
     selectItemAndReason();
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({
       condition: 'SELLABLE',
       reason: 'প্যাকেট নষ্ট ছিল',
@@ -90,14 +90,14 @@ describe('physical sale return dialog', () => {
     const { onConfirm } = setup();
     selectItemAndReason();
     fireEvent.click(screen.getByLabelText(/DAMAGED/));
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ condition: 'DAMAGED' })));
   });
 
   it('submits without requiring a return reason', async () => {
     const { onConfirm } = setup();
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       condition: 'SELLABLE',
       reason: undefined,
@@ -106,10 +106,10 @@ describe('physical sale return dialog', () => {
 
   it('explains that a product must be selected before confirmation', async () => {
     const { onConfirm } = setup();
-    const confirm = screen.getByRole('button', { name: 'ফেরত কনফার্ম করুন' });
+    const confirm = screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' });
     expect(confirm).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(confirm);
-    expect(await screen.findByText('ফেরত নেওয়ার জন্য অন্তত একটি পণ্য বেছে নিন।')).toHaveAttribute(
+    expect(await screen.findByText('রিটার্নের জন্য কমপক্ষে একটি পণ্য সিলেক্ট করুন।')).toHaveAttribute(
       'role',
       'alert',
     );

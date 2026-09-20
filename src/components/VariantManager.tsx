@@ -78,7 +78,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
 
   async function handleBulkPriceUpdate() {
     if (bulkUpdates.length < 2) {
-      toast.error('বাল্ক আপডেটের জন্য অন্তত দুইটি নতুন দাম দিন');
+      toast.error('বাল্ক আপডেটের জন্য কমপক্ষে দুইটি নতুন দাম দিন');
       return;
     }
     if (bulkUpdates.some((update) => !Number.isFinite(update.sellingPrice) || update.sellingPrice < 0)) {
@@ -229,7 +229,7 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
     try {
       onUpdated(await updateVariant(variant.id, { isActive: !variant.isActive }));
     } catch (error) {
-      toast.error(getErrorMessage(error, 'অবস্থা পরিবর্তন করা যায়নি'));
+      toast.error(getErrorMessage(error, 'স্ট্যাটাস আপডেট করা যায়নি'));
     }
   }
 

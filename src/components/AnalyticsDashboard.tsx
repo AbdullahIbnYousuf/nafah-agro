@@ -92,11 +92,11 @@ function presetRange(preset: QuickPreset, today: string) {
 }
 
 function money(value: number | null) {
-  return value === null ? 'প্রযোজ্য নয়' : `৳${numberFormatter.format(value)}`;
+  return value === null ? 'এখনও হিসাব হয়নি' : `৳${numberFormatter.format(value)}`;
 }
 
 function count(value: number | null) {
-  return value === null ? 'প্রযোজ্য নয়' : numberFormatter.format(value);
+  return value === null ? 'এখনও হিসাব হয়নি' : numberFormatter.format(value);
 }
 
 function dateLabel(value: string) {
@@ -159,7 +159,7 @@ export function ComparisonTooltip({
 }
 
 function customRangeError(range: { from: string; to: string }) {
-  if (!range.from || !range.to) return 'শুরু এবং শেষের তারিখ নির্বাচন করুন।';
+  if (!range.from || !range.to) return 'শুরু এবং শেষের তারিখ সিলেক্ট করুন।';
   if (range.from > range.to) return 'শেষের তারিখ শুরুর তারিখের আগে হতে পারবে না।';
   const days = Math.floor(
     (Date.parse(`${range.to}T00:00:00.000Z`) - Date.parse(`${range.from}T00:00:00.000Z`))
@@ -271,7 +271,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
         <thead className="bg-muted/70">
           <tr>
             <th className="p-3 text-left">পণ্য ও প্যাক/সাইজ</th>
-            <th className="p-3 text-right">নিট পরিমাণ</th>
+            <th className="p-3 text-right">রিটার্ন বাদে বিক্রি</th>
             <th className="p-3 text-right">পণ্য আয়</th>
             {mode === 'profit' && <><th className="p-3 text-right">বিক্রি হওয়া পণ্যের ক্রয়মূল্য</th><th className="p-3 text-right">মোট লাভ</th><th className="p-3 text-right">মার্জিন</th></>}
           </tr>
@@ -282,7 +282,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
               <td className="p-3"><strong>{productPackLabel(row.productName, row.variantName)}</strong></td>
               <td className="p-3 text-right">{formatMajorQuantity(row.quantity, row.quantityUnit)}</td>
               <td className="p-3 text-right">{money(row.productRevenue)}</td>
-              {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'প্রযোজ্য নয়' : `${numberFormatter.format(row.grossMargin)}%`}</td></>}
+              {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'লাভের হিসাব নেই' : `${numberFormatter.format(row.grossMargin)}%`}</td></>}
             </tr>
           ))}
         </tbody>
@@ -329,7 +329,7 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
     { label: 'নগদে বিক্রি', detail: 'সঙ্গে সঙ্গে বা ডেলিভারির সময় টাকা পাওয়া পণ্য বিক্রি।', metric: data.summary.cashProductRevenue, icon: CircleDollarSign },
     { label: 'বাকিতে বিক্রি', detail: 'এই সময়ে বাকিতে দেওয়া পণ্যের মোট দাম।', metric: data.summary.creditProductRevenue, icon: HandCoins },
     { label: 'মোট লাভ', detail: 'পণ্য আয় থেকে বিক্রি হওয়া পণ্যের ক্রয়মূল্য বাদ দেওয়ার পর।', metric: data.summary.grossProfit, icon: TrendingUp },
-    { label: 'লাভের মার্জিন', detail: 'প্রতি 100 টাকার পণ্য আয়ে কত টাকা লাভ হয়েছে।', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'প্রযোজ্য নয়' : `${numberFormatter.format(value)}%`, icon: TrendingUp },
+    { label: 'লাভের মার্জিন', detail: 'প্রতি 100 টাকার পণ্য আয়ে কত টাকা লাভ হয়েছে।', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'লাভের হিসাব নেই' : `${numberFormatter.format(value)}%`, icon: TrendingUp },
     { label: 'ডেলিভারড অর্ডার', detail: 'দোকানের সম্পন্ন বিক্রি ও গ্রাহকের কাছে পৌঁছানো অর্ডারের সংখ্যা।', metric: data.summary.recognizedOrderCount, formatter: count, icon: ClipboardList },
     { label: 'ডেলিভারি চার্জ', detail: 'ডেলিভারড অর্ডার থেকে নেওয়া মোট ডেলিভারি চার্জ।', metric: data.summary.deliveryCharges, icon: Truck },
   ];
@@ -343,7 +343,7 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-bold">{data.trendGranularity === 'DAY' ? 'প্রতিদিনের' : 'মাস অনুযায়ী'} {selectedMetricLabel} তুলনা</h2>
-          <p className="text-sm text-muted-foreground">ফেরত দেওয়া অর্ডারের টাকা ফেরতের তারিখে বিয়োগ হিসেবে দেখানো হয়েছে।</p>
+          <p className="text-sm text-muted-foreground">রিটার্ন হওয়া অর্ডারের টাকা রিফান্ডের তারিখে বিয়োগ হিসেবে দেখানো হয়েছে।</p>
         </div>
         <div className="flex w-fit rounded-lg border bg-muted/30 p-1" aria-label="গ্রাফে যা দেখানো হবে">
           <Button type="button" size="sm" variant={chartMetric === 'SALES' ? 'default' : 'ghost'} aria-pressed={chartMetric === 'SALES'} onClick={() => onChartMetricChange('SALES')}>বিক্রি</Button>
@@ -381,7 +381,7 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
     </section>
 
     <div className="grid gap-6 2xl:grid-cols-2">
-      <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে বেশি বিক্রি</h2><p className="text-sm text-muted-foreground">ফেরতের পর পণ্য আয় অনুসারে</p></div><ProductTable rows={data.bestSelling} mode="sales" /></section>
+      <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে বেশি বিক্রি</h2><p className="text-sm text-muted-foreground">রিটার্ন বাদে পণ্য আয় অনুসারে</p></div><ProductTable rows={data.bestSelling} mode="sales" /></section>
       <section className="overflow-hidden rounded-xl border bg-card"><div className="p-4 sm:p-5"><h2 className="text-lg font-bold">সবচেয়ে লাভজনক</h2><p className="text-sm text-muted-foreground">বিক্রি হওয়া পণ্যের ক্রয়মূল্য ধরে</p></div><ProductTable rows={data.mostProfitable} mode="profit" /></section>
     </div>
 
@@ -394,8 +394,8 @@ function CurrentStatusCards({ data, creditSummary }: {
 }) {
   return <section className="mb-5 rounded-xl border bg-muted/20 p-3 sm:p-4">
     <div className="mb-3">
-      <h2 className="text-lg font-bold">এখনকার অবস্থা</h2>
-      <p className="text-sm text-muted-foreground">এগুলো সব সময় বর্তমান অবস্থা দেখায়।</p>
+      <h2 className="text-lg font-bold">এখনকার স্ট্যাটাস</h2>
+      <p className="text-sm text-muted-foreground">এগুলো সব সময় বর্তমান স্ট্যাটাস দেখায়।</p>
     </div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <OperationalCard label="চলমান COD অর্ডার" value={data.summary.pendingCodOrderCount} detail={`পেন্ডিং ${count(data.pendingCod.pending)} · কনফার্মড ${count(data.pendingCod.confirmed)} · প্রসেসিং ${count(data.pendingCod.processing)}`} icon={Truck} to="/admin/orders" />
@@ -478,7 +478,7 @@ function AnalyticsDashboardContent() {
     </div>
 
     {query.isLoading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-xl border bg-muted/50" />)}</div>}
-    {query.isError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center"><AlertTriangle className="mx-auto mb-2 text-destructive" /><h2 className="font-bold">ড্যাশবোর্ড লোড করা যায়নি</h2><p className="mt-1 text-sm text-muted-foreground">{query.error instanceof Error ? query.error.message : 'আবার চেষ্টা করুন।'}</p><Button className="mt-4" onClick={() => void query.refetch()}>আবার চেষ্টা করুন</Button></div>}
+    {query.isError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center"><AlertTriangle className="mx-auto mb-2 text-destructive" /><h2 className="font-bold">ড্যাশবোর্ড লোড করা যায়নি</h2><p className="mt-1 text-sm text-muted-foreground">{query.error instanceof Error ? query.error.message : 'রিট্রাই করুন।'}</p><Button className="mt-4" onClick={() => void query.refetch()}>রিট্রাই করুন</Button></div>}
     {query.data && <DashboardContent data={query.data} chartMetric={chartMetric} onChartMetricChange={selectChartMetric} />}
   </div>;
 }

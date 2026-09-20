@@ -128,7 +128,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
       || Number(bulkSellingPrice) <= 0
       || Number(bulkSellingPrice) >= Number(price)
     )) return toast.error('15টি বা তার বেশি ডিমের দাম সাধারণ দামের চেয়ে কম দিন');
-    if (!categoryId) return toast.error('ক্যাটাগরি নির্বাচন করুন');
+    if (!categoryId) return toast.error('ক্যাটাগরি সিলেক্ট করুন');
     const thresholdNumber = Number(lowStockThreshold);
     const measured = isMeasuredKind;
     if (!Number.isFinite(thresholdNumber) || thresholdNumber < 0 || (measured && thresholdNumber * 1_000 % 1 !== 0) || (!measured && !Number.isInteger(thresholdNumber))) {
@@ -233,13 +233,13 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               </div>
 
               <div>
-                <Label htmlFor="description">বিবরণ</Label>
+                <Label htmlFor="description">বিস্তারিত</Label>
                 <textarea
                   id="description"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   rows={3}
-                  placeholder="পণ্যের বিস্তারিত বিবরণ লিখুন..."
+                  placeholder="পণ্যের বিস্তারিত তথ্য লিখুন..."
                   className="mt-1 w-full rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                 />
               </div>
@@ -312,14 +312,14 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
               {isEdit && kind !== (editProduct?.kind ?? 'PACKAGED') && <div>
                 <Label htmlFor="kind-change-reason">ধরন পরিবর্তনের কারণ (ঐচ্ছিক)</Label>
                 <Input id="kind-change-reason" value={kindChangeReason} onChange={(event) => setKindChangeReason(event.target.value)} className="mt-1 bg-card" />
-                <p className="mt-1 text-xs text-muted-foreground">স্টক, বিক্রি বা দামের পরিবর্তন থাকলে ধরন বদলানো যাবে না।</p>
+                <p className="mt-1 text-xs text-muted-foreground">স্টক, বিক্রি বা দামের আপডেট থাকলে ধরন আপডেট করা যাবে না।</p>
               </div>}
 
               <div>
                 <Label>ক্যাটাগরি *</Label>
                 <Select value={categoryId} onValueChange={setCategoryId}>
                   <SelectTrigger className="mt-1 bg-card">
-                    <SelectValue placeholder="ক্যাটাগরি নির্বাচন করুন" />
+                    <SelectValue placeholder="ক্যাটাগরি সিলেক্ট করুন" />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map(c => (
@@ -355,7 +355,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   <img src={src} alt="" className="w-full h-full object-cover" />
                   <button
                     type="button"
-                    aria-label="সংরক্ষিত ছবি সরান"
+                    aria-label="সেভ করা ছবি রিমুভ করুন"
                     onClick={() => removeExistingImage(i)}
                     className="absolute bottom-1 right-1 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 opacity-100 transition-opacity sm:h-9 sm:w-9 sm:opacity-0 sm:group-hover:opacity-100"
                   >
@@ -370,7 +370,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   <div className="absolute top-1 right-1 bg-secondary text-secondary-foreground text-[10px] px-1 rounded">নতুন</div>
                   <button
                     type="button"
-                    aria-label="নতুন ছবি সরান"
+                    aria-label="নতুন ছবি রিমুভ করুন"
                     onClick={() => removeNewImage(i)}
                     className="absolute bottom-1 right-1 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 opacity-100 transition-opacity sm:h-9 sm:w-9 sm:opacity-0 sm:group-hover:opacity-100"
                   >
@@ -452,7 +452,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                 {tags.map((tag, i) => (
                   <span key={i} className="flex items-center gap-1 bg-secondary/20 text-secondary-foreground text-xs font-medium px-2 py-1 rounded-full">
                     #{tag}
-                    <button type="button" aria-label={`${tag} ট্যাগ সরান`} onClick={e => { e.stopPropagation(); removeTag(i); }} className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
+                    <button type="button" aria-label={`${tag} ট্যাগ রিমুভ করুন`} onClick={e => { e.stopPropagation(); removeTag(i); }} className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
                       <X size={12} />
                     </button>
                   </span>

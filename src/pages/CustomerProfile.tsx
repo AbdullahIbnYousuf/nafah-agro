@@ -30,7 +30,7 @@ import type { CustomerPromotionCandidate, OrderStatus, OwnerAccount, UnifiedOrde
 const statusLabels: Record<OrderStatus, string> = {
   PENDING: 'অপেক্ষমান', CONFIRMED: 'কনফার্মড', PROCESSING: 'প্রক্রিয়াধীন',
   DELIVERED: 'ডেলিভারি সম্পন্ন', COMPLETED: 'সম্পন্ন', CANCELLED: 'বাতিল',
-  RETURNED_SELLABLE: 'ফেরত (বিক্রয়যোগ্য)', RETURNED_DAMAGED: 'ফেরত (ক্ষতিগ্রস্ত)',
+  RETURNED_SELLABLE: 'রিটার্ন (SELLABLE)', RETURNED_DAMAGED: 'রিটার্ন (DAMAGED)',
 };
 
 export default function CustomerProfile() {
@@ -203,10 +203,10 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
   }
 
   function ownerDeleteBlockedMessage(owner: OwnerAccount) {
-    if (owner.id === currentOwnerId) return 'নিজের লগইন করা অ্যাকাউন্ট নিজে মুছতে পারবেন না।';
-    if (owner.promotedFromCustomer) return 'এই অ্যাকাউন্টটি আগে কাস্টমার ছিল। মুছে না ফেলে কাস্টমার করুন।';
+    if (owner.id === currentOwnerId) return 'নিজের লগইন করা অ্যাকাউন্ট নিজে ডিলিট করতে পারবেন না।';
+    if (owner.promotedFromCustomer) return 'এই অ্যাকাউন্টটি আগে কাস্টমার ছিল। ডিলিট না করে কাস্টমার করুন।';
     if (!owner.email) return 'এই ওনারের লগইন তথ্য পাওয়া যায়নি। ডেভেলপারের সহায়তা নিন।';
-    return 'এই ওনারের ব্যবসা বা অডিট রেকর্ড আছে। তাই অ্যাকাউন্ট মুছতে পারবেন না। প্রয়োজনে ইনঅ্যাকটিভ করুন।';
+    return 'এই ওনারের ব্যবসা বা অডিট রেকর্ড আছে। তাই অ্যাকাউন্ট ডিলিট করতে পারবেন না। প্রয়োজনে ইনঅ্যাকটিভ করুন।';
   }
 
   const load = useCallback(() => {
@@ -295,7 +295,7 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
       setStatusTarget(null); setStatusReason(''); load();
       toast.success(statusTarget.isActive ? 'ওনার ইনঅ্যাকটিভ হয়েছে' : 'ওনার অ্যাকটিভ হয়েছে');
     } catch (error) {
-      toast.error(getErrorMessage(error, 'ওনারের অবস্থা পরিবর্তন করা যায়নি'));
+      toast.error(getErrorMessage(error, 'ওনারের স্ট্যাটাস আপডেট করা যায়নি'));
     } finally { setSavingStatus(false); }
   }
 
@@ -307,9 +307,9 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
       await deleteUnusedOwner(deleteTarget.id);
       setDeleteTarget(null);
       load();
-      toast.success('অব্যবহৃত ওনার অ্যাকাউন্ট মুছে ফেলা হয়েছে');
+      toast.success('ব্যবহার হয়নি এমন ওনার অ্যাকাউন্ট ডিলিট করা হয়েছে');
     } catch (error) {
-      setDeleteError(getErrorMessage(error, 'ওনার আমন্ত্রণ মুছে ফেলা যায়নি'));
+      setDeleteError(getErrorMessage(error, 'ওনার আমন্ত্রণ ডিলিট করা যায়নি'));
     } finally {
       setDeleting(false);
     }
@@ -335,7 +335,7 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
             {owner.id !== currentOwnerId && <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => { setStatusTarget(owner); setStatusReason(''); }}>{owner.isActive ? 'ইনঅ্যাকটিভ করুন' : 'অ্যাকটিভ করুন'}</Button>
               {owner.promotedFromCustomer && <Button size="sm" variant="outline" aria-disabled={!owner.canDemote} onClick={() => { if (!owner.canDemote) { toast.error(demotionBlockedMessage(owner) ?? 'এই ওনারকে এখন কাস্টমার করা যাবে না।'); return; } setDemotionTarget(owner); setDemotionReason(''); setDemotionError(''); }}>কাস্টমার করুন</Button>}
-              <Button size="sm" variant={owner.canDelete ? 'destructive' : 'outline'} aria-disabled={!owner.canDelete} onClick={() => { if (!owner.canDelete) { toast.error(ownerDeleteBlockedMessage(owner)); return; } setDeleteError(''); setDeleteTarget(owner); }}><Trash2 size={15} className="mr-1" />অ্যাকাউন্ট মুছুন</Button>
+              <Button size="sm" variant={owner.canDelete ? 'destructive' : 'outline'} aria-disabled={!owner.canDelete} onClick={() => { if (!owner.canDelete) { toast.error(ownerDeleteBlockedMessage(owner)); return; } setDeleteError(''); setDeleteTarget(owner); }}><Trash2 size={15} className="mr-1" />অ্যাকাউন্ট ডিলিট করুন</Button>
             </div>}
           </div>
         </article>)}
@@ -343,13 +343,13 @@ function OwnerManagement({ currentOwnerId }: { currentOwnerId: string }) {
       <form className="border rounded-xl p-4 space-y-4 h-fit" onSubmit={submitInvite}><div className="flex items-center gap-2"><UserPlus size={19} /><h3 className="font-semibold">নতুন ওনার আমন্ত্রণ</h3></div><p className="text-xs text-muted-foreground">আমন্ত্রণ গ্রহণ করে নতুন ওনার নিজের পাসওয়ার্ড সেট করবেন।</p>{!loading && !invitationsConfigured && <p className="text-sm rounded-md border border-amber-500/40 bg-amber-500/10 p-3">ওনার আমন্ত্রণ এখনো চালু করা হয়নি। সেটআপ সম্পন্ন করতে ডেভেলপারের সাথে যোগাযোগ করুন।</p>}{inviteError && <p role="alert" className="text-sm rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">{inviteError}</p>}<div><Label htmlFor="owner-name">পুরো নাম</Label><Input id="owner-name" className="mt-1" value={fullName} onChange={event => setFullName(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-phone">ফোন নম্বর</Label><Input id="owner-phone" className="mt-1" type="tel" value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} required disabled={!invitationsConfigured} /></div><div><Label htmlFor="owner-email">ইমেইল</Label><Input id="owner-email" className="mt-1" type="email" value={email} onChange={event => setEmail(event.target.value)} required disabled={!invitationsConfigured} /></div><Button type="submit" className="w-full aria-disabled:border aria-disabled:border-amber-600 aria-disabled:bg-amber-50 aria-disabled:text-amber-950 aria-disabled:hover:bg-amber-100" disabled={inviting} aria-disabled={!invitationsConfigured}>{inviting ? 'আমন্ত্রণ যাচ্ছে…' : 'আমন্ত্রণ পাঠান'}</Button></form>
     </div>
 
-    <Dialog open={Boolean(statusTarget)} onOpenChange={open => { if (!open && !savingStatus) setStatusTarget(null); }}><DialogContent><DialogHeader><DialogTitle>{statusTarget?.isActive ? 'ওনার ইনঅ্যাকটিভ করুন' : 'ওনার অ্যাকটিভ করুন'}</DialogTitle><DialogDescription>{statusTarget?.fullName}-এর অ্যাকাউন্টের অবস্থা পরিবর্তনের কারণ লিখুন। নিজের অ্যাকাউন্ট বা শেষ অ্যাকটিভ ওনার ইনঅ্যাকটিভ করা যায় না।</DialogDescription></DialogHeader><div><Label htmlFor="owner-status-reason">কারণ</Label><Input id="owner-status-reason" className="mt-1" value={statusReason} onChange={event => setStatusReason(event.target.value)} placeholder="কমপক্ষে 3 অক্ষর" /></div><DialogFooter><Button variant="outline" onClick={() => setStatusTarget(null)} disabled={savingStatus}>বাতিল</Button><Button onClick={() => void confirmStatus()} disabled={savingStatus || statusReason.trim().length < 3}>{savingStatus ? 'সেভ হচ্ছে…' : 'কনফার্ম করুন'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(statusTarget)} onOpenChange={open => { if (!open && !savingStatus) setStatusTarget(null); }}><DialogContent><DialogHeader><DialogTitle>{statusTarget?.isActive ? 'ওনার ইনঅ্যাকটিভ করুন' : 'ওনার অ্যাকটিভ করুন'}</DialogTitle><DialogDescription>{statusTarget?.fullName}-এর অ্যাকাউন্টের স্ট্যাটাস আপডেটের কারণ লিখুন। নিজের অ্যাকাউন্ট বা শেষ অ্যাকটিভ ওনার ইনঅ্যাকটিভ করা যায় না।</DialogDescription></DialogHeader><div><Label htmlFor="owner-status-reason">কারণ</Label><Input id="owner-status-reason" className="mt-1" value={statusReason} onChange={event => setStatusReason(event.target.value)} placeholder="কমপক্ষে 3 অক্ষর" /></div><DialogFooter><Button variant="outline" onClick={() => setStatusTarget(null)} disabled={savingStatus}>বাতিল</Button><Button onClick={() => void confirmStatus()} disabled={savingStatus || statusReason.trim().length < 3}>{savingStatus ? 'সেভ হচ্ছে…' : 'কনফার্ম করুন'}</Button></DialogFooter></DialogContent></Dialog>
 
-    <Dialog open={Boolean(deleteTarget)} onOpenChange={open => { if (!open && !deleting) { setDeleteTarget(null); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>অব্যবহৃত ওনার অ্যাকাউন্ট মুছুন</DialogTitle><DialogDescription>{deleteTarget?.fullName} ({deleteTarget?.email})-এর লগইন ও ওনার প্রোফাইল স্থায়ীভাবে মুছে যাবে। ব্যবসা বা অডিটের আগের কোনো রেকর্ড থাকলে অ্যাকাউন্ট মুছবে না, শুধু ইনঅ্যাকটিভ করা যাবে।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'মুছে ফেলা হচ্ছে…' : 'স্থায়ীভাবে মুছুন'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(deleteTarget)} onOpenChange={open => { if (!open && !deleting) { setDeleteTarget(null); setDeleteError(''); } }}><DialogContent><DialogHeader><DialogTitle>ব্যবহার হয়নি এমন ওনার অ্যাকাউন্ট ডিলিট করুন</DialogTitle><DialogDescription>{deleteTarget?.fullName} ({deleteTarget?.email})-এর লগইন ও ওনার প্রোফাইল পুরোপুরি ডিলিট হবে। ব্যবসা বা অডিটের আগের কোনো রেকর্ড থাকলে অ্যাকাউন্ট ডিলিট হবে না, শুধু ইনঅ্যাকটিভ করা যাবে।</DialogDescription></DialogHeader>{deleteError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{deleteError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={deleting}>বাতিল</Button><Button variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>{deleting ? 'ডিলিট হচ্ছে…' : 'ডিলিট করুন'}</Button></DialogFooter></DialogContent></Dialog>
 
     <Dialog open={Boolean(promotionTarget)} onOpenChange={open => { if (!open && !promoting) { setPromotionTarget(null); setPromotionReason(''); setPromotionError(''); } }}><DialogContent><DialogHeader><DialogTitle>এই কাস্টমারকে ওনার করবেন?</DialogTitle><DialogDescription>নতুন অ্যাকাউন্ট তৈরি হবে না। বর্তমান পাসওয়ার্ড, কাস্টমার অর্ডার এবং প্রোফাইল ঠিক থাকবে।</DialogDescription></DialogHeader>{promotionTarget && <div className="rounded-lg border bg-muted/20 p-4 text-sm"><p className="font-semibold">{promotionTarget.fullName}</p><p className="mt-1 break-all text-muted-foreground">{promotionTarget.email}</p><p className="text-muted-foreground">{promotionTarget.phoneNumber ?? 'ফোন নম্বর নেই'}</p>{!promotionTarget.isActive && <p className="mt-2 text-amber-700">অ্যাকাউন্টটি বর্তমানে ইনঅ্যাকটিভ। ওনার করার পরও ইনঅ্যাকটিভ থাকবে।</p>}</div>}<div><Label htmlFor="owner-promotion-reason">ওনার করার কারণ</Label><Input id="owner-promotion-reason" className="mt-1" value={promotionReason} onChange={event => setPromotionReason(event.target.value)} placeholder="কমপক্ষে 3 অক্ষর" /></div>{promotionError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{promotionError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setPromotionTarget(null); setPromotionReason(''); setPromotionError(''); }} disabled={promoting}>বাতিল</Button><Button onClick={() => void confirmPromotion()} disabled={promoting || promotionReason.trim().length < 3}>{promoting ? 'ওনার করা হচ্ছে…' : 'ওনার করুন'}</Button></DialogFooter></DialogContent></Dialog>
 
-    <Dialog open={Boolean(demotionTarget)} onOpenChange={open => { if (!open && !demoting) { setDemotionTarget(null); setDemotionReason(''); setDemotionError(''); } }}><DialogContent><DialogHeader><DialogTitle>আবার কাস্টমার করবেন?</DialogTitle><DialogDescription>{demotionTarget?.fullName}-এর একই অ্যাকাউন্ট, পাসওয়ার্ড এবং আগের কাস্টমার অর্ডার থাকবে। শুধু পরিচালনা প্যানেলের অনুমতি চলে যাবে।</DialogDescription></DialogHeader><div><Label htmlFor="owner-demotion-reason">কাস্টমার করার কারণ</Label><Input id="owner-demotion-reason" className="mt-1" value={demotionReason} onChange={event => setDemotionReason(event.target.value)} placeholder="কমপক্ষে 3 অক্ষর" /></div>{demotionError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{demotionError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDemotionTarget(null); setDemotionReason(''); setDemotionError(''); }} disabled={demoting}>বাতিল</Button><Button onClick={() => void confirmDemotion()} disabled={demoting || demotionReason.trim().length < 3}>{demoting ? 'পরিবর্তন হচ্ছে…' : 'কাস্টমার করুন'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(demotionTarget)} onOpenChange={open => { if (!open && !demoting) { setDemotionTarget(null); setDemotionReason(''); setDemotionError(''); } }}><DialogContent><DialogHeader><DialogTitle>আবার কাস্টমার করবেন?</DialogTitle><DialogDescription>{demotionTarget?.fullName}-এর একই অ্যাকাউন্ট, পাসওয়ার্ড এবং আগের কাস্টমার অর্ডার থাকবে। শুধু পরিচালনা প্যানেলের পারমিশন চলে যাবে।</DialogDescription></DialogHeader><div><Label htmlFor="owner-demotion-reason">কাস্টমার করার কারণ</Label><Input id="owner-demotion-reason" className="mt-1" value={demotionReason} onChange={event => setDemotionReason(event.target.value)} placeholder="কমপক্ষে 3 অক্ষর" /></div>{demotionError && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{demotionError}</p>}<DialogFooter><Button variant="outline" onClick={() => { setDemotionTarget(null); setDemotionReason(''); setDemotionError(''); }} disabled={demoting}>বাতিল</Button><Button onClick={() => void confirmDemotion()} disabled={demoting || demotionReason.trim().length < 3}>{demoting ? 'আপডেট হচ্ছে…' : 'কাস্টমার করুন'}</Button></DialogFooter></DialogContent></Dialog>
   </section>;
 }
 

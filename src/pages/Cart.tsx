@@ -55,7 +55,7 @@ export default function Cart() {
     if (!customerName.trim()) return toast.error('আপনার নাম দিন');
     if (!customerPhone.trim()) return toast.error('ফোন নম্বর দিন');
     if (!customerAddress.trim()) return toast.error('সম্পূর্ণ ঠিকানা দিন');
-    if (!selectedRate) return toast.error('ডেলিভারি এলাকা নির্বাচন করুন');
+    if (!selectedRate) return toast.error('ডেলিভারি এলাকা সিলেক্ট করুন');
     if (selectedRate.charge === null) return toast.error('এই এলাকার ডেলিভারি চার্জ এখনো নির্ধারিত হয়নি');
 
     setPlacing(true);
@@ -87,7 +87,7 @@ export default function Cart() {
       <CheckCircle size={64} className="mx-auto text-green-500 mb-4" />
       <h1 className="text-2xl font-bold mb-2">অর্ডার সফল হয়েছে</h1>
       <p className="font-semibold mb-1">{placedOrder.orderNumber}</p>
-      <p className="text-muted-foreground mb-2">অবস্থা: অপেক্ষমান। এখনো স্টক রিজার্ভ করা হয়নি</p>
+      <p className="text-muted-foreground mb-2">স্ট্যাটাস: অপেক্ষমান। এখনো স্টক রিজার্ভ করা হয়নি</p>
       <p className="text-lg font-bold text-secondary mb-6">মোট দাম: ৳{placedOrder.grandTotal}</p>
       <Button asChild><Link to="/shop">আরও কেনাকাটা করুন</Link></Button>
     </div></main><Footer /></div>
@@ -102,7 +102,7 @@ export default function Cart() {
   );
 
   return <div className="min-h-screen flex flex-col"><Navbar /><main className="container mx-auto px-4 py-8 flex-1">
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-2"><h1 className="text-2xl font-bold sm:text-3xl">কার্ট</h1><Button variant="ghost" className="text-destructive" onClick={clearCart}><Trash2 size={16} className="mr-1" />সব মুছুন</Button></div>
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-2"><h1 className="text-2xl font-bold sm:text-3xl">কার্ট</h1><Button variant="ghost" className="text-destructive" onClick={clearCart}><Trash2 size={16} className="mr-1" />কার্ট খালি করুন</Button></div>
     <div className="grid lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 space-y-4">{items.map(item => {
         const pricing = sellingPriceForQuantity({
@@ -120,7 +120,7 @@ export default function Cart() {
               <button aria-label="পরিমাণ কমান" onClick={() => updateQuantity(item.productVariantId, item.quantity - 1)} className="flex h-11 w-11 items-center justify-center rounded-full border transition-colors hover:bg-muted"><Minus size={16} /></button>
               <span>{item.quantity}</span>
               <button aria-label="পরিমাণ বাড়ান" onClick={() => updateQuantity(item.productVariantId, item.quantity + 1)} className="flex h-11 w-11 items-center justify-center rounded-full border transition-colors hover:bg-muted"><Plus size={16} /></button>
-            </div><div className="ml-auto flex items-center gap-2"><strong>৳{pricing.unitPrice * item.quantity}</strong><button aria-label="কার্ট থেকে সরান" className="flex h-11 w-11 items-center justify-center rounded-md text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.productVariantId)}><Trash2 size={18} /></button></div></div>
+            </div><div className="ml-auto flex items-center gap-2"><strong>৳{pricing.unitPrice * item.quantity}</strong><button aria-label="কার্ট থেকে রিমুভ করুন" className="flex h-11 w-11 items-center justify-center rounded-md text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.productVariantId)}><Trash2 size={18} /></button></div></div>
           </div>
         </div>;
       })}</div>
@@ -136,7 +136,7 @@ export default function Cart() {
           <div><Label htmlFor="email">ইমেইল (ঐচ্ছিক)</Label><Input id="email" type="email" value={customerEmail} onChange={event => setCustomerEmail(event.target.value)} /></div>
           <div><Label htmlFor="address">সম্পূর্ণ ঠিকানা *</Label><textarea id="address" value={customerAddress} onChange={event => setCustomerAddress(event.target.value)} className="w-full min-h-20 border rounded-md bg-background p-2" /></div>
           <div className="rounded bg-muted/40 p-3 text-sm">পেমেন্ট: ক্যাশ অন ডেলিভারি</div>
-          {selectedRate?.charge == null && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{selectedRate ? 'এই এলাকার ডেলিভারি চার্জ এখনো নির্ধারণ করা হয়নি। অন্য এলাকা নির্বাচন করুন অথবা দোকানের সঙ্গে যোগাযোগ করুন।' : 'অর্ডার করতে আগে ডেলিভারি এলাকা নির্বাচন করুন।'}</p>}
+          {selectedRate?.charge == null && <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{selectedRate ? 'এই এলাকার ডেলিভারি চার্জ এখনো সেট করা হয়নি। অন্য এলাকা সিলেক্ট করুন অথবা দোকানের সঙ্গে যোগাযোগ করুন।' : 'অর্ডার করতে আগে ডেলিভারি এলাকা সিলেক্ট করুন।'}</p>}
           <Button className="w-full" disabled={placing} aria-disabled={selectedRate?.charge == null} onClick={() => void placeOrder()}>{placing ? <><Loader2 size={16} className="animate-spin mr-2" />অর্ডার হচ্ছে…</> : 'অর্ডার কনফার্ম করুন'}</Button>
           <Button variant="ghost" className="w-full" disabled={placing} onClick={() => setShowCheckout(false)}>পিছনে যান</Button>
         </div>}

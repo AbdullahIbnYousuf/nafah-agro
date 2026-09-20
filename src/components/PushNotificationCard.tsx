@@ -14,7 +14,7 @@ import { getErrorMessage } from '@/lib/utils';
 const descriptions: Record<PushAvailability, string> = {
   unsupported: 'এই ব্রাউজার বা ডিভাইসে ওয়েব নোটিফিকেশন ব্যবহার করা যায় না।',
   'ios-install-required': 'iPhone বা iPad-এ নোটিফিকেশন পেতে আগে Share মেনু থেকে Add to Home Screen করুন।',
-  denied: 'ব্রাউজার সেটিংসে নাফাহ এগ্রোর নোটিফিকেশন অনুমতি বন্ধ আছে। অনুমতি চালু করে আবার চেষ্টা করুন।',
+  denied: 'ব্রাউজার সেটিংসে নাফাহ এগ্রোর নোটিফিকেশন পারমিশন বন্ধ আছে। পারমিশন চালু করে রিট্রাই করুন।',
   disabled: 'নতুন ওয়েবসাইট অর্ডার এবং যোগাযোগের সময় হওয়া বাকি সম্পর্কে এই ডিভাইসে নোটিফিকেশন নিন।',
   enabled: 'এই ডিভাইসে নতুন ওয়েবসাইট অর্ডার এবং সময় হওয়া বাকির নোটিফিকেশন চালু আছে।',
 };
@@ -77,7 +77,7 @@ export default function PushNotificationCard() {
         <div>
           <h2 id="push-notification-title" className="text-xl font-bold">ডিভাইস নোটিফিকেশন</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-            {state ? descriptions[state] : 'নোটিফিকেশনের অবস্থা দেখা হচ্ছে...'}
+            {state ? descriptions[state] : 'নোটিফিকেশনের স্ট্যাটাস দেখা হচ্ছে...'}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">প্রতিটি ব্রাউজার বা ফোনে আলাদাভাবে চালু করতে হবে।</p>
         </div>
