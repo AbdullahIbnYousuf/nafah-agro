@@ -203,14 +203,14 @@ describe('analytics dashboard date controls', () => {
 
     fireEvent.change(screen.getByLabelText('তারিখ থেকে'), { target: { value: '2026-03-10' } });
     fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-04-15' } });
-    fireEvent.click(screen.getByRole('button', { name: 'প্রয়োগ করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'অ্যাপ্লাই' }));
     await waitFor(() => expect(mocks.getAnalyticsDashboard).toHaveBeenCalledWith({
       preset: 'custom', from: '2026-03-10', to: '2026-04-15',
     }));
 
     fireEvent.change(screen.getByLabelText('তারিখ থেকে'), { target: { value: '2025-01-01' } });
     fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-04-15' } });
-    expect(screen.getByRole('button', { name: 'প্রয়োগ করুন' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'অ্যাপ্লাই' })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('সর্বোচ্চ 366 দিন');
   });
 

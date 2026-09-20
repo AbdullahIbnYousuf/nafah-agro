@@ -29,7 +29,7 @@ describe('navbar invited-owner setup state', () => {
   it('keeps the normal owner navigation after account setup', () => {
     render(<MemoryRouter><Navbar /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'মেনু খুলুন' }));
-    expect(screen.getAllByText('পরিচালনা প্যানেল').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('অ্যাডমিন প্যানেল').length).toBeGreaterThan(0);
     expect(screen.getAllByText('হোম').length).toBeGreaterThan(0);
     expect(screen.queryByText('অ্যাপ ইনস্টল করুন')).not.toBeInTheDocument();
     expect(screen.queryByText('সেটআপ বাকি')).not.toBeInTheDocument();
@@ -43,7 +43,7 @@ describe('navbar invited-owner setup state', () => {
     expect(screen.queryByText('হোম')).not.toBeInTheDocument();
     expect(screen.queryByText('দোকান')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('কার্ট')).not.toBeInTheDocument();
-    expect(screen.queryByText('পরিচালনা প্যানেল')).not.toBeInTheDocument();
+    expect(screen.queryByText('অ্যাডমিন প্যানেল')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'লগআউট' }));
     expect(mocks.auth.logout).toHaveBeenCalledOnce();
   });

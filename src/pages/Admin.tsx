@@ -94,7 +94,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen md:flex bg-background">
       <aside className="hidden w-64 shrink-0 bg-primary p-4 text-primary-foreground md:block">
-        <Link to="/" className="mb-6 flex min-h-11 items-center text-xl font-bold text-accent">নাফাহ এগ্রো পরিচালনা</Link>
+        <Link to="/" className="mb-6 flex min-h-11 items-center text-xl font-bold text-accent">নাফাহ এগ্রো অ্যাডমিন</Link>
         <nav aria-label="পরিচালনা বিভাগ" className="space-y-1">
           {links.map(({ path, label, icon: Icon }) => (
             <NavLink key={path} to={path}
@@ -557,7 +557,7 @@ export function AdminOrders() {
 }
 
 export function AdminNotFound() {
-  return <div className="flex min-h-[60vh] items-center justify-center"><div className="text-center"><h1 className="text-3xl font-bold">পেজ পাওয়া যায়নি</h1><p className="mt-2 text-muted-foreground">এই পরিচালনা পেজটি নেই।</p><Button asChild className="mt-5"><Link to="/admin/dashboard">ড্যাশবোর্ডে ফিরুন</Link></Button></div></div>;
+  return <div className="flex min-h-[60vh] items-center justify-center"><div className="text-center"><h1 className="text-3xl font-bold">পেজ পাওয়া যায়নি</h1><p className="mt-2 text-muted-foreground">এই অ্যাডমিন পেজটি নেই।</p><Button asChild className="mt-5"><Link to="/admin/dashboard">ড্যাশবোর্ডে ফিরুন</Link></Button></div></div>;
 }
 
 function Loading() {

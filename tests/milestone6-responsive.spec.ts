@@ -88,7 +88,7 @@ test('OWNER management panel remains usable at required widths', async ({ page }
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     await page.goto('/admin');
-    await expect(page.getByRole('link', { name: /নাফাহ এগ্রো পরিচালনা/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /নাফাহ এগ্রো অ্যাডমিন/ })).toBeVisible();
     await expectNoPageOverflow(page);
     const mobileNavigation = page.getByRole('navigation', { name: 'মোবাইল পরিচালনা বিভাগ' });
     if (viewport.name === 'mobile') {

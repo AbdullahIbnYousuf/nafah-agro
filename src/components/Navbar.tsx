@@ -78,7 +78,7 @@ const Navbar = () => {
           {isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild><button type="button" className="flex items-center gap-2 hover:text-accent transition-colors"><UserIcon size={18} /><span className="text-sm font-medium max-w-32 truncate">{user.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${roleBadge[user.role]?.className}`}>{roleBadge[user.role]?.label}</span><ChevronDown size={14} /></button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56"><DropdownMenuLabel><span className="block truncate">{user.name}</span><span className="block text-xs font-normal text-muted-foreground truncate">{user.email}</span></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem asChild><Link to="/profile"><UserIcon size={16} className="mr-2" />আমার প্রোফাইল</Link></DropdownMenuItem>{isOwner && <DropdownMenuItem asChild><Link to="/admin/dashboard"><Settings size={16} className="mr-2" />পরিচালনা প্যানেল</Link></DropdownMenuItem>}<DropdownMenuSeparator /><DropdownMenuItem onSelect={() => void logout()} className="text-destructive"><LogOut size={16} className="mr-2" />লগআউট</DropdownMenuItem></DropdownMenuContent>
+              <DropdownMenuContent align="end" className="w-56"><DropdownMenuLabel><span className="block truncate">{user.name}</span><span className="block text-xs font-normal text-muted-foreground truncate">{user.email}</span></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem asChild><Link to="/profile"><UserIcon size={16} className="mr-2" />আমার প্রোফাইল</Link></DropdownMenuItem>{isOwner && <DropdownMenuItem asChild><Link to="/admin/dashboard"><Settings size={16} className="mr-2" />অ্যাডমিন প্যানেল</Link></DropdownMenuItem>}<DropdownMenuSeparator /><DropdownMenuItem onSelect={() => void logout()} className="text-destructive"><LogOut size={16} className="mr-2" />লগআউট</DropdownMenuItem></DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Link to="/login" className="hover:text-accent transition-colors font-medium">
@@ -137,7 +137,7 @@ const Navbar = () => {
                   {roleBadge[user.role]?.label}
                 </span>
               </Link>
-              {isOwner && <Link to="/admin" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-2 rounded-md transition-colors hover:bg-primary-foreground/10 hover:text-accent"><Settings size={16} />পরিচালনা প্যানেল</Link>}
+              {isOwner && <Link to="/admin" onClick={() => setMobileOpen(false)} className="flex min-h-11 items-center gap-2 rounded-md transition-colors hover:bg-primary-foreground/10 hover:text-accent"><Settings size={16} />অ্যাডমিন প্যানেল</Link>}
               <button
                 onClick={() => { void logout(); setMobileOpen(false); }}
                 className="flex min-h-11 w-full items-center gap-2 rounded-md font-medium transition-colors hover:bg-primary-foreground/10 hover:text-accent"

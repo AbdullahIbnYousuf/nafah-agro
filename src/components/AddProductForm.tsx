@@ -74,7 +74,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const isMeasuredKind = kind === 'LOOSE_WEIGHT' || kind === 'LOOSE_VOLUME';
 
   useEffect(() => {
-    getProductTags().then(setAllTags).catch(() => {});
+    getProductTags().then(setAllTags).catch(() => { });
   }, []);
 
   function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -193,107 +193,108 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
     <>
       <div className="fixed inset-0 z-40 bg-foreground/30 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex items-start justify-end w-full max-w-2xl">
-      <div className="h-full w-full bg-background shadow-2xl flex flex-col overflow-hidden animate-fade-in">
-        {/* Header */}
-        <div className="flex flex-shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground sm:px-6 sm:py-4">
-          <h2 className="text-lg font-bold">
-            {isEdit ? 'পণ্য সম্পাদনা' : 'নতুন পণ্য'}
-          </h2>
-          <button
-            type="button"
-            aria-label="বন্ধ করুন"
-            onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center rounded-md transition-colors hover:bg-white/10"
+        <div className="h-full w-full bg-background shadow-2xl flex flex-col overflow-hidden animate-fade-in">
+          {/* Header */}
+          <div className="flex flex-shrink-0 items-center justify-between bg-primary px-4 py-3 text-primary-foreground sm:px-6 sm:py-4">
+            <h2 className="text-lg font-bold">
+              {isEdit ? 'পণ্য সম্পাদনা' : 'নতুন পণ্য'}
+            </h2>
+            <button
+              type="button"
+              aria-label="বন্ধ করুন"
+              onClick={onClose}
+              className="flex h-11 w-11 items-center justify-center rounded-md transition-colors hover:bg-white/10"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Scrollable body */}
+          <form
+            id="add-product-form"
+            onSubmit={handleSubmit}
+            className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
           >
-            <X size={20} />
-          </button>
-        </div>
+            {/* Basic info */}
+            <section>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                মৌলিক তথ্য
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="name">পণ্যের নাম *</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="যেমন: দেশি গরুর দুধ"
+                    className="mt-1 bg-card"
+                  />
+                </div>
 
-        {/* Scrollable body */}
-        <form
-          id="add-product-form"
-          onSubmit={handleSubmit}
-          className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
-        >
-          {/* Basic info */}
-          <section>
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-              মৌলিক তথ্য
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">পণ্যের নাম *</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="যেমন: দেশি গরুর দুধ"
-                  className="mt-1 bg-card"
-                />
-              </div>
+                <div>
+                  <Label htmlFor="description">বিস্তারিত</Label>
+                  <textarea
+                    id="description"
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    rows={3}
+                    placeholder="পণ্যের বিস্তারিত তথ্য লিখুন..."
+                    className="mt-1 w-full rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="description">বিস্তারিত</Label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="পণ্যের বিস্তারিত তথ্য লিখুন..."
-                  className="mt-1 w-full rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-                />
-              </div>
+                <div>
+                  <Label htmlFor="product-kind">পণ্যের ধরন *</Label>
+                  <select
+                    id="product-kind"
+                    className="mt-1 h-11 w-full rounded-md border bg-card px-3 md:h-10"
+                    value={kind}
+                    onChange={(event) => {
+                      const next = event.target.value as ProductKind;
+                      setKind(next);
+                      setVariantName('');
+                      setLowStockThreshold('5');
+                      if (next !== 'EGG') setBulkSellingPrice('');
+                    }}
+                  >
+                    <option value="PACKAGED">প্যাকেট বা নির্দিষ্ট সাইজ</option>
+                    <option value="LOOSE_WEIGHT">খোলা পণ্য, ওজনে বিক্রি</option>
+                    <option value="LOOSE_VOLUME">খোলা পণ্য, লিটারে বিক্রি</option>
+                    <option value="EGG">ডিম</option>
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">বর্তমান ধরন: {productKindLabel(kind)}</p>
+                </div>
 
-              <div>
-                <Label htmlFor="product-kind">পণ্যের ধরন *</Label>
-                <select
-                  id="product-kind"
-                  className="mt-1 h-11 w-full rounded-md border bg-card px-3 md:h-10"
-                  value={kind}
-                  onChange={(event) => {
-                    const next = event.target.value as ProductKind;
-                    setKind(next);
-                    setVariantName('');
-                    setLowStockThreshold('5');
-                    if (next !== 'EGG') setBulkSellingPrice('');
-                  }}
-                >
-                  <option value="PACKAGED">প্যাকেট বা নির্দিষ্ট সাইজ</option>
-                  <option value="LOOSE_WEIGHT">খোলা পণ্য, ওজনে বিক্রি</option>
-                  <option value="LOOSE_VOLUME">খোলা পণ্য, লিটারে বিক্রি</option>
-                  <option value="EGG">ডিম</option>
-                </select>
-                <p className="mt-1 text-xs text-muted-foreground">বর্তমান ধরন: {productKindLabel(kind)}</p>
-              </div>
+                {kind === 'EGG' && <div>
+                  <Label htmlFor="bulk-price">15টি বা তার বেশি হলে প্রতি ডিমের দাম (টাকা) *</Label>
+                  <Input
+                    id="bulk-price"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={bulkSellingPrice}
+                    onChange={(event) => setBulkSellingPrice(event.target.value)}
+                    disabled={isEdit && kind === (editProduct?.kind ?? 'PACKAGED')}
+                    placeholder="0"
+                    className="mt-1 bg-card"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">15টি বা তার বেশি নিলে এই দাম পুরো পরিমাণে প্রযোজ্য হবে।</p>
+                </div>}
 
-              {kind === 'EGG' && <div>
-                <Label htmlFor="bulk-price">15টি বা তার বেশি হলে প্রতি ডিমের দাম (টাকা) *</Label>
-                <Input
-                  id="bulk-price"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={bulkSellingPrice}
-                  onChange={(event) => setBulkSellingPrice(event.target.value)}
-                  disabled={isEdit && kind === (editProduct?.kind ?? 'PACKAGED')}
-                  placeholder="0"
-                  className="mt-1 bg-card"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">15টি বা তার বেশি নিলে এই দাম পুরো পরিমাণে প্রযোজ্য হবে।</p>
-              </div>}
-
-              <div>
-                <Label htmlFor="price">{kind === 'LOOSE_WEIGHT'
-                  ? 'প্রতি কেজি বিক্রির দাম (টাকা) *'
-                  : kind === 'LOOSE_VOLUME'
-                    ? 'প্রতি লিটার বিক্রির দাম (টাকা) *'
-                    : kind === 'EGG'
-                      ? '1–14টি হলে প্রতি ডিমের দাম (টাকা) *'
-                      : isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
+                <div>
+                  <Label htmlFor="price">{kind === 'LOOSE_WEIGHT'
+                    ? 'প্রতি কেজি বিক্রির দাম (টাকা) *'
+                    : kind === 'LOOSE_VOLUME'
+                      ? 'প্রতি লিটার বিক্রির দাম (টাকা) *'
+                      : kind === 'EGG'
+                        ? '1–14টি হলে প্রতি ডিমের দাম (টাকা) *'
+                        : isEdit ? 'মূল প্যাক/সাইজের বর্তমান দাম' : 'প্রাথমিক দাম (টাকা) *'}</Label>
                   <Input
                     id="price"
                     type="number"
-                    min="0"
+                    min="0.01"
+                    step="0.01"
                     value={price}
                     onChange={e => setPrice(e.target.value)}
                     disabled={isEdit && kind === (editProduct?.kind ?? 'PACKAGED')}
@@ -302,220 +303,220 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                   />
                   <p className="text-xs text-muted-foreground mt-1">{rateLabel(kind)} দাম</p>
                   {isEdit && kind === (editProduct?.kind ?? 'PACKAGED') && <p className="text-xs text-muted-foreground mt-1">দাম পরিবর্তন করতে “{kind === 'PACKAGED' ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'}” খুলুন।</p>}
-              </div>
-
-              {(kind !== 'PACKAGED' || (isEdit && kind !== (editProduct?.kind ?? 'PACKAGED'))) && <div>
-                <Label htmlFor="low-stock-threshold">কম স্টকের লিমিট ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : kind === 'EGG' ? 'টি ডিম' : 'ইউনিট'})</Label>
-                <Input id="low-stock-threshold" type="number" min="0" step={isMeasuredKind ? '0.001' : '1'} value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} className="mt-1 bg-card" />
-              </div>}
-
-              {isEdit && kind !== (editProduct?.kind ?? 'PACKAGED') && <div>
-                <Label htmlFor="kind-change-reason">ধরন পরিবর্তনের কারণ (ঐচ্ছিক)</Label>
-                <Input id="kind-change-reason" value={kindChangeReason} onChange={(event) => setKindChangeReason(event.target.value)} className="mt-1 bg-card" />
-                <p className="mt-1 text-xs text-muted-foreground">স্টক, বিক্রি বা দামের আপডেট থাকলে ধরন আপডেট করা যাবে না।</p>
-              </div>}
-
-              <div>
-                <Label>ক্যাটাগরি *</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger className="mt-1 bg-card">
-                    <SelectValue placeholder="ক্যাটাগরি সিলেক্ট করুন" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={featured}
-                  onChange={e => setFeatured(e.target.checked)}
-                  className="h-4 w-4 rounded border-input accent-secondary"
-                />
-                <span className="text-sm font-medium">হোমপেজে ফিচার করুন</span>
-              </label>
-            </div>
-          </section>
-
-          {/* Images */}
-          <section>
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-              পণ্যের ছবি
-            </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-3">
-              {/* Existing saved images */}
-              {existingImages.map((src, i) => (
-                <div key={`existing-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted group">
-                  <img src={src} alt="" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    aria-label="সেভ করা ছবি রিমুভ করুন"
-                    onClick={() => removeExistingImage(i)}
-                    className="absolute bottom-1 right-1 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 opacity-100 transition-opacity sm:h-9 sm:w-9 sm:opacity-0 sm:group-hover:opacity-100"
-                  >
-                    <Trash2 size={18} className="text-white" />
-                  </button>
                 </div>
-              ))}
-              {/* Newly picked images */}
-              {newImagePreviews.map((src, i) => (
-                <div key={`new-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-secondary/40 bg-muted group">
-                  <img src={src} alt="" className="w-full h-full object-cover" />
-                  <div className="absolute top-1 right-1 bg-secondary text-secondary-foreground text-[10px] px-1 rounded">নতুন</div>
-                  <button
-                    type="button"
-                    aria-label="নতুন ছবি রিমুভ করুন"
-                    onClick={() => removeNewImage(i)}
-                    className="absolute bottom-1 right-1 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 opacity-100 transition-opacity sm:h-9 sm:w-9 sm:opacity-0 sm:group-hover:opacity-100"
-                  >
-                    <Trash2 size={18} className="text-white" />
-                  </button>
-                </div>
-              ))}
-              <label className="aspect-square rounded-lg border-2 border-dashed border-border bg-muted flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-secondary hover:bg-secondary/5 transition-colors">
-                <Upload size={20} className="text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">ছবি অ্যাড করুন</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="sr-only"
-                  onChange={handleImagePick}
-                />
-              </label>
-            </div>
-            {totalImages === 0 && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-md px-3 py-2">
-                <ImageIcon size={16} />
-                কোনো ছবি দেওয়া হয়নি। ছবি না দিলে ডিফল্ট ছবি দেখাবে।
-              </div>
-            )}
-          </section>
 
-          {/* YouTube links */}
-          <section>
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-              ইউটিউব ভিডিও লিংক
-            </h3>
-            <div className="space-y-2">
-              {youtubeLinks.map((link, i) => (
-                <div key={i} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
-                    <Input
-                      value={link}
-                      onChange={e => setYoutubeLink(i, e.target.value)}
-                      placeholder="https://youtube.com/watch?v=..."
-                      className="pl-8 bg-card text-sm"
-                    />
-                  </div>
-                  {youtubeLinks.length > 1 && (
+                {(kind !== 'PACKAGED' || (isEdit && kind !== (editProduct?.kind ?? 'PACKAGED'))) && <div>
+                  <Label htmlFor="low-stock-threshold">কম স্টকের লিমিট ({kind === 'LOOSE_WEIGHT' ? 'কেজি' : kind === 'LOOSE_VOLUME' ? 'লিটার' : kind === 'EGG' ? 'টি ডিম' : 'ইউনিট'})</Label>
+                  <Input id="low-stock-threshold" type="number" min="0" step={isMeasuredKind ? '0.001' : '1'} value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} className="mt-1 bg-card" />
+                </div>}
+
+                {isEdit && kind !== (editProduct?.kind ?? 'PACKAGED') && <div>
+                  <Label htmlFor="kind-change-reason">ধরন পরিবর্তনের কারণ (ঐচ্ছিক)</Label>
+                  <Input id="kind-change-reason" value={kindChangeReason} onChange={(event) => setKindChangeReason(event.target.value)} className="mt-1 bg-card" />
+                  <p className="mt-1 text-xs text-muted-foreground">স্টক, বিক্রি বা দামের আপডেট থাকলে ধরন আপডেট করা যাবে না।</p>
+                </div>}
+
+                <div>
+                  <Label>ক্যাটাগরি *</Label>
+                  <Select value={categoryId} onValueChange={setCategoryId}>
+                    <SelectTrigger className="mt-1 bg-card">
+                      <SelectValue placeholder="ক্যাটাগরি সিলেক্ট করুন" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={featured}
+                    onChange={e => setFeatured(e.target.checked)}
+                    className="h-4 w-4 rounded border-input accent-secondary"
+                  />
+                  <span className="text-sm font-medium">হোমপেজে ফিচার করুন</span>
+                </label>
+              </div>
+            </section>
+
+            {/* Images */}
+            <section>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                পণ্যের ছবি
+              </h3>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-3">
+                {/* Existing saved images */}
+                {existingImages.map((src, i) => (
+                  <div key={`existing-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted group">
+                    <img src={src} alt="" className="w-full h-full object-cover" />
                     <button
                       type="button"
-                      onClick={() => removeYoutubeLink(i)}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-destructive hover:bg-destructive/10 hover:text-destructive/80"
+                      aria-label="সেভ করা ছবি রিমুভ করুন"
+                      onClick={() => removeExistingImage(i)}
+                      className="absolute bottom-1 right-1 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 opacity-100 transition-opacity sm:h-9 sm:w-9 sm:opacity-0 sm:group-hover:opacity-100"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={18} className="text-white" />
                     </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={addYoutubeLink}
-              className="mt-2 flex min-h-11 items-center gap-1 rounded-md px-2 text-sm font-medium text-secondary hover:bg-muted hover:text-secondary/80"
-            >
-              <Plus size={15} /> আরো লিংক অ্যাড করুন
-            </button>
-          </section>
-
-          {/* Tags */}
-          <section>
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-1">
-              ট্যাগ
-            </h3>
-            <p className="text-xs text-muted-foreground mb-3">
-              Enter বা কমা চেপে ট্যাগ অ্যাড করুন
-            </p>
-            <div className="relative">
-              <div
-                className="flex flex-wrap gap-2 p-2 rounded-md border border-input bg-card min-h-[40px] cursor-text"
-                onClick={() => tagInputRef.current?.focus()}
-              >
-                {tags.map((tag, i) => (
-                  <span key={i} className="flex items-center gap-1 bg-secondary/20 text-secondary-foreground text-xs font-medium px-2 py-1 rounded-full">
-                    #{tag}
-                    <button type="button" aria-label={`${tag} ট্যাগ রিমুভ করুন`} onClick={e => { e.stopPropagation(); removeTag(i); }} className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-                <input
-                  ref={tagInputRef}
-                  type="text"
-                  value={tagInput}
-                  onChange={e => { setTagInput(e.target.value); setShowSuggestions(true); }}
-                  onKeyDown={handleTagKeyDown}
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                  placeholder={tags.length === 0 ? 'যেমন: জৈব, তাজা, দেশি' : ''}
-                  className="flex-1 min-w-[120px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                />
-              </div>
-              {showSuggestions && (() => {
-                const q = tagInput.trim().toLowerCase();
-                const suggestions = allTags.filter(t => !tags.includes(t) && (q === '' || t.includes(q)));
-                return suggestions.length > 0 ? (
-                  <div className="absolute z-10 top-full mt-1 w-full bg-card border border-border rounded-md shadow-md max-h-40 overflow-y-auto">
-                    {suggestions.map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onMouseDown={e => { e.preventDefault(); addTag(t); }}
-                        className="min-h-11 w-full px-3 py-2 text-left text-sm transition-colors hover:bg-muted md:min-h-9 md:py-1.5"
-                      >
-                        #{t}
-                      </button>
-                    ))}
                   </div>
-                ) : null;
-              })()}
-            </div>
-          </section>
+                ))}
+                {/* Newly picked images */}
+                {newImagePreviews.map((src, i) => (
+                  <div key={`new-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-secondary/40 bg-muted group">
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                    <div className="absolute top-1 right-1 bg-secondary text-secondary-foreground text-[10px] px-1 rounded">নতুন</div>
+                    <button
+                      type="button"
+                      aria-label="নতুন ছবি রিমুভ করুন"
+                      onClick={() => removeNewImage(i)}
+                      className="absolute bottom-1 right-1 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 opacity-100 transition-opacity sm:h-9 sm:w-9 sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      <Trash2 size={18} className="text-white" />
+                    </button>
+                  </div>
+                ))}
+                <label className="aspect-square rounded-lg border-2 border-dashed border-border bg-muted flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-secondary hover:bg-secondary/5 transition-colors">
+                  <Upload size={20} className="text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">ছবি অ্যাড করুন</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={handleImagePick}
+                  />
+                </label>
+              </div>
+              {totalImages === 0 && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-md px-3 py-2">
+                  <ImageIcon size={16} />
+                  কোনো ছবি দেওয়া হয়নি। ছবি না দিলে ডিফল্ট ছবি দেখাবে।
+                </div>
+              )}
+            </section>
 
-        </form>
+            {/* YouTube links */}
+            <section>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
+                ইউটিউব ভিডিও লিংক
+              </h3>
+              <div className="space-y-2">
+                {youtubeLinks.map((link, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="relative flex-1">
+                      <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={15} />
+                      <Input
+                        value={link}
+                        onChange={e => setYoutubeLink(i, e.target.value)}
+                        placeholder="https://youtube.com/watch?v=..."
+                        className="pl-8 bg-card text-sm"
+                      />
+                    </div>
+                    {youtubeLinks.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeYoutubeLink(i)}
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-destructive hover:bg-destructive/10 hover:text-destructive/80"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addYoutubeLink}
+                className="mt-2 flex min-h-11 items-center gap-1 rounded-md px-2 text-sm font-medium text-secondary hover:bg-muted hover:text-secondary/80"
+              >
+                <Plus size={15} /> আরো লিংক অ্যাড করুন
+              </button>
+            </section>
 
-        {/* Footer actions */}
-        <div className="grid flex-shrink-0 grid-cols-2 gap-2 border-t bg-card px-4 py-3 sm:flex sm:items-center sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
-          <Button className="w-full sm:w-auto" type="button" variant="ghost" onClick={onClose} disabled={saving}>
-            বাতিল করুন
-          </Button>
-          <Button
-            type="submit"
-            form="add-product-form"
-            disabled={saving}
-            className="w-full min-w-0 sm:min-w-[120px] sm:w-auto"
-          >
-            {saving ? (
-              <span className="flex items-center gap-2">
-                <span className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                সেভ হচ্ছে...
-              </span>
-            ) : isEdit ? (
-              'আপডেট করুন'
-            ) : (
-              'পণ্য সেভ করুন'
-            )}
-          </Button>
+            {/* Tags */}
+            <section>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-1">
+                ট্যাগ
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Enter বা কমা চেপে ট্যাগ অ্যাড করুন
+              </p>
+              <div className="relative">
+                <div
+                  className="flex flex-wrap gap-2 p-2 rounded-md border border-input bg-card min-h-[40px] cursor-text"
+                  onClick={() => tagInputRef.current?.focus()}
+                >
+                  {tags.map((tag, i) => (
+                    <span key={i} className="flex items-center gap-1 bg-secondary/20 text-secondary-foreground text-xs font-medium px-2 py-1 rounded-full">
+                      #{tag}
+                      <button type="button" aria-label={`${tag} ট্যাগ রিমুভ করুন`} onClick={e => { e.stopPropagation(); removeTag(i); }} className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-background/60 hover:text-destructive">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    ref={tagInputRef}
+                    type="text"
+                    value={tagInput}
+                    onChange={e => { setTagInput(e.target.value); setShowSuggestions(true); }}
+                    onKeyDown={handleTagKeyDown}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    placeholder={tags.length === 0 ? 'যেমন: জৈব, তাজা, দেশি' : ''}
+                    className="flex-1 min-w-[120px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+                {showSuggestions && (() => {
+                  const q = tagInput.trim().toLowerCase();
+                  const suggestions = allTags.filter(t => !tags.includes(t) && (q === '' || t.includes(q)));
+                  return suggestions.length > 0 ? (
+                    <div className="absolute z-10 top-full mt-1 w-full bg-card border border-border rounded-md shadow-md max-h-40 overflow-y-auto">
+                      {suggestions.map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); addTag(t); }}
+                          className="min-h-11 w-full px-3 py-2 text-left text-sm transition-colors hover:bg-muted md:min-h-9 md:py-1.5"
+                        >
+                          #{t}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            </section>
+
+          </form>
+
+          {/* Footer actions */}
+          <div className="grid flex-shrink-0 grid-cols-2 gap-2 border-t bg-card px-4 py-3 sm:flex sm:items-center sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
+            <Button className="w-full sm:w-auto" type="button" variant="ghost" onClick={onClose} disabled={saving}>
+              বাতিল করুন
+            </Button>
+            <Button
+              type="submit"
+              form="add-product-form"
+              disabled={saving}
+              className="w-full min-w-0 sm:min-w-[120px] sm:w-auto"
+            >
+              {saving ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  সেভ হচ্ছে...
+                </span>
+              ) : isEdit ? (
+                'আপডেট করুন'
+              ) : (
+                'পণ্য সেভ করুন'
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
       </div>
     </>
   );

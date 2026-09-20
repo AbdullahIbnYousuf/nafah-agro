@@ -84,7 +84,7 @@ describe('role-aware profile page', () => {
 
   it('shows owner management and does not load customer orders for an OWNER', async () => {
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
-    expect(screen.getByText('পরিচালনা প্যানেল')).toBeInTheDocument();
+    expect(screen.getByText('অ্যাডমিন প্যানেল')).toBeInTheDocument();
     expect(await screen.findByText('ওনার অ্যাকাউন্ট')).toBeInTheDocument();
     expect(screen.getByText('নতুন ওনার আমন্ত্রণ')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'অ্যাপ ইনস্টল' })).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe('role-aware profile page', () => {
   it('shows invited-owner password validation and Supabase errors inline', async () => {
     mocks.auth.needsPasswordSetup = true;
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
-    const submit = screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করে পরিচালনা প্যানেলে যান' });
+    const submit = screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করে অ্যাডমিন প্যানেলে যান' });
     const form = submit.closest('form');
     if (!form) throw new Error('Owner setup form was not rendered.');
 
@@ -172,7 +172,7 @@ describe('role-aware profile page', () => {
     );
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড'), { target: { value: 'new-password' } });
     fireEvent.change(screen.getByLabelText('নতুন পাসওয়ার্ড আবার লিখুন'), { target: { value: 'new-password' } });
-    fireEvent.click(screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করে পরিচালনা প্যানেলে যান' }));
+    fireEvent.click(screen.getByRole('button', { name: 'পাসওয়ার্ড সেট করে অ্যাডমিন প্যানেলে যান' }));
 
     await waitFor(() => expect(mocks.auth.setInitialPassword).toHaveBeenCalledWith('new-password'));
     expect(await screen.findByText('owner dashboard')).toBeInTheDocument();
