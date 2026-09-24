@@ -16,6 +16,9 @@ import {
   inventoryRecordListSchema,
   purchaseCreateSchema,
   stockAdjustmentSchema,
+  stockLossSchema,
+  stockReconciliationSchema,
+  stockBatchCorrectionSchema,
   stockBatchListSchema,
 } from "../schemas/inventory.js";
 import type { InventoryService } from "../services/inventory.js";
@@ -98,6 +101,43 @@ export function createInventoryRouter(
         success: true,
         data: await service.adjustStock(
           validate(stockAdjustmentSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/inventory/stock-losses", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await service.createStockLoss(
+          validate(stockLossSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/inventory/reconciliations", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await service.createStockReconciliation(
+          validate(stockReconciliationSchema, req.body),
+          req.authenticatedUser!.profile.id,
+        ),
+      });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/inventory/stock-batches/:batchId/correction", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.status(201).json({
+        success: true,
+        data: await service.correctStockBatch(
+          validate(z.string().uuid(), req.params.batchId),
+          validate(stockBatchCorrectionSchema, req.body),
           req.authenticatedUser!.profile.id,
         ),
       });

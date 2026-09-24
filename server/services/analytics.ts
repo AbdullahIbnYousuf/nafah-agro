@@ -78,6 +78,19 @@ export interface AnalyticsPhysicalSaleReturnRecord {
   }>;
 }
 
+export interface AnalyticsInventoryOperationRecord {
+  type: "STOCK_LOSS" | "ENTRY_CORRECTION" | "STOCK_RECONCILIATION";
+  effectiveDate: Date;
+  recognizedCostImpact: MoneyValue;
+  stockLossAmount: MoneyValue;
+  productVariant: {
+    product: { id: string; name: string; kind?: ProductKindValue };
+    id: string;
+    name: string;
+    sku: string;
+  };
+}
+
 export interface AnalyticsVariantRecord {
   id: string;
   name: string;
@@ -232,7 +245,7 @@ function itemCost(item: AnalyticsOrderRecord["items"][number]) {
 }
 
 interface FinancialEvent {
-  kind: "SALE" | "RETURN";
+  kind: "SALE" | "RETURN" | "COST_CORRECTION";
   date: Date;
   day: string;
   source: Source;
@@ -257,6 +270,68 @@ interface FinancialEvent {
     fifoCost: Prisma.Decimal;
     grossProfit: Prisma.Decimal;
   }>;
+}
+
+function inventoryCostCorrectionEvent(value: AnalyticsInventoryOperationRecord): FinancialEvent {
+  const costImpact = decimal(value.recognizedCostImpact);
+  return {
+    kind: "COST_CORRECTION",
+    date: value.effectiveDate,
+    day: dhakaDate(value.effectiveDate),
+    source: "OTHER",
+    recognizedSales: new Prisma.Decimal(0),
+    productRevenue: new Prisma.Decimal(0),
+    cashProductRevenue: new Prisma.Decimal(0),
+    creditProductRevenue: new Prisma.Decimal(0),
+    deliveryCharges: new Prisma.Decimal(0),
+    fifoCost: costImpact,
+    grossProfit: costImpact.negated(),
+    quantities: emptyQuantities(),
+    orderCount: 0,
+    items: [{
+      productId: value.productVariant.product.id,
+      productVariantId: value.productVariant.id,
+      productName: value.productVariant.product.name,
+      variantName: value.productVariant.name,
+      sku: value.productVariant.sku,
+      quantityUnit: value.productVariant.product.kind === "LOOSE_WEIGHT" ? "GRAM" : value.productVariant.product.kind === "LOOSE_VOLUME" ? "MILLILITER" : "PIECE",
+      quantity: 0,
+      productRevenue: new Prisma.Decimal(0),
+      fifoCost: costImpact,
+      grossProfit: costImpact.negated(),
+    }],
+  };
+}
+
+function inventoryStockLossEvent(value: AnalyticsInventoryOperationRecord): FinancialEvent {
+  const loss = decimal(value.stockLossAmount);
+  return {
+    kind: "COST_CORRECTION",
+    date: value.effectiveDate,
+    day: dhakaDate(value.effectiveDate),
+    source: "OTHER",
+    recognizedSales: new Prisma.Decimal(0),
+    productRevenue: new Prisma.Decimal(0),
+    cashProductRevenue: new Prisma.Decimal(0),
+    creditProductRevenue: new Prisma.Decimal(0),
+    deliveryCharges: new Prisma.Decimal(0),
+    fifoCost: loss,
+    grossProfit: loss.negated(),
+    quantities: emptyQuantities(),
+    orderCount: 0,
+    items: [{
+      productId: value.productVariant.product.id,
+      productVariantId: value.productVariant.id,
+      productName: value.productVariant.product.name,
+      variantName: value.productVariant.name,
+      sku: value.productVariant.sku,
+      quantityUnit: value.productVariant.product.kind === "LOOSE_WEIGHT" ? "GRAM" : value.productVariant.product.kind === "LOOSE_VOLUME" ? "MILLILITER" : "PIECE",
+      quantity: 0,
+      productRevenue: new Prisma.Decimal(0),
+      fifoCost: loss,
+      grossProfit: loss.negated(),
+    }],
+  };
 }
 
 interface QuantityTotals {
@@ -356,6 +431,7 @@ function physicalSaleReturnEvent(value: AnalyticsPhysicalSaleReturnRecord): Fina
 function eventsForPeriod(
   orders: AnalyticsOrderRecord[],
   physicalSaleReturns: AnalyticsPhysicalSaleReturnRecord[],
+  inventoryOperations: AnalyticsInventoryOperationRecord[],
   value: AnalyticsPeriod,
 ) {
   const events: FinancialEvent[] = [];
@@ -370,6 +446,14 @@ function eventsForPeriod(
   }
   for (const physicalReturn of physicalSaleReturns) {
     if (inPeriod(physicalReturn.createdAt, value)) events.push(physicalSaleReturnEvent(physicalReturn));
+  }
+  for (const operation of inventoryOperations) {
+    if (!inPeriod(operation.effectiveDate, value)) continue;
+    if (operation.type === "ENTRY_CORRECTION" && !decimal(operation.recognizedCostImpact).isZero()) {
+      events.push(inventoryCostCorrectionEvent(operation));
+    } else if ((operation.type === "STOCK_LOSS" || operation.type === "STOCK_RECONCILIATION") && !decimal(operation.stockLossAmount).isZero()) {
+      events.push(inventoryStockLossEvent(operation));
+    }
   }
   return events;
 }
@@ -547,6 +631,7 @@ export function buildAnalyticsDashboard(input: {
   now?: Date;
   orders: AnalyticsOrderRecord[];
   physicalSaleReturns?: AnalyticsPhysicalSaleReturnRecord[];
+  inventoryOperations?: AnalyticsInventoryOperationRecord[];
   openCodOrders: Array<{ status: "PENDING" | "CONFIRMED" | "PROCESSING" }>;
   stockBatches: AnalyticsStockBatchRecord[];
   variants: AnalyticsVariantRecord[];
@@ -554,8 +639,9 @@ export function buildAnalyticsDashboard(input: {
   const now = input.now ?? new Date();
   const range = resolveAnalyticsRange(input.query, now);
   const physicalSaleReturns = input.physicalSaleReturns ?? [];
-  const currentEvents = eventsForPeriod(input.orders, physicalSaleReturns, range.current);
-  const previousEvents = eventsForPeriod(input.orders, physicalSaleReturns, range.previous);
+  const inventoryOperations = input.inventoryOperations ?? [];
+  const currentEvents = eventsForPeriod(input.orders, physicalSaleReturns, inventoryOperations, range.current);
+  const previousEvents = eventsForPeriod(input.orders, physicalSaleReturns, inventoryOperations, range.previous);
   const current = sumEvents(currentEvents);
   const previous = sumEvents(previousEvents);
   const currentMargin = margin(current.grossProfit, current.productRevenue);
@@ -703,7 +789,18 @@ export function createAnalyticsService(prisma: PrismaClient) {
       const range = resolveAnalyticsRange(query, now);
       const earliest = range.previous.startUtc;
       const latest = range.current.endUtc;
-      const [orders, physicalSaleReturns, openCodOrders, stockBatches, variants] = await Promise.all([
+      const inventoryOperationsPromise = prisma.inventoryOperation?.findMany
+        ? prisma.inventoryOperation.findMany({
+          where: { effectiveDate: { gte: earliest, lt: latest } },
+          select: {
+            type: true,
+            effectiveDate: true,
+            recognizedCostImpact: true,
+            productVariant: { select: { id: true, name: true, sku: true, product: { select: { id: true, name: true, kind: true } } } },
+          },
+        })
+        : Promise.resolve([]);
+      const [orders, physicalSaleReturns, openCodOrders, stockBatches, variants, inventoryOperations] = await Promise.all([
         prisma.salesOrder.findMany({
           where: {
             OR: [
@@ -796,6 +893,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
             product: { select: { name: true, kind: true } },
           },
         }),
+        inventoryOperationsPromise,
       ]);
 
       return buildAnalyticsDashboard({
@@ -803,6 +901,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
         now,
         orders: orders as AnalyticsOrderRecord[],
         physicalSaleReturns: physicalSaleReturns as AnalyticsPhysicalSaleReturnRecord[],
+        inventoryOperations: inventoryOperations as AnalyticsInventoryOperationRecord[],
         openCodOrders: openCodOrders as Array<{ status: "PENDING" | "CONFIRMED" | "PROCESSING" }>,
         stockBatches,
         variants,

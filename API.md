@@ -58,9 +58,12 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `GET` | `/api/v1/inventory/summary` | OWNER | Stock-item counts, alerts, and current buying-cost value |
 | `GET` | `/api/v1/inventory/items` | OWNER | Paginated stock identities with search, status, category, and sorting |
 | `GET` | `/api/v1/inventory/items/:variantId/batches` | OWNER | One stock identity's current or complete FIFO batch list |
-| `GET` | `/api/v1/inventory/records` | OWNER | Paginated purchase groups and stock adjustments with notes/reasons |
+| `GET` | `/api/v1/inventory/records` | OWNER | Paginated stock additions, legacy adjustments, losses, corrections, and reconciliations |
 | `POST` | `/api/v1/purchases` | OWNER | Atomic multi-item purchase |
 | `POST` | `/api/v1/stock-adjustments` | OWNER | Reason-required increase/decrease |
+| `POST` | `/api/v1/inventory/stock-losses` | OWNER | Consume available stock FIFO and record a stock loss using today's Dhaka date |
+| `POST` | `/api/v1/inventory/reconciliations` | OWNER | Reconcile physical on-hand stock; reduce FIFO or add a batch at the latest known cost |
+| `POST` | `/api/v1/inventory/stock-batches/:batchId/correction` | OWNER | Correct a purchase batch quantity or buying cost without deleting the original record |
 | `POST/GET` | `/api/v1/physical-sales` | OWNER | Immediate FIFO paid or credit sale/list |
 | `GET` | `/api/v1/credit-customers/suggestions` | OWNER | Find existing বাকি customers by name for physical-sale selection |
 | `GET` | `/api/v1/credit-customers`, `/credit-customers/:id` | OWNER | Customer-level balances and combined sale/payment/return records |
@@ -79,7 +82,13 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 `INACTIVE`; sorting supports `URGENCY`, `NAME`, `STOCK_ASC`, and `LAST_ADDED`.
 Batch details exclude fully consumed batches unless `includeDepleted=true` is
 passed. `/inventory/records` accepts `query`, `type`, `page`, and `limit`, where
-`type` is `ALL`, `PURCHASE`, or `ADJUSTMENT`.
+`type` is `ALL`, `PURCHASE`, `ADJUSTMENT` (legacy), `STOCK_LOSS`,
+`ENTRY_CORRECTION`, or `STOCK_RECONCILIATION`. Stock-loss and reconciliation
+effective dates are always the current `Asia/Dhaka` date in V1; clients do not
+submit a date. Losses consume only available FIFO stock, so reserved stock is
+never silently removed. Batch corrections retain the original purchase record
+and are rejected when the requested quantity would fall below consumed or
+reserved stock.
 
 Website-order push is scheduled only after a new non-replayed order transaction
 commits. Push failure does not fail checkout. The credit cron sends nothing when

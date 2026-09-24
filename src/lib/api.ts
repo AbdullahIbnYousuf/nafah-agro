@@ -516,7 +516,7 @@ export function getInventoryItemBatches(productVariantId: string, input: {
 
 export function getInventoryRecords(input: {
   query?: string;
-  type?: 'ALL' | 'PURCHASE' | 'ADJUSTMENT';
+  type?: 'ALL' | 'PURCHASE' | 'ADJUSTMENT' | 'STOCK_LOSS' | 'ENTRY_CORRECTION' | 'STOCK_RECONCILIATION';
   page?: number;
   limit?: number;
 } = {}): Promise<InventoryRecordsPage> {
@@ -536,6 +536,41 @@ export function adjustStock(input:
     body: JSON.stringify(input.direction === 'INCREASE'
       ? { ...input, unitBuyingCost: String(input.unitBuyingCost) }
       : input),
+  });
+}
+
+export function createStockLoss(input: {
+  productVariantId: string;
+  amount: string;
+  amountUnit: AmountUnit;
+  note?: string;
+}): Promise<unknown> {
+  return requestV1<unknown>('/inventory/stock-losses', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function reconcileStock(input: {
+  productVariantId: string;
+  actualAmount: string;
+  amountUnit: AmountUnit;
+  note?: string;
+}): Promise<unknown> {
+  return requestV1<unknown>('/inventory/reconciliations', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function correctStockBatch(batchId: string, input: {
+  correctedAmount: string;
+  amountUnit: AmountUnit;
+  unitBuyingCost: number;
+}): Promise<unknown> {
+  return requestV1<unknown>(`/inventory/stock-batches/${batchId}/correction`, {
+    method: 'POST',
+    body: JSON.stringify({ ...input, unitBuyingCost: String(input.unitBuyingCost) }),
   });
 }
 

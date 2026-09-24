@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const uuid = z.string().uuid();
 const amount = z.string().regex(/^\d+(?:\.\d{1,3})?$/).refine((value) => Number(value) > 0);
+const nonNegativeAmount = z.string().regex(/^\d+(?:\.\d{1,3})?$/);
 const amountUnit = z.enum(["PIECE", "KG", "G", "LITER", "ML"]);
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/);
 const positiveMoney = money.refine((value) => Number(value) > 0, "Buying cost must be greater than zero");
@@ -55,6 +56,26 @@ export const stockAdjustmentSchema = z.discriminatedUnion("direction", [
   }).strict(),
 ]);
 
+export const stockLossSchema = z.object({
+  productVariantId: uuid,
+  amount,
+  amountUnit,
+  note: z.string().trim().max(1_000).optional(),
+}).strict();
+
+export const stockReconciliationSchema = z.object({
+  productVariantId: uuid,
+  actualAmount: nonNegativeAmount,
+  amountUnit,
+  note: z.string().trim().max(1_000).optional(),
+}).strict();
+
+export const stockBatchCorrectionSchema = z.object({
+  correctedAmount: nonNegativeAmount,
+  amountUnit,
+  unitBuyingCost: positiveMoney,
+}).strict();
+
 export const stockBatchListSchema = z.object({
   productVariantId: uuid.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
@@ -77,7 +98,7 @@ export const inventoryItemBatchListSchema = z.object({
 
 export const inventoryRecordListSchema = z.object({
   query: z.string().trim().max(120).optional(),
-  type: z.enum(["ALL", "PURCHASE", "ADJUSTMENT"]).default("ALL"),
+  type: z.enum(["ALL", "PURCHASE", "ADJUSTMENT", "STOCK_LOSS", "ENTRY_CORRECTION", "STOCK_RECONCILIATION"]).default("ALL"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 }).strict();
@@ -177,6 +198,9 @@ export const creditFollowUpSchema = z.object({
 
 export type PurchaseCreate = z.infer<typeof purchaseCreateSchema>;
 export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
+export type StockLossInput = z.infer<typeof stockLossSchema>;
+export type StockReconciliationInput = z.infer<typeof stockReconciliationSchema>;
+export type StockBatchCorrectionInput = z.infer<typeof stockBatchCorrectionSchema>;
 export type StockBatchList = z.infer<typeof stockBatchListSchema>;
 export type InventoryItemList = z.infer<typeof inventoryItemListSchema>;
 export type InventoryItemBatchList = z.infer<typeof inventoryItemBatchListSchema>;

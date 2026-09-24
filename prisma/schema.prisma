@@ -26,6 +26,12 @@ enum StockAdjustmentDirection {
   DECREASE
 }
 
+enum InventoryOperationType {
+  STOCK_LOSS
+  ENTRY_CORRECTION
+  STOCK_RECONCILIATION
+}
+
 enum AllocationState {
   RESERVED
   CONSUMED
@@ -116,6 +122,7 @@ model Profile {
   priceChanges          SellingPriceHistory[]
   stockBatches          StockBatch[]
   stockAdjustments      StockAdjustment[]
+  inventoryOperations   InventoryOperation[]
   createdSales          SalesOrder[]          @relation("CreatedSales")
   customerSales         SalesOrder[]          @relation("CustomerSales")
   unprofitableOverrides SalesOrder[]          @relation("UnprofitableOverrides")
@@ -187,6 +194,7 @@ model ProductVariant {
   priceHistory        SellingPriceHistory[]
   stockBatches        StockBatch[]
   stockAdjustments    StockAdjustment[]
+  inventoryOperations InventoryOperation[]
   salesOrderItems     SalesOrderItem[]
 
   @@index([productId, isActive])
@@ -228,6 +236,9 @@ model StockBatch {
   productVariant               ProductVariant                @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
   createdBy                    Profile                       @relation(fields: [createdByProfileId], references: [id], onDelete: Restrict)
   orderAllocations             OrderAllocation[]
+  inventoryOperationAllocations InventoryOperationAllocation[]
+  inventoryOperationsTarget    InventoryOperation[] @relation("InventoryOperationTargetBatch")
+  inventoryOperationsCreated   InventoryOperation? @relation("InventoryOperationCreatedBatch")
   physicalSaleReturnAllocation PhysicalSaleReturnAllocation?
   sourceSalesOrderId           String?                       @map("source_sales_order_id") @db.Uuid
   sourceSalesOrder             SalesOrder?                   @relation("ReturnStockBatches", fields: [sourceSalesOrderId], references: [id], onDelete: Restrict)
@@ -251,6 +262,75 @@ model StockAdjustment {
 
   @@index([productVariantId, createdAt])
   @@map("stock_adjustments")
+}
+
+model InventoryOperation {
+  id                         String                           @id @default(uuid()) @db.Uuid
+  productVariantId           String                           @map("product_variant_id") @db.Uuid
+  type                       InventoryOperationType
+  effectiveDate              DateTime                         @map("effective_date") @db.Date
+  note                       String?
+  quantityDelta              Int                              @map("quantity_delta")
+  availableBefore            Int                              @map("available_before")
+  reservedBefore             Int                              @map("reserved_before")
+  onHandBefore               Int                              @map("on_hand_before")
+  availableAfter             Int                              @map("available_after")
+  reservedAfter              Int                              @map("reserved_after")
+  onHandAfter                Int                              @map("on_hand_after")
+  actualPhysicalStock        Int?                             @map("actual_physical_stock")
+  previousUnitBuyingCost     Decimal?                         @map("previous_unit_buying_cost") @db.Decimal(14, 2)
+  newUnitBuyingCost          Decimal?                         @map("new_unit_buying_cost") @db.Decimal(14, 2)
+  inventoryValueImpact       Decimal                          @default(0) @map("inventory_value_impact") @db.Decimal(14, 2)
+  stockLossAmount            Decimal                          @default(0) @map("stock_loss_amount") @db.Decimal(14, 2)
+  recognizedCostImpact       Decimal                          @default(0) @map("recognized_cost_impact") @db.Decimal(14, 2)
+  targetStockBatchId         String?                          @map("target_stock_batch_id") @db.Uuid
+  createdStockBatchId        String?                          @unique @map("created_stock_batch_id") @db.Uuid
+  createdByProfileId         String                           @map("created_by_profile_id") @db.Uuid
+  createdAt                  DateTime                         @default(now()) @map("created_at")
+  productVariant             ProductVariant                   @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  targetStockBatch           StockBatch?                      @relation("InventoryOperationTargetBatch", fields: [targetStockBatchId], references: [id], onDelete: Restrict)
+  createdStockBatch          StockBatch?                      @relation("InventoryOperationCreatedBatch", fields: [createdStockBatchId], references: [id], onDelete: Restrict)
+  createdBy                  Profile                          @relation(fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  fifoAllocations            InventoryOperationAllocation[]
+  costCorrections            InventoryCostCorrectionAllocation[]
+
+  @@index([productVariantId, effectiveDate, createdAt])
+  @@index([type, effectiveDate])
+  @@index([targetStockBatchId])
+  @@map("inventory_operations")
+}
+
+model InventoryOperationAllocation {
+  id                   String             @id @default(uuid()) @db.Uuid
+  inventoryOperationId String             @map("inventory_operation_id") @db.Uuid
+  stockBatchId         String             @map("stock_batch_id") @db.Uuid
+  quantity             Int
+  unitBuyingCost       Decimal            @map("unit_buying_cost") @db.Decimal(14, 2)
+  totalBuyingCost      Decimal            @map("total_buying_cost") @db.Decimal(14, 2)
+  createdAt            DateTime           @default(now()) @map("created_at")
+  inventoryOperation   InventoryOperation @relation(fields: [inventoryOperationId], references: [id], onDelete: Restrict)
+  stockBatch           StockBatch         @relation(fields: [stockBatchId], references: [id], onDelete: Restrict)
+
+  @@index([inventoryOperationId])
+  @@index([stockBatchId])
+  @@map("inventory_operation_allocations")
+}
+
+model InventoryCostCorrectionAllocation {
+  id                    String             @id @default(uuid()) @db.Uuid
+  inventoryOperationId  String             @map("inventory_operation_id") @db.Uuid
+  orderAllocationId     String             @map("order_allocation_id") @db.Uuid
+  quantity              Int
+  previousUnitBuyingCost Decimal           @map("previous_unit_buying_cost") @db.Decimal(14, 2)
+  newUnitBuyingCost     Decimal            @map("new_unit_buying_cost") @db.Decimal(14, 2)
+  totalCostDelta        Decimal            @map("total_cost_delta") @db.Decimal(14, 2)
+  createdAt             DateTime           @default(now()) @map("created_at")
+  inventoryOperation    InventoryOperation @relation(fields: [inventoryOperationId], references: [id], onDelete: Restrict)
+  orderAllocation       OrderAllocation    @relation(fields: [orderAllocationId], references: [id], onDelete: Restrict)
+
+  @@unique([inventoryOperationId, orderAllocationId])
+  @@index([orderAllocationId])
+  @@map("inventory_cost_correction_allocations")
 }
 
 model SalesOrder {
@@ -408,6 +488,7 @@ model OrderAllocation {
   salesOrderItem                SalesOrderItem                 @relation(fields: [salesOrderItemId], references: [id], onDelete: Restrict)
   stockBatch                    StockBatch                     @relation(fields: [stockBatchId], references: [id], onDelete: Restrict)
   physicalSaleReturnAllocations PhysicalSaleReturnAllocation[]
+  costCorrectionAllocations     InventoryCostCorrectionAllocation[]
 
   @@index([salesOrderItemId])
   @@index([stockBatchId, state])

@@ -53,6 +53,12 @@ Status: complete in code; real PostgreSQL concurrency acceptance remains.
 - Egg FIFO remains piece-based. A centralized server rule prices 1–14 at the
   regular rate and 15+ at the lower rate for the entire line across physical,
   website, Facebook, phone, WhatsApp, and other manual sales.
+- Inventory operations include auditable stock loss, physical-stock
+  reconciliation, and purchase-entry correction flows. Losses consume
+  available batches FIFO and record their buying cost as loss; reconciliation
+  protects reserved stock; corrections retain the original batch record. The
+  loss and reconciliation effective date is automatically today's Dhaka date
+  for V1.
 
 ## Milestone 4 — Unified COD and manual delivery orders
 

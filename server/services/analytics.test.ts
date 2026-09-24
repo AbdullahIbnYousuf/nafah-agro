@@ -6,6 +6,7 @@ import {
   buildAnalyticsDashboard,
   resolveAnalyticsRange,
   type AnalyticsOrderRecord,
+  type AnalyticsInventoryOperationRecord,
   type AnalyticsVariantRecord,
 } from "./analytics.js";
 
@@ -100,6 +101,41 @@ describe("analytics date boundaries", () => {
     expect(range.current.to).toBe("2026-04-15");
     expect(range.previous.from).toBe("2026-02-01");
     expect(range.previous.to).toBe("2026-03-09");
+  });
+
+  it("recognizes purchase cost corrections on their Dhaka effective date", () => {
+    const operation: AnalyticsInventoryOperationRecord = {
+      type: "ENTRY_CORRECTION",
+      effectiveDate: instant("2026-08-04"),
+      recognizedCostImpact: "50.00",
+      stockLossAmount: "0.00",
+      productVariant: {
+        id: "variant-1",
+        name: "500 g",
+        sku: "HONEY-500",
+        product: { id: "product-1", name: "Raw Honey", kind: "PACKAGED" },
+      },
+    };
+    const result = dashboard({ inventoryOperations: [operation] });
+    expect(result.summary.grossProfit.value).toBe(-50);
+    expect(result.summary.recognizedSales.value).toBe(0);
+  });
+
+  it("counts stock loss as a negative gross-profit event without sales", () => {
+    const result = dashboard({ inventoryOperations: [{
+      type: "STOCK_LOSS",
+      effectiveDate: instant("2026-08-04"),
+      recognizedCostImpact: "0.00",
+      stockLossAmount: "75.00",
+      productVariant: {
+        id: "variant-1",
+        name: "500 g",
+        sku: "HONEY-500",
+        product: { id: "product-1", name: "Raw Honey", kind: "PACKAGED" },
+      },
+    }] });
+    expect(result.summary.recognizedSales.value).toBe(0);
+    expect(result.summary.grossProfit.value).toBe(-75);
   });
 
   it("rejects invalid and excessively large custom ranges", () => {

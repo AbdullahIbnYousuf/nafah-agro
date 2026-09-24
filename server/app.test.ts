@@ -760,6 +760,9 @@ describe("GET /api/v1/foundation", () => {
         listInventoryRecords: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 25, totalPages: 0 })),
         createPurchase: vi.fn(async () => ({ purchaseGroupId: "30000000-0000-4000-8000-000000000001", batches: [] })),
         adjustStock: vi.fn(async () => []),
+        createStockLoss: vi.fn(async () => ({ id: "80000000-0000-4000-8000-000000000001" })),
+        createStockReconciliation: vi.fn(async () => ({ id: "80000000-0000-4000-8000-000000000002" })),
+        correctStockBatch: vi.fn(async () => ({ id: "80000000-0000-4000-8000-000000000003" })),
         createPhysicalSale: vi.fn(),
         listPhysicalSales: vi.fn(async () => []),
         returnPhysicalSale: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
@@ -831,6 +834,34 @@ describe("GET /api/v1/foundation", () => {
       );
     });
 
+    it("allows an OWNER to record the focused inventory operations", async () => {
+      const inventory = inventoryStub();
+      const app = createProtectedApp(ownerProfile, 60, undefined, inventory);
+      const loss = await request(app)
+        .post("/api/v1/inventory/stock-losses")
+        .set("Authorization", "Bearer valid-token")
+        .send({ productVariantId: "10000000-0000-4000-8000-000000000001", amount: "2", amountUnit: "PIECE" });
+      const reconciliation = await request(app)
+        .post("/api/v1/inventory/reconciliations")
+        .set("Authorization", "Bearer valid-token")
+        .send({ productVariantId: "10000000-0000-4000-8000-000000000001", actualAmount: "4", amountUnit: "PIECE" });
+      const correction = await request(app)
+        .post("/api/v1/inventory/stock-batches/40000000-0000-4000-8000-000000000001/correction")
+        .set("Authorization", "Bearer valid-token")
+        .send({ correctedAmount: "5", amountUnit: "PIECE", unitBuyingCost: "250.00" });
+
+      expect(loss.status).toBe(201);
+      expect(reconciliation.status).toBe(201);
+      expect(correction.status).toBe(201);
+      expect(inventory.createStockLoss).toHaveBeenCalledWith(expect.objectContaining({ amount: "2" }), ownerProfile.id);
+      expect(inventory.createStockReconciliation).toHaveBeenCalledWith(expect.objectContaining({ actualAmount: "4" }), ownerProfile.id);
+      expect(inventory.correctStockBatch).toHaveBeenCalledWith(
+        "40000000-0000-4000-8000-000000000001",
+        expect.objectContaining({ correctedAmount: "5" }),
+        ownerProfile.id,
+      );
+    });
+
     it("denies CUSTOMER inventory and physical-sale mutations", async () => {
       const inventory = inventoryStub();
       const app = createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, undefined, inventory);
@@ -852,17 +883,29 @@ describe("GET /api/v1/foundation", () => {
       const inventoryReadResponse = await request(app)
         .get("/api/v1/inventory/summary")
         .set("Authorization", "Bearer valid-token");
+      const lossResponse = await request(app)
+        .post("/api/v1/inventory/stock-losses")
+        .set("Authorization", "Bearer valid-token")
+        .send({ productVariantId: "10000000-0000-4000-8000-000000000001", amount: "1", amountUnit: "PIECE" });
+      const reconciliationResponse = await request(app)
+        .post("/api/v1/inventory/reconciliations")
+        .set("Authorization", "Bearer valid-token")
+        .send({ productVariantId: "10000000-0000-4000-8000-000000000001", actualAmount: "1", amountUnit: "PIECE" });
 
       expect(purchaseResponse.status).toBe(403);
       expect(saleResponse.status).toBe(403);
       expect(returnResponse.status).toBe(403);
       expect(creditResponse.status).toBe(403);
       expect(inventoryReadResponse.status).toBe(403);
+      expect(lossResponse.status).toBe(403);
+      expect(reconciliationResponse.status).toBe(403);
       expect(inventory.createPurchase).not.toHaveBeenCalled();
       expect(inventory.createPhysicalSale).not.toHaveBeenCalled();
       expect(inventory.returnPhysicalSale).not.toHaveBeenCalled();
       expect(inventory.listCreditCustomers).not.toHaveBeenCalled();
       expect(inventory.getInventorySummary).not.toHaveBeenCalled();
+      expect(inventory.createStockLoss).not.toHaveBeenCalled();
+      expect(inventory.createStockReconciliation).not.toHaveBeenCalled();
     });
 
     it("allows an OWNER to record a validated credit payment", async () => {

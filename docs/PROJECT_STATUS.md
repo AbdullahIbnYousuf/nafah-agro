@@ -1,6 +1,6 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-09-12
+Last updated: 2026-09-24
 
 ## Summary
 
@@ -83,6 +83,13 @@ is not approved for production until the external gates in this document and
   price-tier history, and a price-tier snapshot on every order item. The same
   centralized server rule protects website, physical, Facebook, phone,
   WhatsApp, and other manual sales from client-side price manipulation.
+- Added auditable inventory operations for FIFO stock loss, physical-stock
+  reconciliation, and purchase-entry correction. Stock loss and negative
+  reconciliation consume only available batches and retain exact cost
+  allocations; positive reconciliation creates a separate adjustment batch;
+  entry correction preserves the original purchase record and records the
+  change separately. In V1, stock-loss and reconciliation dates are generated
+  from the current `Asia/Dhaka` date rather than entered by the user.
 - Removed active obsolete deployment/auth references and all native
   `alert`/`prompt`/`confirm` workflows. Order transitions, returns, delivery-rate
   edits, category edits, and loss warnings now use application dialogs with

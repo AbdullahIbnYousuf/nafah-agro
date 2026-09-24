@@ -110,6 +110,14 @@ Stock rules:
 - Direct stock editing without a recorded adjustment reason is prohibited
 - A stock decrease adjustment consumes available batches using FIFO
 - A stock increase adjustment creates a new adjustment batch and requires a buying cost
+- Stock loss is a separate audited operation that consumes available batches FIFO
+  and records the exact buying-cost loss. Physical-stock reconciliation compares
+  actual on-hand stock with available plus reserved totals, protects reserved
+  stock, and uses the latest known buying cost for positive differences.
+- Purchase-entry corrections retain the original batch and append a correction
+  record; they cannot reduce a batch below already consumed or reserved quantity.
+- Stock-loss and reconciliation dates use the current `Asia/Dhaka` date only in
+  V1; users cannot backdate these operations.
 
 ## 6. Order sources and stock timing
 
@@ -282,7 +290,7 @@ V1 is complete when:
 - Phone OTP
 - Returns that cannot be linked to an original sale
 - FEFO, weighted-average costing, or expiry tracking
-- Separate inventory-movement or reservation systems
+- A general-purpose inventory-movement system beyond these focused operations
 - Supplier, warehouse, expense, or business-settings systems
 - Net-profit accounting
 - Printable receipts

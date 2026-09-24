@@ -19,6 +19,9 @@ export function titleForPath(pathname: string) {
   if (pathname === '/admin/categories') return `ক্যাটাগরি | ${SITE_NAME}`;
   if (pathname === '/admin/inventory/purchase') return `নতুন স্টক অ্যাড | ${SITE_NAME}`;
   if (pathname === '/admin/inventory/adjustment') return `স্টক আপডেট | ${SITE_NAME}`;
+  if (pathname === '/admin/inventory/loss') return `স্টক লস | ${SITE_NAME}`;
+  if (pathname === '/admin/inventory/reconciliation') return `স্টক অ্যাডজাস্ট | ${SITE_NAME}`;
+  if (pathname === '/admin/inventory/correction') return `ভুল এন্ট্রি ঠিক করুন | ${SITE_NAME}`;
   if (pathname === '/admin/inventory') return `ক্রয় ও ইনভেন্টরি | ${SITE_NAME}`;
   if (pathname === '/admin/physical-sales') return `দোকানের বিক্রি | ${SITE_NAME}`;
   if (pathname === '/admin/dues') return `বাকি হিসাব | ${SITE_NAME}`;

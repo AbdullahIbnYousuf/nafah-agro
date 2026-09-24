@@ -520,6 +520,9 @@ Application routes use `/api/v1`; business logic is not duplicated in the Vercel
 /api/v1/prices
 /api/v1/stock-batches
 /api/v1/stock-adjustments
+/api/v1/inventory/stock-losses
+/api/v1/inventory/reconciliations
+/api/v1/inventory/stock-batches/:batchId/correction
 /api/v1/orders
 /api/v1/delivery-rates
 /api/v1/analytics
@@ -547,6 +550,19 @@ Error:
 ```
 
 Admin lists use server pagination, filtering, and sorting.
+
+Inventory operations
+
+The inventory workspace keeps one row per stocked product/pack-size while
+preserving every FIFO batch internally. `STOCK_LOSS` consumes available stock
+FIFO and stores exact cost allocations. `STOCK_RECONCILIATION` compares the
+physical on-hand total with available plus reserved stock; decreases cannot
+consume reserved stock, and increases create a separate adjustment batch at
+the latest known buying cost. `ENTRY_CORRECTION` changes a purchase batch only
+within uncommitted quantity limits and always creates an append-only operation
+record linked to the original batch. Stock-loss and reconciliation operations
+use the current `Asia/Dhaka` date automatically in V1; the client cannot
+backdate them.
 
 ## 10. Frontend design
 

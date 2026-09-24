@@ -108,6 +108,8 @@ export interface InventoryBatchesPage {
 }
 
 export interface InventoryRecordItem {
+  batchId?: string;
+  canCorrect?: boolean;
   productVariantId: string;
   productName: string;
   variantName: string;
@@ -118,14 +120,27 @@ export interface InventoryRecordItem {
   unitBuyingCost: number | null;
 }
 
+export type InventoryRecordType = 'PURCHASE' | 'ADJUSTMENT' | 'STOCK_LOSS' | 'ENTRY_CORRECTION' | 'STOCK_RECONCILIATION';
+
 export interface InventoryRecord {
   id: string;
-  type: 'PURCHASE' | 'ADJUSTMENT';
+  type: InventoryRecordType;
   occurredAt: string;
   effectiveDate: string;
   note: string | null;
   createdBy: { fullName: string; role: Role };
   items: InventoryRecordItem[];
+  quantityDelta?: number;
+  inventoryValueImpact?: number;
+  stockLossAmount?: number;
+  recognizedCostImpact?: number;
+  availableBefore?: number;
+  reservedBefore?: number;
+  onHandBefore?: number;
+  availableAfter?: number;
+  reservedAfter?: number;
+  onHandAfter?: number;
+  actualPhysicalStock?: number | null;
 }
 
 export interface InventoryRecordsPage {

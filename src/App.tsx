@@ -116,6 +116,9 @@ const App = () => (
                 <Route path="inventory" element={<AdminInventory />} />
                 <Route path="inventory/purchase" element={<AdminInventory />} />
                 <Route path="inventory/adjustment" element={<AdminInventory />} />
+                <Route path="inventory/loss" element={<AdminInventory />} />
+                <Route path="inventory/reconciliation" element={<AdminInventory />} />
+                <Route path="inventory/correction" element={<AdminInventory />} />
                 <Route path="physical-sales" element={<AdminPhysicalSales />} />
                 <Route path="dues" element={<AdminDues />} />
                 <Route path="orders" element={<AdminOrders />} />

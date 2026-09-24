@@ -28,8 +28,11 @@ function prismaMock(input: {
       }),
       count: vi.fn(async (args: { where?: { OR?: unknown } }) => args.where?.OR ? 1 : 2),
     },
-    stockAdjustment: {
-      findMany: vi.fn(async () => input.adjustments ?? []),
+  stockAdjustment: {
+    findMany: vi.fn(async () => input.adjustments ?? []),
+  },
+    inventoryOperation: {
+      findMany: vi.fn(async () => []),
     },
   } as unknown as PrismaClient;
 }

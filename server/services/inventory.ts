@@ -16,6 +16,9 @@ import type {
   InventoryRecordList,
   PurchaseCreate,
   StockAdjustmentInput,
+  StockLossInput,
+  StockReconciliationInput,
+  StockBatchCorrectionInput,
   StockBatchList,
 } from "../schemas/inventory.js";
 import { consumeAvailableFifo, type FifoAllocation } from "./stockAllocation.js";
@@ -651,18 +654,25 @@ export function createInventoryService(prisma: PrismaClient) {
   }
 
   async function listInventoryRecords(input: InventoryRecordList) {
-    const [purchaseBatches, adjustments] = await Promise.all([
-      input.type === "ADJUSTMENT" ? Promise.resolve([]) : prisma.stockBatch.findMany({
+    const [purchaseBatches, adjustments, operations] = await Promise.all([
+      input.type === "ADJUSTMENT" || ["STOCK_LOSS", "ENTRY_CORRECTION", "STOCK_RECONCILIATION"].includes(input.type) ? Promise.resolve([]) : prisma.stockBatch.findMany({
         where: { source: "PURCHASE" },
         include: fullBatchInclude,
         orderBy: [{ createdAt: "desc" }],
       }),
-      input.type === "PURCHASE" ? Promise.resolve([]) : prisma.stockAdjustment.findMany({
+      input.type === "PURCHASE" || ["STOCK_LOSS", "ENTRY_CORRECTION", "STOCK_RECONCILIATION"].includes(input.type) ? Promise.resolve([]) : prisma.stockAdjustment.findMany({
         include: {
           productVariant: { include: { product: { select: { name: true, kind: true } } } },
           createdBy: { select: { fullName: true, role: true } },
         },
         orderBy: { createdAt: "desc" },
+      }),
+      (input.type === "PURCHASE" || input.type === "ADJUSTMENT") ? Promise.resolve([]) : prisma.inventoryOperation.findMany({
+        include: {
+          productVariant: { include: { product: { select: { name: true, kind: true } } } },
+          createdBy: { select: { fullName: true, role: true } },
+        },
+        orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
       }),
     ]);
     const purchaseGroups = new Map<string, typeof purchaseBatches>();
@@ -681,6 +691,8 @@ export function createInventoryService(prisma: PrismaClient) {
         note: group[0].note,
         createdBy: group[0].createdBy,
         items: group.map((batch) => ({
+          batchId: batch.id,
+          canCorrect: true,
           productVariantId: batch.productVariantId,
           productName: batch.productVariant.product.name,
           variantName: batch.productVariant.name,
@@ -699,6 +711,8 @@ export function createInventoryService(prisma: PrismaClient) {
         note: adjustment.reason,
         createdBy: adjustment.createdBy,
         items: [{
+          batchId: undefined,
+          canCorrect: false,
           productVariantId: adjustment.productVariantId,
           productName: adjustment.productVariant.product.name,
           variantName: adjustment.productVariant.name,
@@ -707,6 +721,35 @@ export function createInventoryService(prisma: PrismaClient) {
           direction: adjustment.direction,
           quantity: adjustment.quantity,
           unitBuyingCost: adjustment.unitBuyingCost ? moneyNumber(adjustment.unitBuyingCost) : null,
+        }],
+      })),
+      ...operations.map((operation) => ({
+        id: operation.id,
+        type: operation.type,
+        occurredAt: operation.createdAt.toISOString(),
+        effectiveDate: operation.effectiveDate.toISOString().slice(0, 10),
+        note: operation.note,
+        createdBy: operation.createdBy,
+        quantityDelta: operation.quantityDelta,
+        inventoryValueImpact: moneyNumber(operation.inventoryValueImpact),
+        stockLossAmount: moneyNumber(operation.stockLossAmount),
+        recognizedCostImpact: moneyNumber(operation.recognizedCostImpact),
+        availableBefore: operation.availableBefore,
+        reservedBefore: operation.reservedBefore,
+        onHandBefore: operation.onHandBefore,
+        availableAfter: operation.availableAfter,
+        reservedAfter: operation.reservedAfter,
+        onHandAfter: operation.onHandAfter,
+        actualPhysicalStock: operation.actualPhysicalStock,
+        items: [{
+          productVariantId: operation.productVariantId,
+          productName: operation.productVariant.product.name,
+          variantName: operation.productVariant.name,
+          productKind: operation.productVariant.product.kind,
+          quantityUnit: quantityUnitForKind(operation.productVariant.product.kind),
+          direction: operation.quantityDelta < 0 ? "DECREASE" as const : "INCREASE" as const,
+          quantity: Math.abs(operation.quantityDelta),
+          unitBuyingCost: operation.newUnitBuyingCost ? moneyNumber(operation.newUnitBuyingCost) : null,
         }],
       })),
     ];
@@ -749,12 +792,313 @@ export function createInventoryService(prisma: PrismaClient) {
     return { ...creditCustomerDto(customer), sales: sales.map(saleDto), history };
   }
 
+  async function lockVariant(transaction: Prisma.TransactionClient, productVariantId: string) {
+    const locked = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "product_variants" WHERE "id" = ${productVariantId}::uuid FOR UPDATE
+    `);
+    if (locked.length === 0) throw inventoryError(404, "VARIANT_NOT_FOUND", "The selected product was not found.");
+    const variant = await transaction.productVariant.findUnique({
+      where: { id: productVariantId },
+      select: {
+        id: true,
+        isActive: true,
+        availableStock: true,
+        reservedStock: true,
+        currentSellingPrice: true,
+        product: { select: { name: true, kind: true, isActive: true, category: { select: { isActive: true } } } },
+      },
+    });
+    if (!variant || !variant.isActive || !variant.product.isActive || variant.product.category?.isActive === false) {
+      throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "নির্বাচিত পণ্যটি ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
+    }
+    return variant;
+  }
+
+  function baseQuantityAllowingZero(amountValue: string, amountUnit: "PIECE" | "KG" | "G" | "LITER" | "ML", kind: "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME" | "EGG") {
+    if (amountValue === "0" || /^0(?:\.0{1,3})?$/.test(amountValue)) return 0;
+    return toBaseQuantity(amountValue, amountUnit, kind);
+  }
+
+  async function createInventoryOperationAllocation(
+    transaction: Prisma.TransactionClient,
+    operationId: string,
+    allocations: FifoAllocation[],
+  ) {
+    if (allocations.length === 0) return;
+    await transaction.inventoryOperationAllocation.createMany({
+      data: allocations.map((allocation) => ({
+        inventoryOperationId: operationId,
+        stockBatchId: allocation.stockBatchId,
+        quantity: allocation.quantity,
+        unitBuyingCost: allocation.unitBuyingCost,
+        totalBuyingCost: allocation.totalBuyingCost,
+      })),
+    });
+  }
+
+  async function createStockLoss(input: StockLossInput, actorId: string) {
+    try {
+      const operationId = await prisma.$transaction(async (transaction) => {
+        const variant = await lockVariant(transaction, input.productVariantId);
+        const quantity = toBaseQuantity(input.amount, input.amountUnit, variant.product.kind);
+        const beforeAvailable = variant.availableStock;
+        const beforeReserved = variant.reservedStock;
+        const allocations = await consumeAvailableFifo(transaction, input.productVariantId, quantity, variant.product.kind);
+        const operation = await transaction.inventoryOperation.create({ data: {
+          productVariantId: input.productVariantId,
+          type: "STOCK_LOSS",
+          effectiveDate: asDate(dhakaDateOnly()),
+          note: input.note,
+          quantityDelta: -quantity,
+          availableBefore: beforeAvailable,
+          reservedBefore: beforeReserved,
+          onHandBefore: beforeAvailable + beforeReserved,
+          availableAfter: beforeAvailable - quantity,
+          reservedAfter: beforeReserved,
+          onHandAfter: beforeAvailable - quantity + beforeReserved,
+          inventoryValueImpact: allocations.reduce((total, value) => total.plus(value.totalBuyingCost), new Prisma.Decimal(0)).negated(),
+          stockLossAmount: allocations.reduce((total, value) => total.plus(value.totalBuyingCost), new Prisma.Decimal(0)),
+          createdByProfileId: actorId,
+        } });
+        await createInventoryOperationAllocation(transaction, operation.id, allocations);
+        await transaction.auditLog.create({ data: {
+          actorProfileId: actorId,
+          action: "STOCK_LOSS_RECORDED",
+          entityType: "INVENTORY_OPERATION",
+          entityId: operation.id,
+          newData: { type: operation.type, quantity: quantity.toString(), stockLossAmount: operation.stockLossAmount.toString() },
+          reason: input.note,
+        } });
+        return operation.id;
+      }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      return prisma.inventoryOperation.findUniqueOrThrow({ where: { id: operationId }, include: { fifoAllocations: true } });
+    } catch (error) { rethrowInventoryTransactionError(error); }
+  }
+
+  async function createStockReconciliation(input: StockReconciliationInput, actorId: string) {
+    try {
+      const operationId = await prisma.$transaction(async (transaction) => {
+        const variant = await lockVariant(transaction, input.productVariantId);
+        const actual = baseQuantityAllowingZero(input.actualAmount, input.amountUnit, variant.product.kind);
+        const beforeAvailable = variant.availableStock;
+        const beforeReserved = variant.reservedStock;
+        const expectedOnHand = beforeAvailable + beforeReserved;
+        const delta = actual - expectedOnHand;
+        if (delta === 0) throw inventoryError(400, "NO_RECONCILIATION_NEEDED", "স্টকের কোনো পরিবর্তন দরকার নেই।");
+
+        let allocations: FifoAllocation[] = [];
+        let createdBatchId: string | undefined;
+        let stockLossAmount = new Prisma.Decimal(0);
+        let inventoryValueImpact = new Prisma.Decimal(0);
+        if (delta < 0) {
+          const missing = -delta;
+          if (missing > beforeAvailable) {
+            throw inventoryError(409, "RESERVED_STOCK_PROTECTED", "রিজার্ভ করা স্টক কমানো যাবে না। আগে সংশ্লিষ্ট অর্ডারটি সমাধান করুন।");
+          }
+          allocations = await consumeAvailableFifo(transaction, input.productVariantId, missing, variant.product.kind);
+          stockLossAmount = allocations.reduce((total, value) => total.plus(value.totalBuyingCost), new Prisma.Decimal(0));
+          inventoryValueImpact = stockLossAmount.negated();
+        } else {
+          const latestBatch = await transaction.stockBatch.findFirst({
+            where: { productVariantId: input.productVariantId, unitBuyingCost: { gt: 0 } },
+            orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
+            select: { unitBuyingCost: true },
+          });
+          if (!latestBatch) throw inventoryError(409, "BUYING_COST_HISTORY_REQUIRED", "পজিটিভ স্টক অ্যাডজাস্টের আগে একটি ক্রয়মূল্যসহ স্টক অ্যাড করুন।");
+          const batch = await transaction.stockBatch.create({ data: {
+            productVariantId: input.productVariantId,
+            source: "ADJUSTMENT",
+            purchasedQuantity: delta,
+            availableQuantity: delta,
+            reservedQuantity: 0,
+            unitBuyingCost: latestBatch.unitBuyingCost,
+            purchaseDate: asDate(dhakaDateOnly()),
+            note: input.note,
+            createdByProfileId: actorId,
+          } });
+          createdBatchId = batch.id;
+          await transaction.productVariant.update({ where: { id: input.productVariantId }, data: { availableStock: { increment: delta } } });
+          inventoryValueImpact = quantityCost(latestBatch.unitBuyingCost, delta, variant.product.kind);
+        }
+
+        const operation = await transaction.inventoryOperation.create({ data: {
+          productVariantId: input.productVariantId,
+          type: "STOCK_RECONCILIATION",
+          effectiveDate: asDate(dhakaDateOnly()),
+          note: input.note,
+          quantityDelta: delta,
+          availableBefore: beforeAvailable,
+          reservedBefore: beforeReserved,
+          onHandBefore: expectedOnHand,
+          availableAfter: beforeAvailable + delta,
+          reservedAfter: beforeReserved,
+          onHandAfter: actual,
+          actualPhysicalStock: actual,
+          inventoryValueImpact,
+          stockLossAmount,
+          createdStockBatchId: createdBatchId,
+          createdByProfileId: actorId,
+        } });
+        await createInventoryOperationAllocation(transaction, operation.id, allocations);
+        await transaction.auditLog.create({ data: {
+          actorProfileId: actorId,
+          action: "STOCK_RECONCILIATION_RECORDED",
+          entityType: "INVENTORY_OPERATION",
+          entityId: operation.id,
+          newData: { actualPhysicalStock: actual, expectedPhysicalStock: expectedOnHand, quantityDelta: delta },
+          reason: input.note,
+        } });
+        return operation.id;
+      }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      return prisma.inventoryOperation.findUniqueOrThrow({ where: { id: operationId }, include: { fifoAllocations: true } });
+    } catch (error) { rethrowInventoryTransactionError(error); }
+  }
+
+  async function correctStockBatch(batchId: string, input: StockBatchCorrectionInput, actorId: string) {
+    try {
+      const operationId = await prisma.$transaction(async (transaction) => {
+        await transaction.$executeRaw(Prisma.sql`SELECT "id" FROM "stock_batches" WHERE "id" = ${batchId}::uuid FOR UPDATE`);
+        const batch = await transaction.stockBatch.findUnique({
+          where: { id: batchId },
+          include: { productVariant: { select: { id: true, product: { select: { kind: true, isActive: true, category: { select: { isActive: true } } } } } } },
+        });
+        if (!batch || batch.source !== "PURCHASE") throw inventoryError(404, "CORRECTION_TARGET_NOT_FOUND", "এই রেকর্ডটি ঠিক করা যাবে না।");
+        if (!batch.productVariant.product.isActive || batch.productVariant.product.category?.isActive === false) throw inventoryError(404, "ACTIVE_VARIANT_NOT_FOUND", "পণ্যটি ইনঅ্যাকটিভ অথবা পাওয়া যায়নি।");
+        const returnedPhysical = await transaction.physicalSaleReturnAllocation.count({ where: { orderAllocation: { stockBatchId: batchId } } });
+        const returnedOrders = await transaction.salesOrder.count({ where: { status: { in: ["RETURNED_SELLABLE", "RETURNED_DAMAGED"] }, items: { some: { allocations: { some: { stockBatchId: batchId } } } } } });
+        if (returnedPhysical > 0 || returnedOrders > 0) throw inventoryError(409, "CORRECTION_RETURN_HISTORY", "রিটার্নের রেকর্ড থাকা স্টক এন্ট্রি ঠিক করা যাবে না।");
+        const allocations = await transaction.orderAllocation.findMany({ where: { stockBatchId: batchId }, select: { id: true, quantity: true, state: true, salesOrderItemId: true } });
+        const consumed = allocations.filter((value) => value.state === "CONSUMED").reduce((sum, value) => sum + value.quantity, 0);
+        const reserved = allocations.filter((value) => value.state === "RESERVED").reduce((sum, value) => sum + value.quantity, 0);
+        const correctedQuantity = baseQuantityAllowingZero(input.correctedAmount, input.amountUnit, batch.productVariant.product.kind);
+        if (correctedQuantity < consumed + reserved) throw inventoryError(409, "CORRECTION_BELOW_COMMITTED", "সংশোধিত পরিমাণ ইতিমধ্যে বিক্রি বা রিজার্ভ করা পরিমাণের চেয়ে কম হতে পারবে না।");
+        const quantityDelta = correctedQuantity - batch.purchasedQuantity;
+        const availableAfter = batch.availableQuantity + quantityDelta;
+        if (availableAfter < 0) throw inventoryError(409, "CORRECTION_BELOW_AVAILABLE", "এই পরিমাণ কমালে স্টক ঋণাত্মক হয়ে যাবে।");
+        const variant = await lockVariant(transaction, batch.productVariantId);
+        const costDelta = asMoney(input.unitBuyingCost).minus(batch.unitBuyingCost);
+        const recognizedCostImpact = allocations.filter((value) => value.state === "CONSUMED").reduce(
+          (total, value) => total.plus(quantityCost(costDelta, value.quantity, batch.productVariant.product.kind)), new Prisma.Decimal(0),
+        );
+        const oldInventoryValue = quantityCost(batch.unitBuyingCost, batch.availableQuantity + batch.reservedQuantity, batch.productVariant.product.kind);
+        const newInventoryValue = quantityCost(asMoney(input.unitBuyingCost), availableAfter + batch.reservedQuantity, batch.productVariant.product.kind);
+        await transaction.stockBatch.update({ where: { id: batchId }, data: {
+          purchasedQuantity: correctedQuantity,
+          availableQuantity: availableAfter,
+          unitBuyingCost: input.unitBuyingCost,
+        } });
+        if (quantityDelta !== 0) {
+          const updatedVariant = await transaction.productVariant.updateMany({ where: { id: batch.productVariantId, availableStock: { gte: quantityDelta < 0 ? -quantityDelta : 0 } }, data: { availableStock: quantityDelta > 0 ? { increment: quantityDelta } : { decrement: -quantityDelta } } });
+          if (updatedVariant.count !== 1) throw inventoryError(409, "STOCK_TOTAL_MISMATCH", "স্টকের মোট হিসাব মেলেনি। আবার চেষ্টা করুন।");
+        }
+        const operation = await transaction.inventoryOperation.create({ data: {
+          productVariantId: batch.productVariantId,
+          type: "ENTRY_CORRECTION",
+          effectiveDate: asDate(dhakaDateOnly()),
+          quantityDelta,
+          availableBefore: variant.availableStock,
+          reservedBefore: variant.reservedStock,
+          onHandBefore: variant.availableStock + variant.reservedStock,
+          availableAfter: variant.availableStock + quantityDelta,
+          reservedAfter: variant.reservedStock,
+          onHandAfter: variant.availableStock + quantityDelta + variant.reservedStock,
+          previousUnitBuyingCost: batch.unitBuyingCost,
+          newUnitBuyingCost: input.unitBuyingCost,
+          inventoryValueImpact: newInventoryValue.minus(oldInventoryValue),
+          recognizedCostImpact,
+          targetStockBatchId: batchId,
+          createdByProfileId: actorId,
+        } });
+        const costCorrections = allocations.filter((value) => value.state === "CONSUMED" || value.state === "RESERVED");
+        if (costCorrections.length > 0 && !costDelta.isZero()) {
+          await transaction.inventoryCostCorrectionAllocation.createMany({ data: costCorrections.map((allocation) => ({
+            inventoryOperationId: operation.id,
+            orderAllocationId: allocation.id,
+            quantity: allocation.quantity,
+            previousUnitBuyingCost: batch.unitBuyingCost,
+            newUnitBuyingCost: input.unitBuyingCost,
+            totalCostDelta: quantityCost(costDelta, allocation.quantity, batch.productVariant.product.kind),
+          })) });
+
+          // Pending website orders display a projected buying cost. Keep that
+          // projection in sync with a corrected purchase cost, while leaving
+          // completed order snapshots immutable.
+          const reservedDeltas = new Map<string, Prisma.Decimal>();
+          for (const allocation of costCorrections.filter((value) => value.state === "RESERVED")) {
+            const delta = quantityCost(costDelta, allocation.quantity, batch.productVariant.product.kind);
+            reservedDeltas.set(
+              allocation.salesOrderItemId,
+              (reservedDeltas.get(allocation.salesOrderItemId) ?? new Prisma.Decimal(0)).plus(delta),
+            );
+          }
+          if (reservedDeltas.size > 0) {
+            const itemIds = [...reservedDeltas.keys()];
+            const items = await transaction.salesOrderItem.findMany({
+              where: { id: { in: itemIds } },
+              select: { id: true, salesOrderId: true, netLineRevenue: true, totalBuyingCost: true },
+            });
+            const orderIds = new Set<string>();
+            for (const item of items) {
+              const nextCost = (item.totalBuyingCost ?? new Prisma.Decimal(0)).plus(reservedDeltas.get(item.id) ?? 0);
+              await transaction.salesOrderItem.update({
+                where: { id: item.id },
+                data: { totalBuyingCost: nextCost, grossProfit: item.netLineRevenue.minus(nextCost) },
+              });
+              orderIds.add(item.salesOrderId);
+            }
+            for (const orderId of orderIds) {
+              const orderItems = await transaction.salesOrderItem.findMany({
+                where: { salesOrderId: orderId },
+                select: { netLineRevenue: true, totalBuyingCost: true },
+              });
+              const totalBuyingCost = orderItems.reduce(
+                (total, value) => total.plus(value.totalBuyingCost ?? 0),
+                new Prisma.Decimal(0),
+              );
+              const order = await transaction.salesOrder.findUnique({
+                where: { id: orderId },
+                select: { subtotal: true, discountTotal: true },
+              });
+              if (order) {
+                const productRevenue = order.subtotal.minus(order.discountTotal);
+                const grossProfit = productRevenue.minus(totalBuyingCost);
+                await transaction.salesOrder.update({
+                  where: { id: orderId },
+                  data: {
+                    totalBuyingCost,
+                    grossProfit,
+                    grossProfitMargin: productRevenue.isZero()
+                      ? null
+                      : grossProfit.div(productRevenue).mul(100).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP),
+                  },
+                });
+              }
+            }
+          }
+        }
+        await transaction.auditLog.create({ data: {
+          actorProfileId: actorId,
+          action: "STOCK_ENTRY_CORRECTED",
+          entityType: "STOCK_BATCH",
+          entityId: batchId,
+          previousData: { purchasedQuantity: batch.purchasedQuantity, unitBuyingCost: batch.unitBuyingCost.toString() },
+          newData: { purchasedQuantity: correctedQuantity, unitBuyingCost: input.unitBuyingCost, operationId },
+        } });
+        return operation.id;
+      }, SERIALIZABLE_TRANSACTION_OPTIONS);
+      return prisma.inventoryOperation.findUniqueOrThrow({ where: { id: operationId }, include: { costCorrections: true } });
+    } catch (error) { rethrowInventoryTransactionError(error); }
+  }
+
   return {
     listBatches,
     getInventorySummary,
     listInventoryItems,
     listInventoryItemBatches,
     listInventoryRecords,
+    createStockLoss,
+    createStockReconciliation,
+    correctStockBatch,
 
     async createPurchase(input: PurchaseCreate, actorId: string) {
       const purchaseGroupId = randomUUID();
