@@ -637,6 +637,8 @@ describe("GET /api/v1/foundation", () => {
         listProducts: vi.fn(),
         getProductBySlug: vi.fn(),
         getProductById: vi.fn(async (id: string) => ({ id, name: "Admin product" })),
+        listVariantOptions: vi.fn(async () => [{ productVariantId: "30000000-0000-4000-8000-000000000001" }]),
+        getVariantOption: vi.fn(async (id: string) => ({ productVariantId: id })),
         createProduct: vi.fn(),
         updateProduct: vi.fn(),
         deleteProduct: vi.fn(async (id: string) => ({ id })),
@@ -679,6 +681,28 @@ describe("GET /api/v1/foundation", () => {
       expect(response.status).toBe(200);
       expect(response.body.data).toEqual({ id: productId, name: "Admin product" });
       expect(catalog.getProductById).toHaveBeenCalledWith(productId);
+    });
+
+    it("allows an OWNER to search eligible variant options with bounded input", async () => {
+      const catalog = catalogStub();
+      const response = await request(createProtectedApp(ownerProfile, 60, catalog))
+        .get("/api/v1/admin/variant-options?context=PHYSICAL_SALE&q=rice&limit=20")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(200);
+      expect(catalog.listVariantOptions).toHaveBeenCalledWith({ context: "PHYSICAL_SALE", q: "rice", limit: 20 });
+    });
+
+    it("denies CUSTOMER access to variant options", async () => {
+      const catalog = catalogStub();
+      const response = await request(
+        createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, catalog),
+      )
+        .get("/api/v1/admin/variant-options?context=INVENTORY")
+        .set("Authorization", "Bearer valid-token");
+
+      expect(response.status).toBe(403);
+      expect(catalog.listVariantOptions).not.toHaveBeenCalled();
     });
 
     it("allows an OWNER to delete unused catalog records", async () => {

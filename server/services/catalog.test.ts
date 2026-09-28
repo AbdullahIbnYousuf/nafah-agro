@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import {
   bulkPriceChangeSchema,
@@ -386,6 +386,38 @@ function productInput(slug = "raw-honey", packSize = "", kind: ProductRow["kind"
 }
 
 describe("PostgreSQL catalog service", () => {
+  it("searches active variant options in PostgreSQL with context limits", async () => {
+    const findMany = vi.fn(async () => [{
+      id: "20000000-0000-4000-8000-000000000001",
+      productId: "10000000-0000-4000-8000-000000000001",
+      name: "৫ কেজি",
+      currentSellingPrice: "550.00",
+      bulkSellingPrice: null,
+      availableStock: 8,
+      reservedStock: 2,
+      product: { name: "মিনিকেট চাল", kind: "PACKAGED" },
+    }]);
+    const service = createCatalogService({ productVariant: { findMany } } as unknown as PrismaClient);
+
+    const result = await service.listVariantOptions({ context: "MANUAL_ORDER", q: "মিনি", limit: 10 });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 10,
+      orderBy: [{ product: { name: "asc" } }, { name: "asc" }],
+      where: expect.objectContaining({
+        isActive: true,
+        product: expect.objectContaining({ isActive: true, kind: { in: ["PACKAGED", "EGG"] } }),
+        OR: expect.any(Array),
+      }),
+    }));
+    expect(result).toEqual([expect.objectContaining({
+      productName: "মিনিকেট চাল",
+      variantName: "৫ কেজি",
+      quantityUnit: "PIECE",
+      availableStock: 8,
+    })]);
+  });
+
   it("creates and edits categories", async () => {
     const { prisma } = createInMemoryPrisma();
     const service = createCatalogService(prisma);

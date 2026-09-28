@@ -133,6 +133,16 @@ export const productListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(24),
 }).strict();
 
+export const variantOptionListSchema = z.object({
+  q: z.string().trim().max(120).default(""),
+  context: z.enum(["INVENTORY", "PHYSICAL_SALE", "MANUAL_ORDER"]),
+  limit: z.coerce.number().int().min(1).max(20).default(10),
+}).strict();
+
+export const variantOptionContextSchema = z.object({
+  context: z.enum(["INVENTORY", "PHYSICAL_SALE", "MANUAL_ORDER"]),
+}).strict();
+
 export type CategoryCreate = z.infer<typeof categoryCreateSchema>;
 export type CategoryUpdate = z.infer<typeof categoryUpdateSchema>;
 export type ProductCreate = z.infer<typeof productCreateSchema>;
@@ -143,3 +153,5 @@ export type VariantUpdate = z.infer<typeof variantUpdateSchema>;
 export type PriceChange = z.infer<typeof priceChangeSchema>;
 export type BulkPriceChange = z.infer<typeof bulkPriceChangeSchema>;
 export type ProductList = z.infer<typeof productListSchema>;
+export type VariantOptionList = z.infer<typeof variantOptionListSchema>;
+export type VariantOptionContext = z.infer<typeof variantOptionContextSchema>["context"];

@@ -3,7 +3,7 @@ import { z, ZodError } from "zod";
 import {
   bulkPriceChangeSchema, categoryCreateSchema, categoryUpdateSchema, priceChangeSchema,
   productCreateSchema, productKindChangeSchema, productListSchema, productUpdateSchema, variantCreateSchema,
-  variantUpdateSchema,
+  variantOptionContextSchema, variantOptionListSchema, variantUpdateSchema,
 } from "../schemas/catalog.js";
 import type { CatalogService } from "../services/catalog.js";
 
@@ -53,6 +53,15 @@ export function createCatalogRouter(
   });
   router.get("/admin/products", ...protectedRoute, async (req, res, next) => {
     try { res.json({ success: true, data: await service.listProducts(validate(productListSchema, req.query), true) }); } catch (error) { next(error); }
+  });
+  router.get("/admin/variant-options", ...protectedRoute, async (req, res, next) => {
+    try { res.json({ success: true, data: await service.listVariantOptions(validate(variantOptionListSchema, req.query)) }); } catch (error) { next(error); }
+  });
+  router.get("/admin/variant-options/:id", ...protectedRoute, async (req, res, next) => {
+    try {
+      const { context } = validate(variantOptionContextSchema, req.query);
+      res.json({ success: true, data: await service.getVariantOption(validate(idSchema, req.params.id), context) });
+    } catch (error) { next(error); }
   });
   router.get("/admin/products/:id", ...protectedRoute, async (req, res, next) => {
     try { res.json({ success: true, data: await service.getProductById(validate(idSchema, req.params.id)) }); } catch (error) { next(error); }

@@ -27,6 +27,23 @@ export interface ProductVariant {
   isActive: boolean;
 }
 
+export type VariantOptionContext = 'INVENTORY' | 'PHYSICAL_SALE' | 'MANUAL_ORDER';
+
+export interface VariantOption {
+  productVariantId: string;
+  productId: string;
+  productName: string;
+  variantName: string;
+  productKind: ProductKind;
+  quantityUnit: QuantityUnit;
+  availableStock: number;
+  reservedStock: number;
+  sellingPrice: number;
+  bulkSellingPrice: number | null;
+  bulkMinimumQuantity: number | null;
+  isOperational: boolean;
+}
+
 export interface SellingPriceHistoryEntry {
   id: string;
   previousPrice: number | null;

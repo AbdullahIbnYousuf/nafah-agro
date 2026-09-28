@@ -5,7 +5,7 @@ import UnifiedOrderManager from './UnifiedOrderManager';
 
 const mocks = vi.hoisted(() => ({
   getOrders: vi.fn(),
-  getAdminProducts: vi.fn(),
+  getVariantOptions: vi.fn(),
   getAdminDeliveryRates: vi.fn(),
 }));
 
@@ -14,7 +14,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   return {
     ...original,
     getOrders: mocks.getOrders,
-    getAdminProducts: mocks.getAdminProducts,
+    getVariantOptions: mocks.getVariantOptions,
     getAdminDeliveryRates: mocks.getAdminDeliveryRates,
   };
 });
@@ -24,7 +24,7 @@ describe('order list view preferences', () => {
     vi.clearAllMocks();
     window.sessionStorage.removeItem('nafah_order_filters_v1');
     mocks.getOrders.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
-    mocks.getAdminProducts.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
+    mocks.getVariantOptions.mockResolvedValue([]);
     mocks.getAdminDeliveryRates.mockResolvedValue([]);
   });
 
@@ -54,4 +54,5 @@ describe('order list view preferences', () => {
     expect(screen.getByLabelText('অর্ডার নম্বর')).toHaveValue('NA-1001');
     expect(screen.getByLabelText('গ্রাহকের ফোন')).toHaveValue('01300000000');
   });
+
 });

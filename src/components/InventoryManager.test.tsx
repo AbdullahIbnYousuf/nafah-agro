@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   getInventoryItems: vi.fn(),
   getInventoryRecords: vi.fn(),
   getInventorySummary: vi.fn(),
+  getVariantOption: vi.fn(),
+  getVariantOptions: vi.fn(),
   updateVariant: vi.fn(),
 }));
 
@@ -35,6 +37,21 @@ const rice: InventoryItem = {
   isOperational: true,
   status: 'LOW_STOCK',
   lastStockAddedAt: '2026-09-10',
+};
+
+const riceOption = {
+  productId: rice.productId,
+  productVariantId: rice.productVariantId,
+  productName: rice.productName,
+  variantName: rice.variantName,
+  productKind: rice.productKind,
+  quantityUnit: rice.quantityUnit,
+  availableStock: rice.availableStock,
+  reservedStock: rice.reservedStock,
+  sellingPrice: 450,
+  bulkSellingPrice: null,
+  bulkMinimumQuantity: null,
+  isOperational: true,
 };
 
 const liveBatch: StockBatch = {
@@ -83,6 +100,8 @@ describe('streamlined inventory workspace', () => {
     mocks.getInventorySummary.mockResolvedValue({ totalStockItems: 3, lowStockItems: 1, outOfStockItems: 1, inventoryValue: 1500 });
     mocks.getAdminCategories.mockResolvedValue([{ id: rice.categoryId, name: 'চাল', slug: 'rice', isActive: true }]);
     mocks.getInventoryItems.mockResolvedValue(inventoryPage());
+    mocks.getVariantOptions.mockResolvedValue([riceOption]);
+    mocks.getVariantOption.mockResolvedValue(riceOption);
     mocks.getInventoryItemBatches.mockResolvedValue({ data: [liveBatch], total: 1, page: 1, limit: 100, totalPages: 1, hasDepleted: true });
     mocks.getInventoryRecords.mockResolvedValue({
       data: [{
@@ -151,7 +170,7 @@ describe('streamlined inventory workspace', () => {
   it('opens a direct adjustment route and confirms the stock effect before saving', async () => {
     renderInventory(`/admin/inventory/adjustment?variant=${rice.productVariantId}`);
     const productSelect = await screen.findByRole('combobox', { name: 'স্টক আপডেটের পণ্য / প্যাক/সাইজ' });
-    await waitFor(() => expect(productSelect).toHaveValue(rice.productVariantId));
+    await waitFor(() => expect(productSelect).toHaveTextContent('মিনিকেট চাল · ৫ কেজি'));
 
     fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '1' } });
     fireEvent.change(screen.getByPlaceholderText('যেমন: DAMAGED 2 ইউনিট'), { target: { value: 'ভাঙা প্যাকেট' } });

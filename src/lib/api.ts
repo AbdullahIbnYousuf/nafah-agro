@@ -266,6 +266,26 @@ export function getAdminProduct(id: string): Promise<Product> {
   return requestV1<Product>(`/admin/products/${encodeURIComponent(id)}`);
 }
 
+export function getVariantOptions(input: {
+  q?: string;
+  context: import('./types').VariantOptionContext;
+  limit?: number;
+}, signal?: AbortSignal): Promise<import('./types').VariantOption[]> {
+  const query = new URLSearchParams({ context: input.context });
+  if (input.q?.trim()) query.set('q', input.q.trim());
+  if (input.limit) query.set('limit', String(input.limit));
+  return requestV1<import('./types').VariantOption[]>(`/admin/variant-options?${query}`, { signal });
+}
+
+export function getVariantOption(
+  id: string,
+  context: import('./types').VariantOptionContext,
+  signal?: AbortSignal,
+): Promise<import('./types').VariantOption> {
+  const query = new URLSearchParams({ context });
+  return requestV1<import('./types').VariantOption>(`/admin/variant-options/${encodeURIComponent(id)}?${query}`, { signal });
+}
+
 export async function getProductBySlug(slug: string, signal?: AbortSignal): Promise<Product | undefined> {
   try {
     return await requestV1<Product>(`/products/${encodeURIComponent(slug)}`, { auth: false, signal });

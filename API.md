@@ -47,6 +47,7 @@ targets, ordinary owners, stale roles, and promoted owners with management work.
 | `DELETE` | `/api/v1/categories/:id` | OWNER | Permanently delete an empty category only |
 | `GET` | `/api/v1/products`, `/products/:slug` | Public | Active packaged and egg storefront catalog set to Show |
 | `GET` | `/api/v1/admin/products`, `/admin/products/:id` | OWNER | Full catalog list and direct product lookup, including inactive records |
+| `GET` | `/api/v1/admin/variant-options`, `/admin/variant-options/:variantId` | OWNER | Async product/pack-size options for inventory, physical-sale, and manual-order forms |
 | `POST/PATCH` | `/api/v1/products`, `/products/:id` | OWNER | Create/edit product and independently set Active or Show |
 | `PATCH` | `/api/v1/products/:id/kind` | OWNER | Correct an entirely unused product type |
 | `DELETE` | `/api/v1/products/:id` | OWNER | Delete only a product with no stock, adjustment, order, or price-update history |

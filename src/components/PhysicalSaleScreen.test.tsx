@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import type { PhysicalSale, Product } from '@/lib/types';
+import type { PhysicalSale, Product, VariantOption } from '@/lib/types';
 import PhysicalSaleScreen from './PhysicalSaleScreen';
 
 const mocks = vi.hoisted(() => ({
   createPhysicalSale: vi.fn(),
-  getAdminProducts: vi.fn(),
+  getVariantOptions: vi.fn(),
   getPhysicalSales: vi.fn(),
   returnPhysicalSale: vi.fn(),
   suggestCreditCustomers: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: vi.fn() } 
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/api')>(),
   createPhysicalSale: mocks.createPhysicalSale,
-  getAdminProducts: mocks.getAdminProducts,
+  getVariantOptions: mocks.getVariantOptions,
   getPhysicalSales: mocks.getPhysicalSales,
   returnPhysicalSale: mocks.returnPhysicalSale,
   suggestCreditCustomers: mocks.suggestCreditCustomers,
@@ -142,11 +142,28 @@ const eggProduct: Product = {
   }],
 };
 
+function productOptions(...products: Product[]): VariantOption[] {
+  return products.flatMap((entry) => (entry.variants ?? []).map((variant) => ({
+    productId: entry.id,
+    productVariantId: variant.id,
+    productName: entry.name,
+    variantName: variant.name,
+    productKind: entry.kind,
+    quantityUnit: entry.kind === 'LOOSE_WEIGHT' ? 'GRAM' : entry.kind === 'LOOSE_VOLUME' ? 'MILLILITER' : 'PIECE',
+    availableStock: variant.availableStock,
+    reservedStock: variant.reservedStock,
+    sellingPrice: variant.sellingPrice,
+    bulkSellingPrice: variant.bulkSellingPrice ?? null,
+    bulkMinimumQuantity: variant.bulkMinimumQuantity ?? null,
+    isOperational: true,
+  })));
+}
+
 describe('physical sale history', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.removeItem('nafah_physical_sale_history_filters_v1');
-    mocks.getAdminProducts.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100, totalPages: 0 });
+    mocks.getVariantOptions.mockResolvedValue([]);
     mocks.getPhysicalSales.mockResolvedValue([sale]);
     mocks.suggestCreditCustomers.mockResolvedValue([]);
     mocks.createPhysicalSale.mockResolvedValue(sale);
@@ -166,7 +183,7 @@ describe('physical sale history', () => {
       dateFrom: '2026-08-01',
       dateTo: '2026-08-31',
     }));
-    expect(screen.getByRole('combobox', { name: 'পণ্য সিলেক্ট করুন' })).toHaveValue('মিনিকেট');
+    expect(screen.getByRole('textbox', { name: 'বিক্রির পণ্য' })).toHaveValue('মিনিকেট');
     expect(screen.getByRole('textbox', { name: 'ক্রেতা বা বিক্রির তথ্য' })).toHaveValue('01300000000');
   });
 
@@ -179,7 +196,7 @@ describe('physical sale history', () => {
   });
 
   it('uses the same explicit expand-and-add flow for packaged and loose products', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct, product], total: 2, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(packagedProduct, product));
     renderScreen();
     await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ সিলেক্ট করুন' });
 
@@ -195,7 +212,7 @@ describe('physical sale history', () => {
   });
 
   it('adds the chosen loose amount and validates it against available stock', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(product));
     renderScreen();
     await screen.findByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ সিলেক্ট করুন' });
 
@@ -213,7 +230,7 @@ describe('physical sale history', () => {
   });
 
   it('recalculates an egg line immediately when it crosses 15', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [eggProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(eggProduct));
     renderScreen();
     fireEvent.click(await screen.findByRole('button', { name: 'দেশি ডিম পরিমাণ সিলেক্ট করুন' }));
     const amount = screen.getByRole('spinbutton', { name: 'দেশি ডিম পরিমাণ' });
@@ -234,7 +251,7 @@ describe('physical sale history', () => {
       stock: 0,
       variants: packagedProduct.variants!.map((variant) => ({ ...variant, availableStock: 0 })),
     };
-    mocks.getAdminProducts.mockResolvedValue({ data: [emptyProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(emptyProduct));
     renderScreen();
 
     const productButton = await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ সিলেক্ট করুন' });
@@ -244,7 +261,7 @@ describe('physical sale history', () => {
   });
 
   it('closes an expanded product without adding when the owner clicks elsewhere', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(product));
     renderScreen();
     await screen.findByRole('button', { name: 'খোলা মিনিকেট চাল পরিমাণ সিলেক্ট করুন' });
 
@@ -277,16 +294,13 @@ describe('physical sale history', () => {
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
   });
 
-  it('suggests catalog products and searches immediately after selection', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+  it('searches sale history by the saved product snapshot text', async () => {
     renderScreen();
     await screen.findByText('PS-20260815-TEST');
 
-    const search = screen.getByRole('combobox', { name: 'পণ্য সিলেক্ট করুন' });
-    fireEvent.focus(search);
-    fireEvent.click(await screen.findByRole('option', { name: /খোলা মিনিকেট চাল/ }));
-
-    expect(search).toHaveValue('খোলা মিনিকেট চাল');
+    const search = screen.getByRole('textbox', { name: 'বিক্রির পণ্য' });
+    fireEvent.change(search, { target: { value: 'খোলা মিনিকেট চাল' } });
+    fireEvent.click(screen.getByRole('button', { name: 'সার্চ করুন' }));
     await waitFor(() => expect(mocks.getPhysicalSales).toHaveBeenCalledWith({
       limit: 50,
       product: 'খোলা মিনিকেট চাল',
@@ -294,13 +308,12 @@ describe('physical sale history', () => {
   });
 
   it('combines the product filter with customer or sale information', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
     renderScreen();
     await screen.findByText('PS-20260815-TEST');
 
-    const productSearch = screen.getByRole('combobox', { name: 'পণ্য সিলেক্ট করুন' });
-    fireEvent.focus(productSearch);
-    fireEvent.click(await screen.findByRole('option', { name: /খোলা মিনিকেট চাল/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'বিক্রির পণ্য' }), {
+      target: { value: 'খোলা মিনিকেট চাল' },
+    });
     fireEvent.change(screen.getByRole('textbox', { name: 'ক্রেতা বা বিক্রির তথ্য' }), {
       target: { value: '01300000000' },
     });
@@ -314,7 +327,9 @@ describe('physical sale history', () => {
   });
 
   it('clearly reports when the sale product search has no match', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [product], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions
+      .mockResolvedValueOnce(productOptions(product))
+      .mockResolvedValueOnce([]);
     renderScreen();
     await screen.findByRole('button', { name: /খোলা মিনিকেট চাল/ });
 
@@ -322,7 +337,7 @@ describe('physical sale history', () => {
       target: { value: 'সরিষার তেল' },
     });
 
-    expect(screen.getByRole('status')).toHaveTextContent('এমন কোনো পণ্য পাওয়া যায়নি।');
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('এমন কোনো পণ্য পাওয়া যায়নি।'));
   });
 
   it('explains why a sale cannot be completed without products', async () => {
@@ -340,7 +355,7 @@ describe('physical sale history', () => {
   });
 
   it('requires a selected or explicitly new customer and keeps phone optional', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(packagedProduct));
     renderScreen();
     fireEvent.click(await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ সিলেক্ট করুন' }));
     fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
@@ -360,7 +375,7 @@ describe('physical sale history', () => {
   });
 
   it('selects an existing customer by name and fills saved credit details', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(packagedProduct));
     mocks.suggestCreditCustomers.mockResolvedValue([{
       id: '70000000-0000-4000-8000-000000000001', name: 'রহিম', phone: '01300000000',
       nextFollowUpDate: '2099-09-20', outstandingAmount: 700,
@@ -385,7 +400,7 @@ describe('physical sale history', () => {
   });
 
   it('allows a new customer whose name is part of an existing customer name', async () => {
-    mocks.getAdminProducts.mockResolvedValue({ data: [packagedProduct], total: 1, page: 1, limit: 100, totalPages: 1 });
+    mocks.getVariantOptions.mockResolvedValue(productOptions(packagedProduct));
     mocks.suggestCreditCustomers.mockResolvedValue([{
       id: '70000000-0000-4000-8000-000000000002', name: 'Alif', phone: null,
       nextFollowUpDate: '2099-09-20', outstandingAmount: 100,

@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, Clock3, HandCoins, Plus, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
+import { ChevronDown, Clock3, HandCoins, Plus, RotateCw, Search, ShoppingCart, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -10,16 +10,15 @@ import { Label } from '@/components/ui/label';
 import { FilterField, FilterFields, FilterForm, FilterPanel, FilterResetButton } from '@/components/ui/filter-panel';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import PhysicalSaleReturnDialog from '@/components/PhysicalSaleReturnDialog';
-import { ApiError, createPhysicalSale, getAdminProducts, getPhysicalSales, returnPhysicalSale, suggestCreditCustomers } from '@/lib/api';
-import type { AmountUnit, CreditCustomerSuggestion, PhysicalSale, Product, ProductVariant } from '@/lib/types';
+import { ApiError, createPhysicalSale, getPhysicalSales, getVariantOptions, returnPhysicalSale, suggestCreditCustomers } from '@/lib/api';
+import type { AmountUnit, CreditCustomerSuggestion, PhysicalSale, VariantOption } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
-import { productPackLabel, visiblePackSize } from '@/lib/productOptions';
-import { amountUnitsForKind, defaultAmountUnit, formatQuantity, productKindLabel, quantityUnitForKind, rateLabel, sellingPriceForQuantity, toBaseQuantity } from '@/lib/quantity';
+import { productPackLabel } from '@/lib/productOptions';
+import { amountUnitsForKind, defaultAmountUnit, formatQuantity, productKindLabel, rateLabel, sellingPriceForQuantity, toBaseQuantity } from '@/lib/quantity';
 import { formatAppDate, formatAppDateTime } from '@/lib/date';
 
 interface SaleLine {
-  product: Product;
-  variant: ProductVariant;
+  option: VariantOption;
   amount: string;
   amountUnit: AmountUnit;
 }
@@ -70,8 +69,10 @@ function normalizeCustomerName(value: string) {
 
 export default function PhysicalSaleScreen() {
   const [initialHistoryFilters] = useState(readPhysicalSaleHistoryFilters);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [matches, setMatches] = useState<VariantOption[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [productSearchError, setProductSearchError] = useState('');
+  const [productSearchRetry, setProductSearchRetry] = useState(0);
   const [recentSales, setRecentSales] = useState<PhysicalSale[]>([]);
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [selectionDraft, setSelectionDraft] = useState<SaleLine | null>(null);
@@ -102,19 +103,34 @@ export default function PhysicalSaleScreen() {
   const productGridRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
-    setLoadingProducts(true);
-    Promise.all([getAdminProducts({ limit: 100 }), getPhysicalSales({
+    getPhysicalSales({
       limit: 50,
       ...(historyFilters.product ? { product: historyFilters.product } : {}),
       ...(historyFilters.query ? { query: historyFilters.query } : {}),
       ...(historyFilters.dateFrom ? { dateFrom: historyFilters.dateFrom } : {}),
       ...(historyFilters.dateTo ? { dateTo: historyFilters.dateTo } : {}),
-    })])
-      .then(([page, sales]) => { setProducts(page.data); setRecentSales(sales); })
+    })
+      .then(setRecentSales)
       .catch((error) => toast.error(getErrorMessage(error, 'বিক্রয় স্ক্রিন লোড হয়নি')))
-      .finally(() => setLoadingProducts(false));
   }, [historyFilters]);
   useEffect(load, [load]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setLoadingProducts(true);
+      setProductSearchError('');
+      void getVariantOptions({ context: 'PHYSICAL_SALE', q: query, limit: 10 }, controller.signal)
+        .then(setMatches)
+        .catch((error) => {
+          if (error instanceof ApiError && error.code === 'REQUEST_CANCELLED') return;
+          setMatches([]);
+          setProductSearchError(getErrorMessage(error, 'পণ্যের তালিকা লোড হয়নি।'));
+        })
+        .finally(() => { if (!controller.signal.aborted) setLoadingProducts(false); });
+    }, 300);
+    return () => { window.clearTimeout(timeout); controller.abort(); };
+  }, [productSearchRetry, query]);
 
   useEffect(() => {
     if (paymentMode !== 'CREDIT' || selectedCreditCustomer || newCreditCustomerConfirmed || !customerName.trim()) {
@@ -135,16 +151,6 @@ export default function PhysicalSaleScreen() {
     return () => { active = false; window.clearTimeout(timeout); };
   }, [customerName, newCreditCustomerConfirmed, paymentMode, selectedCreditCustomer]);
 
-  const variants = useMemo(() => products.flatMap((product) =>
-    product.isActive === false || product.category?.isActive === false
-      ? []
-      : (product.variants ?? []).filter((variant) => variant.isActive).map((variant) => ({ product, variant }))), [products]);
-  const matches = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return variants.slice(0, 12);
-    return variants.filter(({ product, variant }) =>
-      `${product.name} ${visiblePackSize(variant.name) ?? ''}`.toLowerCase().includes(normalized)).slice(0, 20);
-  }, [query, variants]);
   const hasExactCreditCustomerMatch = useMemo(() => {
     const typedName = normalizeCustomerName(customerName);
     return Boolean(typedName) && creditCustomerSuggestions.some(
@@ -215,11 +221,11 @@ export default function PhysicalSaleScreen() {
 
   const subtotal = lines.reduce((sum, line) => {
     const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0;
-    const scale = line.product.kind === 'LOOSE_WEIGHT' || line.product.kind === 'LOOSE_VOLUME' ? 1_000 : 1;
+    const scale = line.option.productKind === 'LOOSE_WEIGHT' || line.option.productKind === 'LOOSE_VOLUME' ? 1_000 : 1;
     const pricing = sellingPriceForQuantity({
-      kind: line.product.kind,
-      regularPrice: line.variant.sellingPrice,
-      bulkPrice: line.variant.bulkSellingPrice,
+      kind: line.option.productKind,
+      regularPrice: line.option.sellingPrice,
+      bulkPrice: line.option.bulkSellingPrice,
       quantity: base,
     });
     return sum + pricing.unitPrice * base / scale;
@@ -227,18 +233,18 @@ export default function PhysicalSaleScreen() {
   const discountNumber = Number(discount) || 0;
   const total = subtotal - discountNumber;
 
-  function toggleProductSelection(product: Product, variant: ProductVariant) {
-    if (variant.availableStock <= 0) {
+  function toggleProductSelection(option: VariantOption) {
+    if (option.availableStock <= 0) {
       toast.error('এই পণ্যের স্টক নেই। আগে ক্রয় ও ইনভেন্টরি থেকে নতুন স্টক অ্যাড করুন।');
       return;
     }
     setSelectionError('');
     setSelectionDraft((current) => {
-      if (current?.variant.id === variant.id) return null;
-      const existing = lines.find((line) => line.variant.id === variant.id);
+      if (current?.option.productVariantId === option.productVariantId) return null;
+      const existing = lines.find((line) => line.option.productVariantId === option.productVariantId);
       return existing
         ? { ...existing }
-        : { product, variant, amount: '1', amountUnit: defaultAmountUnit(product.kind) };
+        : { option, amount: '1', amountUnit: defaultAmountUnit(option.productKind) };
     });
   }
 
@@ -249,14 +255,14 @@ export default function PhysicalSaleScreen() {
       setSelectionError('সঠিক পরিমাণ দিন।');
       return;
     }
-    if (quantity > selectionDraft.variant.availableStock) {
-      setSelectionError(`স্টকে সর্বোচ্চ ${formatQuantity(selectionDraft.variant.availableStock, quantityUnitForKind(selectionDraft.product.kind))} আছে।`);
+    if (quantity > selectionDraft.option.availableStock) {
+      setSelectionError(`স্টকে সর্বোচ্চ ${formatQuantity(selectionDraft.option.availableStock, selectionDraft.option.quantityUnit, selectionDraft.option.productKind)} আছে।`);
       return;
     }
     setLines((current) => {
-      const existing = current.some((line) => line.variant.id === selectionDraft.variant.id);
+      const existing = current.some((line) => line.option.productVariantId === selectionDraft.option.productVariantId);
       return existing
-        ? current.map((line) => line.variant.id === selectionDraft.variant.id ? selectionDraft : line)
+        ? current.map((line) => line.option.productVariantId === selectionDraft.option.productVariantId ? selectionDraft : line)
         : [...current, selectionDraft];
     });
     setErrors((current) => ({ ...current, items: undefined }));
@@ -272,7 +278,7 @@ export default function PhysicalSaleScreen() {
     }
     if (lines.some((line) => {
       const base = toBaseQuantity(line.amount, line.amountUnit);
-      return base === null || base > line.variant.availableStock;
+      return base === null || base > line.option.availableStock;
     })) nextErrors.items = 'প্রতিটি পণ্যের সঠিক পরিমাণ দিন এবং বর্তমান স্টকের মধ্যে রাখুন।';
     if (customerPhone.trim() && (customerPhone.trim().length < 7 || customerPhone.trim().length > 30)) nextErrors.phone = 'ফোন নম্বর 7 থেকে 30 অক্ষরের মধ্যে লিখুন।';
     if (paymentMode === 'CREDIT' && !customerName.trim()) nextErrors.customerName = 'বাকি বিক্রির জন্য ক্রেতার নাম দিন।';
@@ -284,7 +290,7 @@ export default function PhysicalSaleScreen() {
     setSaving(true);
     try {
       const result = await createPhysicalSale({
-        items: lines.map((line) => ({ productVariantId: line.variant.id, amount: line.amount, amountUnit: line.amountUnit })),
+        items: lines.map((line) => ({ productVariantId: line.option.productVariantId, amount: line.amount, amountUnit: line.amountUnit })),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         creditCustomerId: paymentMode === 'CREDIT' ? selectedCreditCustomer?.id : undefined,
@@ -354,25 +360,25 @@ export default function PhysicalSaleScreen() {
             }
           }}
         >
-          {matches.map(({ product, variant }) => {
-            const title = productPackLabel(product.name, variant.name);
-            const isOpen = selectionDraft?.variant.id === variant.id;
-            const isInSale = lines.some((line) => line.variant.id === variant.id);
-            return <div key={variant.id} className={`self-start overflow-hidden rounded-lg border transition-colors ${isOpen ? 'border-secondary ring-1 ring-secondary/30' : 'hover:border-secondary'} ${variant.availableStock <= 0 ? 'opacity-50' : ''}`}>
+          {matches.map((option) => {
+            const title = option.productKind === 'PACKAGED' ? productPackLabel(option.productName, option.variantName) : option.productName;
+            const isOpen = selectionDraft?.option.productVariantId === option.productVariantId;
+            const isInSale = lines.some((line) => line.option.productVariantId === option.productVariantId);
+            return <div key={option.productVariantId} className={`self-start overflow-hidden rounded-lg border transition-colors ${isOpen ? 'border-secondary ring-1 ring-secondary/30' : 'hover:border-secondary'} ${option.availableStock <= 0 ? 'opacity-60' : ''}`}>
               <button
                 type="button"
-                onClick={() => toggleProductSelection(product, variant)}
-                aria-disabled={variant.availableStock <= 0}
+                onClick={() => toggleProductSelection(option)}
+                aria-disabled={option.availableStock <= 0}
                 aria-expanded={isOpen}
-                aria-controls={`physical-sale-selection-${variant.id}`}
+                aria-controls={`physical-sale-selection-${option.productVariantId}`}
                 aria-label={`${title} পরিমাণ সিলেক্ট করুন`}
                 className="w-full p-3 text-left"
               >
                 <div className="flex items-start justify-between gap-2"><div className="font-medium">{title}</div><ChevronDown size={17} className={`mt-0.5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
-                <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{productKindLabel(product.kind)}</span>{isInSale && <span className="rounded-full bg-secondary/15 px-2 py-0.5 font-medium text-secondary">তালিকায় আছে</span>}</div>
-                <div className="flex justify-between gap-2 mt-2"><span>{product.kind === 'EGG' && variant.bulkSellingPrice != null ? `৳${variant.sellingPrice} / 15টি+ ৳${variant.bulkSellingPrice}` : `৳${variant.sellingPrice} ${rateLabel(product.kind)}`}</span><span>স্টক {formatQuantity(variant.availableStock, quantityUnitForKind(product.kind), product.kind)}</span></div>
+                <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{productKindLabel(option.productKind)}</span>{isInSale && <span className="rounded-full bg-secondary/15 px-2 py-0.5 font-medium text-secondary">তালিকায় আছে</span>}</div>
+                <div className="flex justify-between gap-2 mt-2"><span>{option.productKind === 'EGG' && option.bulkSellingPrice != null ? `৳${option.sellingPrice} / 15টি+ ৳${option.bulkSellingPrice}` : `৳${option.sellingPrice} ${rateLabel(option.productKind)}`}</span><span>{option.availableStock <= 0 ? 'স্টক নেই' : `স্টক ${formatQuantity(option.availableStock, option.quantityUnit, option.productKind)}`}</span></div>
               </button>
-              {isOpen && selectionDraft && <div id={`physical-sale-selection-${variant.id}`} className="space-y-3 border-t bg-muted/15 p-3">
+              {isOpen && selectionDraft && <div id={`physical-sale-selection-${option.productVariantId}`} className="space-y-3 border-t bg-muted/15 p-3">
                 <div><Label className="text-xs">পরিমাণ</Label><div className="mt-1"><SaleAmountInput line={selectionDraft} onChange={(patch) => { setSelectionError(''); setSelectionDraft((current) => current ? { ...current, ...patch } : current); }} /></div></div>
                 {selectionError && <p role="alert" className="text-sm text-destructive">{selectionError}</p>}
                 <Button type="button" className="w-full" onClick={saveProductSelection}><Plus size={16} />{isInSale ? 'পরিমাণ আপডেট করুন' : 'বিক্রির তালিকায় অ্যাড করুন'}</Button>
@@ -380,14 +386,14 @@ export default function PhysicalSaleScreen() {
             </div>;
           })}
           {matches.length === 0 && <div role="status" className="col-span-full rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-            {loadingProducts ? 'পণ্য লোড হচ্ছে…' : query.trim() ? 'এমন কোনো পণ্য পাওয়া যায়নি।' : 'বিক্রির জন্য কোনো পণ্য নেই।'}
+            {loadingProducts ? 'পণ্য লোড হচ্ছে…' : productSearchError ? <div className="space-y-3"><p role="alert" className="text-destructive">{productSearchError}</p><Button type="button" size="sm" variant="outline" onClick={() => setProductSearchRetry((value) => value + 1)}><RotateCw size={14} />রিট্রাই করুন</Button></div> : query.trim() ? 'এমন কোনো পণ্য পাওয়া যায়নি।' : 'বিক্রির জন্য কোনো পণ্য নেই।'}
           </div>}
         </div>
       </section>
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
-        <div className="space-y-2">{lines.map((line) => { const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0; const pricing = sellingPriceForQuantity({ kind: line.product.kind, regularPrice: line.variant.sellingPrice, bulkPrice: line.variant.bulkSellingPrice, quantity: base }); return <div key={line.variant.id} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{productPackLabel(line.product.name, line.variant.name)}</strong><div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(line.product.kind)}{line.product.kind === 'EGG' ? ` · ${pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'}` : ''} · স্টক {formatQuantity(line.variant.availableStock, quantityUnitForKind(line.product.kind), line.product.kind)}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.variant.id === line.variant.id ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.variant.id !== line.variant.id))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>; })}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
+        <div className="space-y-2">{lines.map((line) => { const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0; const pricing = sellingPriceForQuantity({ kind: line.option.productKind, regularPrice: line.option.sellingPrice, bulkPrice: line.option.bulkSellingPrice, quantity: base }); const title = line.option.productKind === 'PACKAGED' ? productPackLabel(line.option.productName, line.option.variantName) : line.option.productName; return <div key={line.option.productVariantId} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{title}</strong><div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(line.option.productKind)}{line.option.productKind === 'EGG' ? ` · ${pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'}` : ''} · স্টক {formatQuantity(line.option.availableStock, line.option.quantityUnit, line.option.productKind)}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.option.productVariantId === line.option.productVariantId ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.option.productVariantId !== line.option.productVariantId))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>; })}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
         <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পেমেন্ট</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
         <div className="grid items-start gap-3 sm:grid-cols-2">
           <Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName ?? errors.customerSelection}>
@@ -444,17 +450,7 @@ export default function PhysicalSaleScreen() {
       <FilterPanel className="mb-4" title="বিক্রির ফিল্টার" actions={<><Button type="submit" form="physical-sale-history-filters"><Search size={16} />সার্চ করুন</Button><FilterResetButton active={Boolean(historyProduct || historyQuery || historyDateFrom || historyDateTo || historyFilters.product || historyFilters.query || historyFilters.dateFrom || historyFilters.dateTo)} onClick={clearHistoryFilters} /></>}>
         <FilterForm id="physical-sale-history-filters" onSubmit={applyHistoryFilters}>
           <FilterFields className="xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_170px_170px]">
-            <FilterField label="পণ্য"><ProductHistorySearch
-              value={historyProduct}
-              products={products}
-              onChange={setHistoryProduct}
-              onSelect={(value) => {
-                setHistoryProduct(value);
-                const next = { product: value, query: historyQuery.trim(), dateFrom: historyDateFrom, dateTo: historyDateTo };
-                setHistoryFilters(next);
-                savePhysicalSaleHistoryFilters(next);
-              }}
-            /></FilterField>
+            <FilterField label="পণ্য"><Input aria-label="বিক্রির পণ্য" value={historyProduct} onChange={(event) => setHistoryProduct(event.target.value)} placeholder="পণ্যের নাম লিখুন" /></FilterField>
             <FilterField label="অন্য তথ্য"><Input
               aria-label="ক্রেতা বা বিক্রির তথ্য"
               value={historyQuery}
@@ -481,67 +477,6 @@ function Field({ label, children, error }: { label: string; children: React.Reac
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div><div className="text-muted-foreground">{label}</div><div className="font-bold text-lg">{value}</div></div>;
-}
-
-function ProductHistorySearch({
-  value,
-  products,
-  onChange,
-  onSelect,
-}: {
-  value: string;
-  products: Product[];
-  onChange: (value: string) => void;
-  onSelect: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const normalized = value.trim().toLocaleLowerCase('bn-BD');
-  const suggestions = useMemo(() => products
-    .filter((product) => !normalized || product.name.toLocaleLowerCase('bn-BD').includes(normalized))
-    .sort((left, right) => left.name.localeCompare(right.name, 'bn-BD'))
-    .slice(0, 8), [normalized, products]);
-
-  return <div
-    className="relative"
-    onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
-    }}
-  >
-    <div className="relative">
-      <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={17} />
-      <Input
-        role="combobox"
-        aria-label="পণ্য সিলেক্ট করুন"
-        aria-expanded={open}
-        aria-controls="physical-sale-product-suggestions"
-        aria-autocomplete="list"
-        className="pl-10"
-        value={value}
-        onFocus={() => setOpen(true)}
-        onChange={(event) => { onChange(event.target.value); setOpen(true); }}
-        onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }}
-        placeholder="পণ্য সিলেক্ট করুন বা নাম লিখুন"
-      />
-    </div>
-    {open && <div id="physical-sale-product-suggestions" role="listbox" aria-label="পণ্যের পরামর্শ" className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">
-      {suggestions.length === 0
-        ? <p className="px-3 py-4 text-center text-sm text-muted-foreground">এমন কোনো পণ্য নেই।</p>
-        : suggestions.map((product) => <button
-          key={product.id}
-          type="button"
-          role="option"
-          aria-selected={value === product.name}
-          className="flex min-h-12 w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-muted focus:bg-muted focus:outline-none"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => { onSelect(product.name); setOpen(false); }}
-        >
-          {product.images[0]
-            ? <img src={product.images[0]} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
-            : <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-muted text-sm font-semibold">{product.name.charAt(0)}</span>}
-          <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{product.name}</strong><span className="block text-xs text-muted-foreground">{productKindLabel(product.kind)}{product.isActive === false ? ' · ইনঅ্যাকটিভ' : ''}</span></span>
-        </button>)}
-    </div>}
-  </div>;
 }
 
 function money(value: number) {
@@ -645,12 +580,12 @@ function SaleSummaryMetric({ label, value, negative = false }: { label: string; 
 }
 
 function SaleAmountInput({ line, onChange }: { line: SaleLine; onChange: (patch: Partial<Pick<SaleLine, 'amount' | 'amountUnit'>>) => void }) {
-  const units = amountUnitsForKind(line.product.kind);
-  const title = productPackLabel(line.product.name, line.variant.name);
+  const units = amountUnitsForKind(line.option.productKind);
+  const title = line.option.productKind === 'PACKAGED' ? productPackLabel(line.option.productName, line.option.variantName) : line.option.productName;
   return <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2">
     <Input aria-label={`${title} পরিমাণ`} type="number" min="0" step={line.amountUnit === 'KG' || line.amountUnit === 'LITER' ? '0.001' : '1'} value={line.amount} onChange={(event) => onChange({ amount: event.target.value })} />
     {units.length === 1
-      ? <div aria-label={`${title} একক`} className="flex h-11 items-center rounded-md border bg-muted/30 px-3 text-sm md:h-10">{line.product.kind === 'EGG' ? 'টি ডিম' : 'ইউনিট'}</div>
+      ? <div aria-label={`${title} একক`} className="flex h-11 items-center rounded-md border bg-muted/30 px-3 text-sm md:h-10">{line.option.productKind === 'EGG' ? 'টি ডিম' : 'ইউনিট'}</div>
       : <select aria-label={`${title} একক`} className="h-11 rounded-md border bg-background px-2 md:h-10" value={line.amountUnit} onChange={(event) => onChange({ amountUnit: event.target.value as AmountUnit, amount: '' })}>{units.map((unit) => <option key={unit} value={unit}>{unit === 'KG' ? 'কেজি' : unit === 'G' ? 'গ্রাম' : unit === 'LITER' ? 'লিটার' : 'মিলি'}</option>)}</select>}
   </div>;
 }

@@ -10,9 +10,12 @@ import type {
   ProductList,
   ProductUpdate,
   VariantCreate,
+  VariantOptionContext,
+  VariantOptionList,
   VariantUpdate,
 } from "../schemas/catalog.js";
 import { EGG_BULK_MINIMUM_QUANTITY, validateEggPrices } from "../lib/pricing.js";
+import { quantityUnitForKind } from "../lib/quantity.js";
 
 const publicProductInclude = {
   category: { select: { id: true, name: true, slug: true, isActive: true, isVisibleInShop: true } },
@@ -145,6 +148,51 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
   };
 }
 
+const variantOptionSelect = {
+  id: true,
+  productId: true,
+  name: true,
+  currentSellingPrice: true,
+  bulkSellingPrice: true,
+  availableStock: true,
+  reservedStock: true,
+  product: { select: { name: true, kind: true } },
+} satisfies Prisma.ProductVariantSelect;
+
+type VariantOptionRecord = Prisma.ProductVariantGetPayload<{ select: typeof variantOptionSelect }>;
+
+function variantOptionDto(variant: VariantOptionRecord) {
+  return {
+    productVariantId: variant.id,
+    productId: variant.productId,
+    productName: variant.product.name,
+    variantName: variant.name,
+    productKind: variant.product.kind,
+    quantityUnit: quantityUnitForKind(variant.product.kind),
+    availableStock: variant.availableStock,
+    reservedStock: variant.reservedStock,
+    sellingPrice: Number(variant.currentSellingPrice),
+    bulkSellingPrice: variant.bulkSellingPrice === null ? null : Number(variant.bulkSellingPrice),
+    bulkMinimumQuantity: variant.product.kind === "EGG" ? EGG_BULK_MINIMUM_QUANTITY : null,
+    isOperational: true,
+  };
+}
+
+function variantOptionWhere(context: VariantOptionContext, query?: string): Prisma.ProductVariantWhereInput {
+  return {
+    isActive: true,
+    product: {
+      isActive: true,
+      category: { isActive: true },
+      ...(context === "MANUAL_ORDER" ? { kind: { in: ["PACKAGED", "EGG"] } } : {}),
+    },
+    ...(query ? { OR: [
+      { product: { name: { contains: query, mode: "insensitive" } } },
+      { name: { contains: query, mode: "insensitive" } },
+    ] } : {}),
+  };
+}
+
 export function createCatalogService(prisma: PrismaClient) {
   async function readProduct(id: string, includeInactiveVariants = true) {
     const product = await prisma.product.findUnique({ where: { id }, include: adminProductInclude });
@@ -185,6 +233,23 @@ export function createCatalogService(prisma: PrismaClient) {
         categories,
         tags: [...new Set(products.flatMap((product) => product.tags))].sort(),
       };
+    },
+    async listVariantOptions(input: VariantOptionList) {
+      const variants = await prisma.productVariant.findMany({
+        where: variantOptionWhere(input.context, input.q),
+        select: variantOptionSelect,
+        orderBy: [{ product: { name: "asc" } }, { name: "asc" }],
+        take: input.limit,
+      });
+      return variants.map(variantOptionDto);
+    },
+    async getVariantOption(id: string, context: VariantOptionContext) {
+      const variant = await prisma.productVariant.findFirst({
+        where: { ...variantOptionWhere(context), id },
+        select: variantOptionSelect,
+      });
+      if (!variant) throw catalogError(404, "VARIANT_OPTION_NOT_FOUND", "পণ্যটি অ্যাকটিভ নয় অথবা পাওয়া যায়নি।");
+      return variantOptionDto(variant);
     },
     async createCategory(input: CategoryCreate) {
       try {
