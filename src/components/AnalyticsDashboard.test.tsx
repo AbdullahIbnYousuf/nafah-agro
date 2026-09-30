@@ -53,6 +53,10 @@ const profitMetric = {
 
 const dashboard: AnalyticsDashboardData = {
   generatedAt: '2026-08-07T12:00:00.000Z',
+  paymentChannels: [
+    { method: 'CASH', received: 100, refunded: 10, net: 90 },
+    { method: 'BKASH', received: 50, refunded: 0, net: 50 },
+  ],
   currency: 'BDT',
   timezone: 'Asia/Dhaka',
   week: { startsOn: 'SUNDAY', endsOn: 'SATURDAY' },
@@ -176,8 +180,10 @@ describe('analytics dashboard date controls', () => {
     expect(screen.queryByText('বিক্রি হওয়া তরল')).not.toBeInTheDocument();
     expect(screen.queryByText('গড় অর্ডার মূল্য')).not.toBeInTheDocument();
     expect(screen.queryByText('মোট সম্পন্ন বিক্রি')).not.toBeInTheDocument();
-    expect(screen.getByText('নগদে বিক্রি')).toBeInTheDocument();
+    expect(screen.getByText('বাকি ছাড়া বিক্রি')).toBeInTheDocument();
     expect(screen.getByText('বাকিতে বিক্রি')).toBeInTheDocument();
+    expect(screen.getByText('টাকা এসেছে কোন মাধ্যমে')).toBeInTheDocument();
+    expect(screen.getByText('পুরোনো পেমেন্ট ও টাকা ফেরতের মাধ্যম রেকর্ড না থাকলে ক্যাশ ধরা হয়েছে।')).toBeInTheDocument();
     expect(screen.getByText('ডিসকাউন্ট বাদ দিয়ে পণ্য বিক্রি থেকে মোট আয়।')).toBeInTheDocument();
     const deliveredCard = screen.getByText('ডেলিভারড অর্ডার').closest('div.rounded-xl');
     const deliveryChargeCard = screen.getByText('ডেলিভারি চার্জ').closest('div.rounded-xl');

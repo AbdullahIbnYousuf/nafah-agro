@@ -11,8 +11,11 @@ import { FilterField, FilterFields, FilterForm, FilterPanel, FilterResetButton }
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
 import PriceIncreaseDialog from '@/components/PriceIncreaseDialog';
 import PhysicalSaleReturnDialog from '@/components/PhysicalSaleReturnDialog';
-import { ApiError, createPhysicalSale, getPhysicalSales, getVariantOptions, returnPhysicalSale, suggestCreditCustomers } from '@/lib/api';
-import type { AmountUnit, CreditCustomerSuggestion, PhysicalSale, VariantOption } from '@/lib/types';
+import { PaymentChannelSelect } from '@/components/PaymentChannelSelect';
+import { paymentChannelLabel } from '@/lib/paymentChannels';
+import { PaymentChannelCorrectionDialog } from '@/components/PaymentChannelCorrectionDialog';
+import { ApiError, correctCreditCustomerPaymentChannel, correctLegacyCreditPaymentChannel, correctPhysicalReturnChannel, correctPhysicalSalePaymentChannel, createPhysicalSale, getPhysicalSales, getVariantOptions, returnPhysicalSale, suggestCreditCustomers } from '@/lib/api';
+import type { AmountUnit, CreditCustomerSuggestion, PaymentChannel, PhysicalSale, VariantOption } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
 import { productPackLabel } from '@/lib/productOptions';
 import { amountUnitsForKind, defaultAmountUnit, formatQuantity, productKindLabel, rateLabel, sellingPriceForQuantity, toBaseQuantity } from '@/lib/quantity';
@@ -97,6 +100,7 @@ export default function PhysicalSaleScreen() {
   const [lateEntry, setLateEntry] = useState(false);
   const [soldOn, setSoldOn] = useState('');
   const [paymentMode, setPaymentMode] = useState<'PAID_NOW' | 'CREDIT'>('PAID_NOW');
+  const [paymentChannel, setPaymentChannel] = useState<PaymentChannel>('CASH');
   const [nextFollowUpDate, setNextFollowUpDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState<PhysicalSale | null>(null);
@@ -313,6 +317,7 @@ export default function PhysicalSaleScreen() {
         finalProductTotal: priceEdited ? total : undefined,
         soldOn: lateEntry ? soldOn : undefined,
         paymentMode,
+        paymentChannel: paymentMode === 'PAID_NOW' ? paymentChannel : undefined,
         nextFollowUpDate: paymentMode === 'CREDIT' ? nextFollowUpDate : undefined,
       };
       const fingerprint = JSON.stringify(payload);
@@ -324,7 +329,7 @@ export default function PhysicalSaleScreen() {
         confirmPriceIncrease,
       });
       setCompleted(result);
-      setLines([]); setCustomerName(''); setCustomerPhone(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setFinalProductTotal(''); setPriceEdited(false); setLateEntry(false); setSoldOn(''); setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); saleRequestRef.current = null;
+      setLines([]); setCustomerName(''); setCustomerPhone(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setFinalProductTotal(''); setPriceEdited(false); setLateEntry(false); setSoldOn(''); setPaymentMode('PAID_NOW'); setPaymentChannel('CASH'); setNextFollowUpDate(''); saleRequestRef.current = null;
       setProjectedLoss(null);
       setProjectedIncrease(null);
       toast.success(`বিক্রয় ${result.orderNumber} সম্পন্ন হয়েছে`);
@@ -425,6 +430,7 @@ export default function PhysicalSaleScreen() {
         </div>
         <div className="space-y-2">{lines.map((line) => { const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0; const pricing = sellingPriceForQuantity({ kind: line.option.productKind, regularPrice: line.option.sellingPrice, bulkPrice: line.option.bulkSellingPrice, quantity: base }); const title = line.option.productKind === 'PACKAGED' ? productPackLabel(line.option.productName, line.option.variantName) : line.option.productName; return <div key={line.option.productVariantId} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{title}</strong><div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(line.option.productKind, line.option.unitLabel)}{line.option.productKind === 'EGG' ? ` · ${pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'}` : ''} · স্টক {formatQuantity(line.option.availableStock, line.option.quantityUnit, line.option.productKind, line.option.unitLabel)}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.option.productVariantId === line.option.productVariantId ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.option.productVariantId !== line.option.productVariantId))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>; })}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
         <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পেমেন্ট</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
+        {paymentMode === 'PAID_NOW' && <PaymentChannelSelect value={paymentChannel} onChange={setPaymentChannel} />}
         <div className="grid items-start gap-3 sm:grid-cols-2">
           <Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName ?? errors.customerSelection}>
             <div className="relative">
@@ -494,7 +500,7 @@ export default function PhysicalSaleScreen() {
       </FilterPanel>
       {recentSales.length === 0
         ? <div className="rounded-lg border bg-card px-4 py-10 text-center text-sm text-muted-foreground">এই খোঁজে কোনো বিক্রি পাওয়া যায়নি</div>
-        : <div className="space-y-3">{recentSales.map((sale) => <PhysicalSaleHistoryCard key={sale.id} sale={sale} onReturn={() => setReturnSale(sale)} />)}</div>}
+        : <div className="space-y-3">{recentSales.map((sale) => <PhysicalSaleHistoryCard key={sale.id} sale={sale} onReturn={() => setReturnSale(sale)} onRefresh={load} onChanged={(updated) => { setRecentSales((current) => current.map((item) => item.id === updated.id ? updated : item)); setCompleted((current) => current?.id === updated.id ? updated : current); }} />)}</div>}
     </section>
     <PriceIncreaseDialog open={projectedIncrease !== null} increase={projectedIncrease ?? 0} onClose={() => setProjectedIncrease(null)} onConfirm={() => saveSale(false, true)} />
     <ProfitWarningDialog open={projectedLoss !== null} projectedGrossProfit={projectedLoss} onClose={() => setProjectedLoss(null)} onConfirm={() => saveSale(true, increaseNumber > 0)} />
@@ -521,8 +527,9 @@ function saleRateLabel(unit: PhysicalSale['items'][number]['quantityUnit'], unit
   return `প্রতি ${unitLabel || 'ইউনিট'}`;
 }
 
-function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onReturn: () => void }) {
+function PhysicalSaleHistoryCard({ sale, onReturn, onChanged, onRefresh }: { sale: PhysicalSale; onReturn: () => void; onChanged: (sale: PhysicalSale) => void; onRefresh: () => void }) {
   const [open, setOpen] = useState(false);
+  const [correction, setCorrection] = useState<{ type: 'SALE' | 'RETURN' | 'PAYMENT'; id?: string; current: PaymentChannel | null | undefined } | null>(null);
   const customer = [sale.customerName, sale.customerPhone].filter(Boolean).join(' · ');
   const firstItem = sale.items[0];
   const remainingItems = sale.items.length - 1;
@@ -586,13 +593,22 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
           <SaleSummaryMetric label="বর্তমান ক্রয়মূল্য" value={money(sale.remainingBuyingCost)} />
           <SaleSummaryMetric label="বর্তমান লাভ" value={money(sale.remainingGrossProfit)} negative={sale.remainingGrossProfit < 0} />
         </div>
+        {sale.paymentMethod === 'CASH' && <div className="mt-3 flex items-center gap-2 text-sm"><span>পেমেন্ট: {paymentChannelLabel(sale.paymentChannel)}</span><Button type="button" size="sm" variant="ghost" onClick={() => setCorrection({ type: 'SALE', current: sale.paymentChannel })}>মাধ্যম আপডেট করুন</Button></div>}
         {sale.paymentMethod === 'CREDIT' && <div className="mt-4 rounded-lg border bg-card p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>বাকি হিসাব</strong><span>{sale.nextFollowUpDate ? `পরের যোগাযোগ: ${sale.nextFollowUpDate}` : 'বাকি শেষ'}</span></div><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"><Metric label="জমা হয়েছে" value={money(sale.collectedAmount)} /><Metric label="এখনো বাকি" value={money(sale.outstandingAmount)} /><Metric label="পেমেন্ট" value={`${sale.creditPayments.filter((payment) => !payment.voidedAt).length}টি`} /></div></div>}
+        {sale.creditPayments.length > 0 && <div className="mt-3 rounded-lg border bg-card p-3 text-sm">
+          <strong>পেমেন্টের রেকর্ড</strong>
+          {sale.creditPayments.map((payment) => <div key={payment.id} className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t pt-2">
+            <span>{formatAppDate(payment.paidOn)} · {money(payment.amount)} · {paymentChannelLabel(payment.paymentChannel)}{payment.voidedAt ? ' · বাতিল' : ''}</span>
+            {!payment.voidedAt && <Button type="button" size="sm" variant="ghost" onClick={() => setCorrection({ type: 'PAYMENT', id: payment.id, current: payment.paymentChannel })}>মাধ্যম আপডেট করুন</Button>}
+          </div>)}
+        </div>}
         {sale.returns.length > 0 && <div className="mt-4 space-y-2">
           <h3 className="text-sm font-semibold">আগের রিটার্ন রেকর্ড</h3>
           {sale.returns.map((value) => <div key={value.id} className="rounded-lg border bg-card p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{formatAppDateTime(value.createdAt)}</span></div>
             <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)}`).join(', ')}</div>
-            <div className="mt-1">রিফান্ড {money(value.refundAmount)}{sale.paymentMethod === 'CREDIT' ? ` · বাকি কমেছে ${money(value.creditOffsetAmount)} · ক্যাশ রিফান্ড ${money(value.cashRefundAmount)}` : ''} · কারণ: {value.reason}</div>
+            <div className="mt-1">রিফান্ড {money(value.refundAmount)}{sale.paymentMethod === 'CREDIT' ? ` · বাকি কমেছে ${money(value.creditOffsetAmount)} · টাকা ফেরত ${money(value.cashRefundAmount)}` : ''} · কারণ: {value.reason}</div>
+            {value.cashRefundAmount > 0 && <div className="mt-1 flex items-center gap-2">ফেরতের মাধ্যম: {paymentChannelLabel(value.refundChannel)}<Button type="button" size="sm" variant="ghost" onClick={() => setCorrection({ type: 'RETURN', id: value.id, current: value.refundChannel })}>মাধ্যম আপডেট করুন</Button></div>}
           </div>)}
         </div>}
         <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
@@ -601,6 +617,27 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
         </div>
         <div className="mt-4 flex justify-end"><Button type="button" variant="outline" onClick={onReturn} disabled={!sale.items.some((item) => item.returnableQuantity > 0)}>{sale.items.some((item) => item.returnableQuantity > 0) ? 'প্রোডাক্ট রিটার্ন' : 'সব পণ্য রিটার্ন হয়েছে'}</Button></div>
       </div>
+        <PaymentChannelCorrectionDialog
+          open={correction !== null}
+          current={correction?.current}
+          title={correction?.type === 'RETURN' ? 'রিফান্ডের মাধ্যম আপডেট করুন' : 'পেমেন্টের মাধ্যম আপডেট করুন'}
+          onClose={() => setCorrection(null)}
+          onSave={async (channel) => {
+            if (!correction) return;
+            if (correction.type === 'PAYMENT' && sale.creditCustomerId) {
+              await correctCreditCustomerPaymentChannel(sale.creditCustomerId, correction.id!, channel);
+              onRefresh();
+            } else {
+              const updated = correction.type === 'RETURN'
+                ? await correctPhysicalReturnChannel(sale.id, correction.id!, channel)
+                : correction.type === 'PAYMENT'
+                  ? await correctLegacyCreditPaymentChannel(sale.id, correction.id!, channel)
+                  : await correctPhysicalSalePaymentChannel(sale.id, channel);
+              onChanged(updated);
+            }
+            toast.success('পেমেন্টের মাধ্যম আপডেট হয়েছে');
+          }}
+        />
     </CollapsibleContent>
   </Collapsible>;
 }

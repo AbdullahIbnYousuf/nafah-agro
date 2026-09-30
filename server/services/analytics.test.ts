@@ -1,10 +1,13 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { analyticsDashboardQuerySchema } from "../schemas/analytics.js";
 import {
   buildAnalyticsDashboard,
+  createAnalyticsService,
   resolveAnalyticsRange,
+  summarizePaymentChannels,
   type AnalyticsOrderRecord,
   type AnalyticsInventoryOperationRecord,
   type AnalyticsVariantRecord,
@@ -51,6 +54,63 @@ function dashboard(overrides: Partial<Parameters<typeof buildAnalyticsDashboard>
     ...overrides,
   });
 }
+
+describe("shop payment methods", () => {
+  it("separates all five methods, treats legacy blanks as cash, and subtracts only payouts", () => {
+    const result = summarizePaymentChannels({
+      paidShopSales: [
+        { grandTotal: "100.00", paymentChannel: null },
+        { grandTotal: "50.50", paymentChannel: "BKASH" },
+        { grandTotal: "40.00", paymentChannel: "BANK" },
+      ],
+      customerPayments: [{ amount: "20.00", paymentChannel: "NAGAD" }],
+      legacyPayments: [{ amount: "30.00", paymentChannel: "ROCKET" }],
+      payouts: [
+        { cashRefundAmount: "10.00", refundChannel: null },
+        { cashRefundAmount: "5.25", refundChannel: "BKASH" },
+      ],
+    });
+    expect(result).toEqual([
+      { method: "CASH", received: 100, refunded: 10, net: 90 },
+      { method: "BKASH", received: 50.5, refunded: 5.25, net: 45.25 },
+      { method: "NAGAD", received: 20, refunded: 0, net: 20 },
+      { method: "ROCKET", received: 30, refunded: 0, net: 30 },
+      { method: "BANK", received: 40, refunded: 0, net: 40 },
+    ]);
+  });
+  it("uses soldOn, paidOn, and return time while excluding delivery COD", async () => {
+    const salesQuery = vi.fn(async ({ where }: { where: Record<string, unknown> }) => (
+      where.source === "PHYSICAL_SHOP" && where.paymentMethod === "CASH"
+        ? [{ grandTotal: "100.00", paymentChannel: "BKASH" }]
+        : []
+    ));
+    const refundQuery = vi.fn(async ({ where }: { where: Record<string, unknown> }) => (
+      "cashRefundAmount" in where ? [{ cashRefundAmount: "5.00", refundChannel: "BKASH" }] : []
+    ));
+    const customerQuery = vi.fn(async () => [{ amount: "25.00", paymentChannel: "BANK" }]);
+    const legacyQuery = vi.fn(async () => [{ amount: "10.00", paymentChannel: "CASH" }]);
+    const prisma = {
+      salesOrder: { findMany: salesQuery },
+      physicalSaleReturn: { findMany: refundQuery },
+      creditCustomerPayment: { findMany: customerQuery },
+      creditPayment: { findMany: legacyQuery },
+      stockBatch: { findMany: async () => [] },
+      productVariant: { findMany: async () => [] },
+      inventoryOperation: { findMany: async () => [] },
+    } as unknown as PrismaClient;
+    const result = await createAnalyticsService(prisma).getDashboard({ preset: "custom", from: "2026-08-04", to: "2026-08-04" });
+    expect(result.paymentChannels.find((row) => row.method === "BKASH")).toEqual({ method: "BKASH", received: 100, refunded: 5, net: 95 });
+    expect(result.paymentChannels.find((row) => row.method === "BANK")?.received).toBe(25);
+    const paidQuery = salesQuery.mock.calls.find(([options]) => options.where.paymentMethod === "CASH")![0];
+    expect(paidQuery.where.source).toBe("PHYSICAL_SHOP");
+    expect(paidQuery.where.OR[0]).toEqual({
+      soldOn: { gte: new Date("2026-08-04T00:00:00.000Z"), lt: new Date("2026-08-05T00:00:00.000Z") },
+    });
+    expect(customerQuery.mock.calls[0][0].where.paidOn).toEqual({ gte: new Date("2026-08-04T00:00:00.000Z"), lt: new Date("2026-08-05T00:00:00.000Z") });
+    expect(refundQuery.mock.calls.some(([options]) => "cashRefundAmount" in options.where)).toBe(true);
+  });
+
+});
 
 describe("analytics date boundaries", () => {
   it("uses Asia/Dhaka midnight for today", () => {

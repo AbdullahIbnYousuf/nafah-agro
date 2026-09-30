@@ -24,6 +24,7 @@ import {
   YAxis,
 } from 'recharts';
 import { getAnalyticsDashboard, getCreditSummary } from '@/lib/api';
+import { paymentChannelLabel } from '@/lib/paymentChannels';
 import type {
   AnalyticsDashboardData,
   AnalyticsPreset,
@@ -291,6 +292,24 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
   );
 }
 
+function PaymentChannelSummary({ rows }: { rows: NonNullable<AnalyticsDashboardData['paymentChannels']> }) {
+  return <section className="mb-5 rounded-xl border bg-card p-4 sm:p-5">
+    <h2 className="text-lg font-bold">টাকা এসেছে কোন মাধ্যমে</h2>
+    <p className="mb-3 text-sm text-muted-foreground">সিলেক্ট করা সময়ে দোকানের বিক্রি ও বাকি পেমেন্ট থেকে পাওয়া টাকা। এটি ক্যাশ, অ্যাপ বা ব্যাংকের বর্তমান ব্যালেন্স নয়। ডেলিভারি অর্ডারের COD এখানে নেই।</p>
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+      {rows.map((row) => <div key={row.method} className="rounded-lg border bg-background/60 p-3">
+        <h3 className="font-semibold">{paymentChannelLabel(row.method)}</h3>
+        <dl className="mt-2 space-y-1 text-sm">
+          <div className="flex justify-between gap-2"><dt>জমা হয়েছে</dt><dd>{money(row.received)}</dd></div>
+          <div className="flex justify-between gap-2"><dt>রিফান্ড</dt><dd>{money(row.refunded)}</dd></div>
+          <div className="flex justify-between gap-2 border-t pt-1 font-semibold"><dt>নেট</dt><dd>{money(row.net)}</dd></div>
+        </dl>
+      </div>)}
+    </div>
+    <p className="mt-3 text-xs text-muted-foreground">পুরোনো পেমেন্ট ও টাকা ফেরতের মাধ্যম রেকর্ড না থাকলে ক্যাশ ধরা হয়েছে।</p>
+  </section>;
+}
+
 function DashboardContent({ data, chartMetric, onChartMetricChange }: {
   data: AnalyticsDashboardData;
   chartMetric: ChartMetric;
@@ -326,7 +345,7 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
   ));
   const primaryMetrics = [
     { label: 'পণ্য আয়', detail: 'ডিসকাউন্ট বাদ দিয়ে পণ্য বিক্রি থেকে মোট আয়।', metric: data.summary.productRevenue, icon: ShoppingBag },
-    { label: 'নগদে বিক্রি', detail: 'সঙ্গে সঙ্গে বা ডেলিভারির সময় টাকা পাওয়া পণ্য বিক্রি।', metric: data.summary.cashProductRevenue, icon: CircleDollarSign },
+    { label: 'বাকি ছাড়া বিক্রি', detail: 'সঙ্গে সঙ্গে বা ডেলিভারির সময় টাকা পাওয়া পণ্য বিক্রি। এটি শুধু ক্যাশে পাওয়া টাকা নয়।', metric: data.summary.cashProductRevenue, icon: CircleDollarSign },
     { label: 'বাকিতে বিক্রি', detail: 'এই সময়ে বাকিতে দেওয়া পণ্যের মোট দাম।', metric: data.summary.creditProductRevenue, icon: HandCoins },
     { label: 'মোট লাভ', detail: 'পণ্য আয় থেকে বিক্রি হওয়া পণ্যের ক্রয়মূল্য বাদ দেওয়ার পর।', metric: data.summary.grossProfit, icon: TrendingUp },
     { label: 'লাভের মার্জিন', detail: 'প্রতি 100 টাকার পণ্য আয়ে কত টাকা লাভ হয়েছে।', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'লাভের হিসাব নেই' : `${numberFormatter.format(value)}%`, icon: TrendingUp },
@@ -476,6 +495,7 @@ function AnalyticsDashboardContent() {
       <div className="mt-3"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"><label className="text-sm">তারিখ থেকে<FormattedDateInput aria-label="তারিখ থেকে" value={draftRange.from} onChange={(event) => editRange('from', event.target.value)} /></label><label className="text-sm">তারিখ পর্যন্ত<FormattedDateInput aria-label="তারিখ পর্যন্ত" value={draftRange.to} onChange={(event) => editRange('to', event.target.value)} /></label><Button type="button" disabled={Boolean(rangeError)} onClick={applyRange}>অ্যাপ্লাই</Button></div>{rangeError && <p role="alert" className="mt-2 text-xs text-destructive">{rangeError}</p>}</div>
       {query.data && <p className="mt-3 text-xs text-muted-foreground">তুলনা: {dateLabel(query.data.range.previous.from)} থেকে {dateLabel(query.data.range.previous.to)} · ঢাকা সময়</p>}
     </div>
+    {query.data?.paymentChannels && <PaymentChannelSummary rows={query.data.paymentChannels} />}
 
     {query.isLoading && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-xl border bg-muted/50" />)}</div>}
     {query.isError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center"><AlertTriangle className="mx-auto mb-2 text-destructive" /><h2 className="font-bold">ড্যাশবোর্ড লোড করা যায়নি</h2><p className="mt-1 text-sm text-muted-foreground">{query.error instanceof Error ? query.error.message : 'রিট্রাই করুন।'}</p><Button className="mt-4" onClick={() => void query.refetch()}>রিট্রাই করুন</Button></div>}

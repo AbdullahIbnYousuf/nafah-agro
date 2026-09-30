@@ -4,6 +4,7 @@ const uuid = z.string().uuid();
 const amount = z.string().regex(/^\d+(?:\.\d{1,3})?$/).refine((value) => Number(value) > 0);
 const nonNegativeAmount = z.string().regex(/^\d+(?:\.\d{1,3})?$/);
 const amountUnit = z.enum(["PIECE", "KG", "G", "LITER", "ML"]);
+export const paymentChannelSchema = z.enum(["CASH", "BKASH", "NAGAD", "ROCKET", "BANK"]);
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/);
 const positiveMoney = money.refine((value) => Number(value) > 0, "Buying cost must be greater than zero");
 const nonNegativeMoney = money.refine((value) => Number(value) >= 0);
@@ -119,6 +120,7 @@ export const physicalSaleCreateSchema = z.object({
   soldOn: dateOnly.optional(),
   idempotencyKey: uuid.optional(),
   paymentMode: z.enum(["PAID_NOW", "CREDIT"]).default("PAID_NOW"),
+  paymentChannel: paymentChannelSchema.optional(),
   nextFollowUpDate: dateOnly.optional(),
   confirmUnprofitable: z.boolean().default(false),
 }).strict().superRefine((value, context) => {
@@ -128,6 +130,9 @@ export const physicalSaleCreateSchema = z.object({
   }
   if (value.soldOn && value.finalProductTotal === undefined) {
     context.addIssue({ code: "custom", path: ["finalProductTotal"], message: "A past sale requires its actual product total" });
+  }
+  if (value.paymentMode === "CREDIT" && value.paymentChannel !== undefined) {
+    context.addIssue({ code: "custom", path: ["paymentChannel"], message: "Credit sales receive a method when payment is collected" });
   }
   if (value.paymentMode !== "CREDIT") {
     if (value.nextFollowUpDate) {
@@ -161,6 +166,7 @@ export const physicalSaleListSchema = z.object({
 export const physicalSaleReturnSchema = z.object({
   condition: z.enum(["SELLABLE", "DAMAGED"]),
   reason: optionalReason("দোকানের বিক্রি রিটার্ন"),
+  refundChannel: paymentChannelSchema.optional(),
   items: z.array(z.object({
     salesOrderItemId: uuid,
     amount,
@@ -196,10 +202,15 @@ export const creditPaymentCreateSchema = z.object({
   idempotencyKey: uuid,
   amount: positiveMoney,
   paidOn: dateOnly,
+  paymentChannel: paymentChannelSchema.default("CASH"),
   note: z.string().trim().max(1_000).optional(),
 }).strict();
 
 export const creditPaymentVoidSchema = z.object({ reason }).strict();
+export const paymentChannelUpdateSchema = z.object({
+  paymentChannel: paymentChannelSchema,
+}).strict();
+
 
 export const creditFollowUpSchema = z.object({
   nextFollowUpDate: dateOnly,

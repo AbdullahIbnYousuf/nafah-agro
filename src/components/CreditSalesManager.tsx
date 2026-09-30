@@ -7,8 +7,12 @@ import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
 import { FilterField, FilterFields, FilterPanel, FilterResetButton } from '@/components/ui/filter-panel';
 import { useDebounce } from '@/hooks/useDebounce';
+import { PaymentChannelSelect } from '@/components/PaymentChannelSelect';
+import { paymentChannelLabel } from '@/lib/paymentChannels';
+import { PaymentChannelCorrectionDialog } from '@/components/PaymentChannelCorrectionDialog';
 import {
   ApiError,
+  correctCreditCustomerPaymentChannel,
   getCreditCustomer,
   getCreditCustomers,
   getCreditCustomerSummary,
@@ -17,7 +21,7 @@ import {
   updateCreditCustomer,
   voidCreditCustomerPayment,
 } from '@/lib/api';
-import type { CreditCustomer, CreditPayment, CreditSaleState, CreditSummary, PhysicalSale } from '@/lib/types';
+import type { CreditCustomer, CreditPayment, CreditSaleState, CreditSummary, PaymentChannel, PhysicalSale } from '@/lib/types';
 import { getErrorMessage } from '@/lib/utils';
 import { productPackLabel } from '@/lib/productOptions';
 import { formatQuantity } from '@/lib/quantity';
@@ -83,6 +87,7 @@ export default function CreditSalesManager() {
   const [followUpCustomer, setFollowUpCustomer] = useState<CreditCustomer | null>(null);
   const [editCustomer, setEditCustomer] = useState<CreditCustomer | null>(null);
   const [voidTarget, setVoidTarget] = useState<{ customer: CreditCustomer; payment: CreditPayment } | null>(null);
+  const [methodTarget, setMethodTarget] = useState<{ customerId: string; payment: CreditPayment } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setLoadError('');
@@ -152,7 +157,7 @@ export default function CreditSalesManager() {
           {customer.phone && <Button asChild size="sm" variant="outline"><a href={`tel:${customer.phone}`}><Phone size={15} />কল করুন</a></Button>}
           <Button size="sm" variant="outline" onClick={() => setEditCustomer(customer)}><Pencil size={15} />তথ্য আপডেট করুন</Button>
           {customer.outstandingAmount > 0 && <><Button size="sm" variant="outline" onClick={() => setFollowUpCustomer(customer)}><CalendarClock size={15} />তারিখ আপডেট করুন</Button><Button size="sm" onClick={() => setPaymentCustomer(customer)}><HandCoins size={15} />পেমেন্ট অ্যাড করুন</Button></>}
-        </div>{detailLoading === customer.id && <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>}{detail && <CustomerRecord customer={detail} onVoid={(payment) => setVoidTarget({ customer, payment })} />}</div>}
+        </div>{detailLoading === customer.id && <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>}{detail && <CustomerRecord customer={detail} onVoid={(payment) => setVoidTarget({ customer, payment })} onCorrect={(payment) => setMethodTarget({ customerId: customer.id, payment })} />}</div>}
       </section>;
     })}</div>}
     {totalPages > 1 && <div className="flex items-center justify-center gap-3"><Button variant="outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>আগের পেজ</Button><span className="text-sm">পেজ {page} / {totalPages}</span><Button variant="outline" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>পরের পেজ</Button></div>}
@@ -160,27 +165,29 @@ export default function CreditSalesManager() {
     <FollowUpDialog customer={followUpCustomer} onClose={() => setFollowUpCustomer(null)} onSaved={() => { setFollowUpCustomer(null); refreshed(); }} />
     <EditCustomerDialog customer={editCustomer} onClose={() => setEditCustomer(null)} onSaved={() => { setEditCustomer(null); refreshed(); }} />
     <VoidPaymentDialog target={voidTarget} onClose={() => setVoidTarget(null)} onSaved={() => { setVoidTarget(null); refreshed(); }} />
+    <PaymentChannelCorrectionDialog open={methodTarget !== null} current={methodTarget?.payment.paymentChannel} title="পেমেন্টের মাধ্যম আপডেট করুন" onClose={() => setMethodTarget(null)} onSave={async (channel) => { if (!methodTarget) return; await correctCreditCustomerPaymentChannel(methodTarget.customerId, methodTarget.payment.id, channel); refreshed(); }} />
   </div>;
 }
 
 function SummaryCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) { return <div className="rounded-xl border bg-card p-4"><div className="flex items-center justify-between text-sm text-muted-foreground"><span>{label}</span><span className="rounded-full bg-secondary/10 p-2 text-secondary">{icon}</span></div><div className="mt-2 text-2xl font-bold">{value}</div></div>; }
 
-function CustomerRecord({ customer, onVoid }: { customer: CreditCustomer; onVoid: (payment: CreditPayment) => void }) {
+function CustomerRecord({ customer, onVoid, onCorrect }: { customer: CreditCustomer; onVoid: (payment: CreditPayment) => void; onCorrect: (payment: CreditPayment) => void }) {
   const sales = customer.sales ?? [];
   return <div className="mt-4 space-y-5">
     <div><h3 className="text-sm font-semibold">বিক্রির রেকর্ড</h3><div className="mt-2 space-y-2">{sales.map((sale) => <SaleRecord key={sale.id} sale={sale} />)}</div></div>
-    <div><h3 className="text-sm font-semibold">পেমেন্টের রেকর্ড</h3>{customer.payments.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">এখনো কোনো টাকা জমা হয়নি।</p> : <div className="mt-2 space-y-2">{customer.payments.slice().reverse().map((payment) => <div key={payment.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-3 text-sm ${payment.voidedAt ? 'opacity-60' : ''}`}><div><strong>{money(payment.amount)}</strong><div className="text-xs text-muted-foreground">{dateLabel(payment.paidOn)} · {payment.createdBy.fullName}{payment.note ? ` · ${payment.note}` : ''}</div>{payment.voidedAt && <div className="text-xs text-destructive">বাতিল করা হয়েছে: {payment.voidReason}</div>}</div>{!payment.voidedAt && <Button size="sm" variant="ghost" onClick={() => onVoid(payment)}><Undo2 size={15} />পেমেন্ট বাতিল</Button>}</div>)}</div>}</div>
+    <div><h3 className="text-sm font-semibold">পেমেন্টের রেকর্ড</h3>{customer.payments.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">এখনো কোনো টাকা জমা হয়নি।</p> : <div className="mt-2 space-y-2">{customer.payments.slice().reverse().map((payment) => <div key={payment.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-3 text-sm ${payment.voidedAt ? 'opacity-60' : ''}`}><div><strong>{money(payment.amount)}</strong><div className="text-xs text-muted-foreground">{dateLabel(payment.paidOn)} · {payment.createdBy.fullName} · {paymentChannelLabel(payment.paymentChannel)}{payment.note ? ` · ${payment.note}` : ''}</div>{payment.voidedAt && <div className="text-xs text-destructive">বাতিল করা হয়েছে: {payment.voidReason}</div>}</div>{!payment.voidedAt && <div className="flex flex-wrap gap-1"><Button size="sm" variant="ghost" onClick={() => onCorrect(payment)}>মাধ্যম আপডেট করুন</Button><Button size="sm" variant="ghost" onClick={() => onVoid(payment)}><Undo2 size={15} />পেমেন্ট বাতিল</Button></div>}</div>)}</div>}</div>
     {(customer.history?.length ?? 0) > 0 && <div><h3 className="text-sm font-semibold">তথ্য ও তারিখ আপডেটের রেকর্ড</h3><div className="mt-2 space-y-2">{customer.history!.map((entry) => <div key={entry.id} className="rounded-lg border bg-background p-3 text-sm"><strong>{entry.action === 'CREDIT_CUSTOMER_UPDATED' ? 'ক্রেতার তথ্য আপডেট হয়েছে' : 'যোগাযোগের তারিখ আপডেট হয়েছে'}</strong><div className="mt-1 text-xs text-muted-foreground">{formatAppDateTime(entry.createdAt)} · {entry.actor?.fullName ?? 'ওনার'}</div></div>)}</div></div>}
   </div>;
 }
 
-function SaleRecord({ sale }: { sale: PhysicalSale }) { return <div className="rounded-lg border bg-background p-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><div><strong>{sale.orderNumber}</strong><div className="text-xs text-muted-foreground">বিক্রি: {formatAppDate(sale.soldOn)} · রেকর্ড: {formatAppDateTime(sale.completedAt)}</div></div><strong>{money(sale.remainingRevenue)}</strong></div><div className="mt-2 text-muted-foreground">{sale.items.map((item) => `${productPackLabel(item.productName, item.variantName)} · ${formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)}`).join(', ')}</div>{sale.returns.length > 0 && <div className="mt-2 text-xs text-destructive">রিফান্ড {money(sale.refundedAmount)}</div>}</div>; }
+function SaleRecord({ sale }: { sale: PhysicalSale }) { return <div className="rounded-lg border bg-background p-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><div><strong>{sale.orderNumber}</strong><div className="text-xs text-muted-foreground">বিক্রি: {formatAppDate(sale.soldOn)} · রেকর্ড: {formatAppDateTime(sale.completedAt)}</div></div><strong>{money(sale.remainingRevenue)}</strong></div><div className="mt-2 text-muted-foreground">{sale.items.map((item) => `${productPackLabel(item.productName, item.variantName)} · ${formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)}`).join(', ')}</div>{sale.returns.length > 0 && <div className="mt-2 space-y-1 text-xs text-destructive">{sale.returns.map((entry) => <div key={entry.id}>রিটার্ন {formatAppDateTime(entry.createdAt)} · বাকি কমেছে {money(entry.creditOffsetAmount)}{entry.cashRefundAmount > 0 ? ` · টাকা ফেরত ${money(entry.cashRefundAmount)} (${paymentChannelLabel(entry.refundChannel)})` : ''}</div>)}</div>}</div>; }
 
 function PaymentDialog({ customer, onClose, onSaved }: { customer: CreditCustomer | null; onClose: () => void; onSaved: () => void }) {
   const [amount, setAmount] = useState(''); const [paidOn, setPaidOn] = useState(today()); const [note, setNote] = useState(''); const [requestKey, setRequestKey] = useState(''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
-  useEffect(() => { if (customer) { setAmount(String(customer.outstandingAmount)); setPaidOn(today()); setNote(''); setError(''); setRequestKey(crypto.randomUUID()); } }, [customer]);
-  async function submit() { if (!customer) return; const value = Number(amount); if (!Number.isFinite(value) || value <= 0 || value > customer.outstandingAmount) { setError(`1 থেকে ${money(customer.outstandingAmount)} এর মধ্যে টাকা দিন।`); return; } if (!paidOn || paidOn > today()) { setError('আজ বা আগের পেমেন্টের তারিখ দিন।'); return; } setSaving(true); setError(''); try { await recordCreditCustomerPayment(customer.id, { idempotencyKey: requestKey, amount: value, paidOn, note: note.trim() || undefined }); onSaved(); } catch (value) { setError(getErrorMessage(value, 'পেমেন্ট অ্যাড করা যায়নি।')); } finally { setSaving(false); } }
-  return <Dialog open={Boolean(customer)} onOpenChange={(open) => { if (!open && !saving) onClose(); }}><DialogContent><DialogHeader><DialogTitle>পেমেন্ট অ্যাড করুন</DialogTitle><DialogDescription>{customer ? `${customer.name} · মোট বাকি ${money(customer.outstandingAmount)}` : ''}</DialogDescription></DialogHeader><div className="space-y-3"><Field label="জমা টাকা"><Input aria-label="জমা টাকা" type="number" min="0.01" step="0.01" max={customer?.outstandingAmount} value={amount} onChange={(event) => setAmount(event.target.value)} /></Field><Field label="পেমেন্টের তারিখ"><FormattedDateInput aria-label="পেমেন্টের তারিখ" max={today()} value={paidOn} onChange={(event) => setPaidOn(event.target.value)} /></Field><Field label="নোট (ঐচ্ছিক)"><Input aria-label="নোট (ঐচ্ছিক)" value={note} onChange={(event) => setNote(event.target.value)} /></Field>{error && <p role="alert" className="rounded-md bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}</div><DialogFooter><Button variant="outline" disabled={saving} onClick={onClose}>বন্ধ করুন</Button><Button disabled={saving} onClick={() => void submit()}>{saving && <Loader2 className="mr-2 animate-spin" size={16} />}পেমেন্ট অ্যাড করুন</Button></DialogFooter></DialogContent></Dialog>;
+  const [paymentChannel, setPaymentChannel] = useState<PaymentChannel>('CASH');
+  useEffect(() => { if (customer) { setAmount(String(customer.outstandingAmount)); setPaidOn(today()); setPaymentChannel('CASH'); setNote(''); setError(''); setRequestKey(crypto.randomUUID()); } }, [customer]);
+  async function submit() { if (!customer) return; const value = Number(amount); if (!Number.isFinite(value) || value <= 0 || value > customer.outstandingAmount) { setError(`1 থেকে ${money(customer.outstandingAmount)} এর মধ্যে টাকা দিন।`); return; } if (!paidOn || paidOn > today()) { setError('আজ বা আগের পেমেন্টের তারিখ দিন।'); return; } setSaving(true); setError(''); try { await recordCreditCustomerPayment(customer.id, { idempotencyKey: requestKey, amount: value, paidOn, paymentChannel, note: note.trim() || undefined }); onSaved(); } catch (value) { setError(getErrorMessage(value, 'পেমেন্ট অ্যাড করা যায়নি।')); } finally { setSaving(false); } }
+  return <Dialog open={Boolean(customer)} onOpenChange={(open) => { if (!open && !saving) onClose(); }}><DialogContent><DialogHeader><DialogTitle>পেমেন্ট অ্যাড করুন</DialogTitle><DialogDescription>{customer ? `${customer.name} · মোট বাকি ${money(customer.outstandingAmount)}` : ''}</DialogDescription></DialogHeader><div className="space-y-3"><Field label="জমা টাকা"><Input aria-label="জমা টাকা" type="number" min="0.01" step="0.01" max={customer?.outstandingAmount} value={amount} onChange={(event) => setAmount(event.target.value)} /></Field><Field label="পেমেন্টের তারিখ"><FormattedDateInput aria-label="পেমেন্টের তারিখ" max={today()} value={paidOn} onChange={(event) => setPaidOn(event.target.value)} /></Field><PaymentChannelSelect value={paymentChannel} onChange={setPaymentChannel} disabled={saving} /><Field label="নোট (ঐচ্ছিক)"><Input aria-label="নোট (ঐচ্ছিক)" value={note} onChange={(event) => setNote(event.target.value)} /></Field>{error && <p role="alert" className="rounded-md bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}</div><DialogFooter><Button variant="outline" disabled={saving} onClick={onClose}>বন্ধ করুন</Button><Button disabled={saving} onClick={() => void submit()}>{saving && <Loader2 className="mr-2 animate-spin" size={16} />}পেমেন্ট অ্যাড করুন</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function FollowUpDialog({ customer, onClose, onSaved }: { customer: CreditCustomer | null; onClose: () => void; onSaved: () => void }) {

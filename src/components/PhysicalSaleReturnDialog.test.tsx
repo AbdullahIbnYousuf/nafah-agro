@@ -81,6 +81,7 @@ describe('physical sale return dialog', () => {
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({
       condition: 'SELLABLE',
       reason: 'প্যাকেট নষ্ট ছিল',
+      refundChannel: 'CASH',
       items: [{
         salesOrderItemId: '20000000-0000-4000-8000-000000000001',
         amount: '2',
@@ -95,6 +96,14 @@ describe('physical sale return dialog', () => {
     fireEvent.click(screen.getByLabelText(/DAMAGED/));
     fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ condition: 'DAMAGED' })));
+  });
+
+  it('lets the owner select the method used to pay a refund', async () => {
+    const { onConfirm } = setup();
+    selectItemAndReason();
+    fireEvent.change(screen.getByRole('combobox', { name: 'টাকা ফেরতের মাধ্যম' }), { target: { value: 'NAGAD' } });
+    fireEvent.click(screen.getByRole('button', { name: 'রিটার্ন কনফার্ম করুন' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ refundChannel: 'NAGAD' })));
   });
 
   it('submits without requiring a return reason', async () => {

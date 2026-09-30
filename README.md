@@ -26,6 +26,9 @@ orders, returns, analytics, and Cloudinary uploads.
 - Editable final product totals for shop sales and manual delivery orders,
   with recorded discounts or extra charges. Owners can enter a forgotten shop
   sale from the past 90 days without rewriting earlier stock or dashboard data.
+- Shop payment-method tracking for cash, bKash, Nagad, Rocket, and bank.
+  Each paid-now sale, বাকি collection, and actual return payout records its
+  method; the selected-period dashboard shows received, refunded, and net.
 - Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
   are physical-shop-only, use exact gram/millilitre stock internally, and show
   owner inputs and balances in kg/g or litre/ml.

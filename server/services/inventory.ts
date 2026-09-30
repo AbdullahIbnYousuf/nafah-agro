@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
+import { Prisma, type PaymentChannel, type PrismaClient } from "../generated/prisma/client.js";
 import type {
   CreditCustomerList,
   CreditCustomerSuggestion,
@@ -142,6 +142,7 @@ function saleDto(sale: SaleRecord) {
     source: sale.source,
     status: sale.status,
     paymentMethod: sale.paymentMethod,
+    paymentChannel: sale.paymentChannel,
     paymentStatus: sale.paymentStatus,
     creditCustomerId: sale.creditCustomerId,
     nextFollowUpDate: (sale.creditCustomer?.nextFollowUpDate ?? sale.nextFollowUpDate)?.toISOString().slice(0, 10) ?? null,
@@ -203,6 +204,7 @@ function saleDto(sale: SaleRecord) {
       refundAmount: Number(value.refundAmount),
       creditOffsetAmount: Number(value.creditOffsetAmount ?? 0),
       cashRefundAmount: Number(value.cashRefundAmount ?? value.refundAmount),
+      refundChannel: value.refundChannel ?? (Number(value.cashRefundAmount ?? value.refundAmount) > 0 ? "CASH" : null),
       reversedBuyingCost: Number(value.reversedBuyingCost),
       reversedGrossProfit: Number(value.reversedGrossProfit),
       createdBy: value.createdBy,
@@ -224,6 +226,7 @@ function saleDto(sale: SaleRecord) {
       id: payment.id,
       amount: Number(payment.amount),
       paidOn: payment.paidOn.toISOString().slice(0, 10),
+      paymentChannel: payment.paymentChannel ?? "CASH",
       note: payment.note,
       createdBy: payment.createdBy,
       createdAt: payment.createdAt,
@@ -404,6 +407,7 @@ export function createInventoryService(prisma: PrismaClient) {
         id: payment.id,
         amount: Number(payment.amount),
         paidOn: payment.paidOn.toISOString().slice(0, 10),
+        paymentChannel: payment.paymentChannel ?? "CASH",
         note: payment.note,
         createdBy: payment.createdBy,
         createdAt: payment.createdAt,
@@ -1086,6 +1090,74 @@ export function createInventoryService(prisma: PrismaClient) {
     } catch (error) { rethrowInventoryTransactionError(error); }
   }
 
+  async function correctPaymentChannel(
+    target: "SALE" | "CUSTOMER_PAYMENT" | "LEGACY_PAYMENT" | "RETURN",
+    parentId: string,
+    recordId: string | null,
+    paymentChannel: PaymentChannel,
+    actorId: string,
+  ) {
+    try {
+      await prisma.$transaction(async (transaction) => {
+        let previous: PaymentChannel;
+        let entityId: string;
+        if (target === "SALE") {
+          const sale = await transaction.salesOrder.findUnique({ where: { id: parentId } });
+          if (!sale || sale.source !== "PHYSICAL_SHOP" || sale.paymentMethod !== "CASH") {
+            throw inventoryError(404, "PAID_SALE_NOT_FOUND", "Paid shop sale not found.");
+          }
+          previous = sale.paymentChannel ?? "CASH";
+          entityId = sale.id;
+          if (previous !== paymentChannel) {
+            await transaction.salesOrder.update({ where: { id: sale.id }, data: { paymentChannel } });
+          }
+        } else if (target === "CUSTOMER_PAYMENT") {
+          const payment = await transaction.creditCustomerPayment.findUnique({ where: { id: recordId! } });
+          if (!payment || payment.creditCustomerId !== parentId || payment.voidedAt) {
+            throw inventoryError(404, "PAYMENT_NOT_FOUND", "Active payment not found.");
+          }
+          previous = payment.paymentChannel ?? "CASH";
+          entityId = payment.id;
+          if (previous !== paymentChannel) {
+            await transaction.creditCustomerPayment.update({ where: { id: payment.id }, data: { paymentChannel } });
+          }
+        } else if (target === "LEGACY_PAYMENT") {
+          const payment = await transaction.creditPayment.findUnique({ where: { id: recordId! } });
+          if (!payment || payment.salesOrderId !== parentId || payment.voidedAt) {
+            throw inventoryError(404, "PAYMENT_NOT_FOUND", "Active payment not found.");
+          }
+          previous = payment.paymentChannel ?? "CASH";
+          entityId = payment.id;
+          if (previous !== paymentChannel) {
+            await transaction.creditPayment.update({ where: { id: payment.id }, data: { paymentChannel } });
+          }
+        } else {
+          const saleReturn = await transaction.physicalSaleReturn.findUnique({ where: { id: recordId! } });
+          if (!saleReturn || saleReturn.salesOrderId !== parentId || saleReturn.cashRefundAmount.lte(0)) {
+            throw inventoryError(404, "REFUND_NOT_FOUND", "Shop refund not found.");
+          }
+          previous = saleReturn.refundChannel ?? "CASH";
+          entityId = saleReturn.id;
+          if (previous !== paymentChannel) {
+            await transaction.physicalSaleReturn.update({ where: { id: saleReturn.id }, data: { refundChannel: paymentChannel } });
+          }
+        }
+        if (previous === paymentChannel) {
+          throw inventoryError(409, "PAYMENT_METHOD_UNCHANGED", "This payment method is already saved.");
+        }
+        await transaction.auditLog.create({ data: {
+          actorProfileId: actorId,
+          action: "PAYMENT_CHANNEL_CORRECTED",
+          entityType: target,
+          entityId,
+          previousData: { paymentChannel: previous },
+          newData: { paymentChannel },
+        } });
+      }, SERIALIZABLE_TRANSACTION_OPTIONS);
+    } catch (error) {
+      rethrowInventoryTransactionError(error);
+    }
+  }
   return {
     listBatches,
     getInventorySummary,
@@ -1095,6 +1167,22 @@ export function createInventoryService(prisma: PrismaClient) {
     createStockLoss,
     createStockReconciliation,
     correctStockBatch,
+    async correctPhysicalSalePaymentChannel(id: string, channel: PaymentChannel, actorId: string) {
+      await correctPaymentChannel("SALE", id, null, channel, actorId);
+      return readSale(id);
+    },
+    async correctPhysicalReturnChannel(id: string, returnId: string, channel: PaymentChannel, actorId: string) {
+      await correctPaymentChannel("RETURN", id, returnId, channel, actorId);
+      return readSale(id);
+    },
+    async correctCreditCustomerPaymentChannel(id: string, paymentId: string, channel: PaymentChannel, actorId: string) {
+      await correctPaymentChannel("CUSTOMER_PAYMENT", id, paymentId, channel, actorId);
+      return creditCustomerDetail(id);
+    },
+    async correctLegacyCreditPaymentChannel(id: string, paymentId: string, channel: PaymentChannel, actorId: string) {
+      await correctPaymentChannel("LEGACY_PAYMENT", id, paymentId, channel, actorId);
+      return readSale(id);
+    },
 
     async createPurchase(input: PurchaseCreate, actorId: string) {
       const purchaseGroupId = randomUUID();
@@ -1373,6 +1461,7 @@ export function createInventoryService(prisma: PrismaClient) {
           idempotencyKey: input.idempotencyKey ?? null,
           requestFingerprint,
           paymentMethod: input.paymentMode === "CREDIT" ? "CREDIT" : "CASH",
+          paymentChannel: input.paymentMode === "CREDIT" ? null : input.paymentChannel ?? "CASH",
           paymentStatus: input.paymentMode === "CREDIT" ? "UNPAID" : "PAID",
           nextFollowUpDate: input.paymentMode === "CREDIT" ? asDate(input.nextFollowUpDate!) : null,
         } });
@@ -1420,6 +1509,7 @@ export function createInventoryService(prisma: PrismaClient) {
             source: "PHYSICAL_SHOP",
             status: "COMPLETED",
             paymentMethod: input.paymentMode === "CREDIT" ? "CREDIT" : "CASH",
+            paymentChannel: input.paymentMode === "CREDIT" ? null : input.paymentChannel ?? "CASH",
             paymentStatus: input.paymentMode === "CREDIT" ? "UNPAID" : "PAID",
             nextFollowUpDate: input.paymentMode === "CREDIT" ? input.nextFollowUpDate : null,
             creditCustomerId: creditCustomer?.id ?? null,
@@ -1595,6 +1685,7 @@ export function createInventoryService(prisma: PrismaClient) {
             refundAmount,
             creditOffsetAmount,
             cashRefundAmount,
+            refundChannel: cashRefundAmount.gt(0) ? input.refundChannel ?? "CASH" : null,
             reversedBuyingCost,
             reversedGrossProfit,
             createdByProfileId: actorId,
@@ -1667,6 +1758,7 @@ export function createInventoryService(prisma: PrismaClient) {
               refundAmount: refundAmount.toString(),
               creditOffsetAmount: creditOffsetAmount.toString(),
               cashRefundAmount: cashRefundAmount.toString(),
+              refundChannel: cashRefundAmount.gt(0) ? input.refundChannel ?? "CASH" : null,
               reversedBuyingCost: reversedBuyingCost.toString(),
               items: prepared.map((value) => ({ salesOrderItemId: value.item.id, quantity: value.quantity })),
             },
@@ -1842,6 +1934,7 @@ export function createInventoryService(prisma: PrismaClient) {
             idempotencyKey: input.idempotencyKey,
             amount,
             paidOn: asDate(input.paidOn),
+            paymentChannel: input.paymentChannel,
             note: input.note,
             createdByProfileId: actorId,
           } });
@@ -1851,7 +1944,7 @@ export function createInventoryService(prisma: PrismaClient) {
             action: "CREDIT_CUSTOMER_PAYMENT_RECORDED",
             entityType: "CREDIT_CUSTOMER",
             entityId: id,
-            newData: { paymentId: payment.id, amount: amount.toString(), paidOn: input.paidOn, note: input.note ?? null },
+            newData: { paymentId: payment.id, amount: amount.toString(), paidOn: input.paidOn, paymentChannel: input.paymentChannel, note: input.note ?? null },
           } });
         }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {
@@ -2067,6 +2160,7 @@ export function createInventoryService(prisma: PrismaClient) {
             idempotencyKey: input.idempotencyKey,
             amount,
             paidOn: asDate(input.paidOn),
+            paymentChannel: input.paymentChannel,
             note: input.note,
             createdByProfileId: actorId,
           } });
@@ -2084,7 +2178,7 @@ export function createInventoryService(prisma: PrismaClient) {
             action: "CREDIT_PAYMENT_RECORDED",
             entityType: "SALES_ORDER",
             entityId: id,
-            newData: { amount: amount.toString(), paidOn: input.paidOn, note: input.note ?? null },
+            newData: { amount: amount.toString(), paidOn: input.paidOn, paymentChannel: input.paymentChannel, note: input.note ?? null },
           } });
         }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {

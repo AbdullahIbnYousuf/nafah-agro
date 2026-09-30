@@ -172,6 +172,20 @@ describe('physical sale history', () => {
     mocks.createPhysicalSale.mockResolvedValue(sale);
   });
 
+  it('defaults to cash and saves a changed method for a paid shop sale', async () => {
+    mocks.getVariantOptions.mockResolvedValue(productOptions(packagedProduct));
+    renderScreen();
+    expect(screen.getByRole('combobox', { name: 'টাকা নেওয়ার মাধ্যম' })).toHaveValue('CASH');
+    fireEvent.click(await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ সিলেক্ট করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'টাকা নেওয়ার মাধ্যম' }), { target: { value: 'ROCKET' } });
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রি সম্পন্ন করুন' }));
+    await waitFor(() => expect(mocks.createPhysicalSale).toHaveBeenCalledWith(expect.objectContaining({
+      paymentMode: 'PAID_NOW',
+      paymentChannel: 'ROCKET',
+    })));
+  });
+
   it('restores applied sale-history filters after refresh', async () => {
     window.sessionStorage.setItem('nafah_physical_sale_history_filters_v1', JSON.stringify({
       product: 'মিনিকেট', query: '01300000000', dateFrom: '2026-08-01', dateTo: '2026-08-31',

@@ -207,6 +207,8 @@ export interface PhysicalSaleItem {
   allocations: PhysicalSaleAllocation[];
 }
 
+export type PaymentChannel = 'CASH' | 'BKASH' | 'NAGAD' | 'ROCKET' | 'BANK';
+
 export interface PhysicalSaleReturn {
   id: string;
   condition: 'SELLABLE' | 'DAMAGED';
@@ -214,6 +216,7 @@ export interface PhysicalSaleReturn {
   refundAmount: number;
   creditOffsetAmount: number;
   cashRefundAmount: number;
+  refundChannel?: PaymentChannel | null;
   reversedBuyingCost: number;
   reversedGrossProfit: number;
   createdBy: { fullName: string; role: Role };
@@ -238,6 +241,7 @@ export interface PhysicalSale {
   source: 'PHYSICAL_SHOP';
   status: 'COMPLETED';
   paymentMethod: 'CASH' | 'CREDIT';
+  paymentChannel?: PaymentChannel | null;
   paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
   creditCustomerId?: string | null;
   nextFollowUpDate: string | null;
@@ -276,6 +280,7 @@ export interface CreditPayment {
   id: string;
   amount: number;
   paidOn: string;
+  paymentChannel?: PaymentChannel;
   note: string | null;
   createdBy: { fullName: string; role: Role };
   createdAt: string;
@@ -555,6 +560,7 @@ export interface AnalyticsStockVariant {
 }
 
 export interface AnalyticsDashboardData {
+  paymentChannels?: Array<{ method: PaymentChannel; received: number; refunded: number; net: number }>;
   generatedAt: string;
   currency: 'BDT';
   timezone: 'Asia/Dhaka';

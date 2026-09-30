@@ -357,3 +357,29 @@ in V1; product deactivation does not delete a Cloudinary asset.
 
 Unknown `/api/*` requests return a JSON `API_NOT_FOUND` response. Vercel never
 rewrites them to the frontend SPA.
+
+## Shop payment methods
+
+Paid-now physical sales accept an optional `paymentChannel`: `CASH`, `BKASH`,
+`NAGAD`, `ROCKET`, or `BANK`. Omitted means `CASH`. A credit sale has no
+method until money is collected. Customer-level and legacy credit payment
+requests accept their own optional `paymentChannel` (default `CASH`).
+Physical returns accept an optional `refundChannel` for actual money paid
+back; reducing unpaid debt is not a payout and has no refund method.
+
+All correction requests below are OWNER-only and accept
+`{ "paymentChannel": "BKASH" }`. They change only the method and append an
+audit record with the actor, old and new methods, and timestamp:
+
+- `PATCH /api/v1/physical-sales/:id/payment-channel`
+- `PATCH /api/v1/physical-sales/:id/returns/:returnId/refund-channel`
+- `PATCH /api/v1/credit-customers/:id/payments/:paymentId/payment-channel`
+- `PATCH /api/v1/credit-sales/:id/payments/:paymentId/payment-channel`
+
+The dashboard response includes `paymentChannels`, with `method`,
+`received`, `refunded`, and `net` for each of the five methods. Paid-now
+shop sales use actual `soldOn`; active credit collections use `paidOn`;
+return payouts use the recorded return date. Voided payments, allocation
+rows, and delivery COD are excluded. Older method-free records are treated as
+cash. These selected-period flows are not current cash, wallet, or bank
+balances. Existing sales and profit accounting dates remain unchanged.

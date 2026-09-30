@@ -790,6 +790,10 @@ describe("GET /api/v1/foundation", () => {
         createPhysicalSale: vi.fn(),
         listPhysicalSales: vi.fn(async () => []),
         returnPhysicalSale: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
+        correctPhysicalSalePaymentChannel: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
+        correctPhysicalReturnChannel: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
+        correctCreditCustomerPaymentChannel: vi.fn(async () => ({ id: "60000000-0000-4000-8000-000000000001" })),
+        correctLegacyCreditPaymentChannel: vi.fn(async () => ({ id: "50000000-0000-4000-8000-000000000001" })),
         listCreditSales: vi.fn(async () => ({ data: [], total: 0, page: 1, limit: 30, totalPages: 0 })),
         getCreditSummary: vi.fn(async () => ({ totalOutstanding: 0, openSaleCount: 0, customerCount: 0, overdueCount: 0, dueTodayCount: 0, upcomingCount: 0 })),
         getCreditSale: vi.fn(),
@@ -930,6 +934,31 @@ describe("GET /api/v1/foundation", () => {
       expect(inventory.getInventorySummary).not.toHaveBeenCalled();
       expect(inventory.createStockLoss).not.toHaveBeenCalled();
       expect(inventory.createStockReconciliation).not.toHaveBeenCalled();
+    });
+
+    it("protects all payment-method corrections and validates the selected method", async () => {
+      const inventory = inventoryStub();
+      const ownerApp = createProtectedApp(ownerProfile, 60, undefined, inventory);
+      const customerApp = createProtectedApp({ ...ownerProfile, role: "CUSTOMER" }, 60, undefined, inventory);
+      const saleId = "50000000-0000-4000-8000-000000000001";
+      const paymentId = "70000000-0000-4000-8000-000000000001";
+      const customerId = "60000000-0000-4000-8000-000000000001";
+      const endpoints = [
+        [`/api/v1/physical-sales/${saleId}/payment-channel`, "correctPhysicalSalePaymentChannel"],
+        [`/api/v1/physical-sales/${saleId}/returns/${paymentId}/refund-channel`, "correctPhysicalReturnChannel"],
+        [`/api/v1/credit-customers/${customerId}/payments/${paymentId}/payment-channel`, "correctCreditCustomerPaymentChannel"],
+        [`/api/v1/credit-sales/${saleId}/payments/${paymentId}/payment-channel`, "correctLegacyCreditPaymentChannel"],
+      ] as const;
+      for (const [path, serviceMethod] of endpoints) {
+        const denied = await request(customerApp).patch(path).set("Authorization", "Bearer valid-token").send({ paymentChannel: "BKASH" });
+        expect(denied.status).toBe(403);
+        expect(inventory[serviceMethod]).not.toHaveBeenCalled();
+        const invalid = await request(ownerApp).patch(path).set("Authorization", "Bearer valid-token").send({ paymentChannel: "COD" });
+        expect(invalid.status).toBe(400);
+        const allowed = await request(ownerApp).patch(path).set("Authorization", "Bearer valid-token").send({ paymentChannel: "BKASH" });
+        expect(allowed.status).toBe(200);
+        expect(inventory[serviceMethod]).toHaveBeenCalled();
+      }
     });
 
     it("allows an OWNER to record a validated credit payment", async () => {

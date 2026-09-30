@@ -6,6 +6,7 @@ import CreditSalesManager from './CreditSalesManager';
 const mocks = vi.hoisted(() => ({
   getCreditCustomer: vi.fn(), getCreditCustomers: vi.fn(), getCreditCustomerSummary: vi.fn(),
   recordCreditCustomerPayment: vi.fn(), rescheduleCreditCustomerFollowUp: vi.fn(),
+  correctCreditCustomerPaymentChannel: vi.fn(),
   updateCreditCustomer: vi.fn(), voidCreditCustomerPayment: vi.fn(),
 }));
 vi.mock('@/lib/api', async (importOriginal) => ({ ...await importOriginal<typeof import('@/lib/api')>(), ...mocks }));
@@ -68,8 +69,9 @@ describe('customer-based credit manager', () => {
     render(<CreditSalesManager />); fireEvent.click(await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'পেমেন্ট অ্যাড করুন' }));
     fireEvent.change(screen.getByLabelText('জমা টাকা'), { target: { value: '200' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'টাকা নেওয়ার মাধ্যম' }), { target: { value: 'BKASH' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'পেমেন্ট অ্যাড করুন' }).at(-1)!);
-    await waitFor(() => expect(mocks.recordCreditCustomerPayment).toHaveBeenCalledWith(customer.id, expect.objectContaining({ amount: 200, idempotencyKey: expect.any(String) })));
+    await waitFor(() => expect(mocks.recordCreditCustomerPayment).toHaveBeenCalledWith(customer.id, expect.objectContaining({ amount: 200, paymentChannel: 'BKASH', idempotencyKey: expect.any(String) })));
   });
 
   it('edits the customer name and allows an empty phone', async () => {
@@ -87,4 +89,14 @@ describe('customer-based credit manager', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('কেন পেমেন্টটি বাতিল করছেন');
     expect(mocks.voidCreditCustomerPayment).not.toHaveBeenCalled();
   });
+  it('corrects a saved collection method without changing its amount', async () => {
+    render(<CreditSalesManager />);
+    fireEvent.click(await screen.findByRole('button', { name: /রহিম.*মোট বাকি/ }));
+    await screen.findByText('পেমেন্টের রেকর্ড');
+    fireEvent.click(screen.getByRole('button', { name: 'মাধ্যম আপডেট করুন' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'সঠিক পেমেন্টের মাধ্যম' }), { target: { value: 'BANK' } });
+    fireEvent.click(screen.getByRole('button', { name: 'সেভ করুন' }));
+    await waitFor(() => expect(mocks.correctCreditCustomerPaymentChannel).toHaveBeenCalledWith(customer.id, payment.id, 'BANK'));
+  });
+
 });

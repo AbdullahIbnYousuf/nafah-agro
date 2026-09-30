@@ -12,6 +12,7 @@ import {
   physicalSaleListSchema,
   physicalSaleReturnSchema,
   inventoryItemBatchListSchema,
+  paymentChannelUpdateSchema,
   inventoryItemListSchema,
   inventoryRecordListSchema,
   purchaseCreateSchema,
@@ -310,6 +311,49 @@ export function createInventoryRouter(
           req.authenticatedUser!.profile.id,
         ),
       });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/physical-sales/:id/payment-channel", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.correctPhysicalSalePaymentChannel(
+        validate(z.string().uuid(), req.params.id),
+        validate(paymentChannelUpdateSchema, req.body).paymentChannel,
+        req.authenticatedUser!.profile.id,
+      ) });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/physical-sales/:id/returns/:returnId/refund-channel", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.correctPhysicalReturnChannel(
+        validate(z.string().uuid(), req.params.id),
+        validate(z.string().uuid(), req.params.returnId),
+        validate(paymentChannelUpdateSchema, req.body).paymentChannel,
+        req.authenticatedUser!.profile.id,
+      ) });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/credit-customers/:id/payments/:paymentId/payment-channel", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.correctCreditCustomerPaymentChannel(
+        validate(z.string().uuid(), req.params.id),
+        validate(z.string().uuid(), req.params.paymentId),
+        validate(paymentChannelUpdateSchema, req.body).paymentChannel,
+        req.authenticatedUser!.profile.id,
+      ) });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/credit-sales/:id/payments/:paymentId/payment-channel", ...protectedRoute, async (req, res, next) => {
+    try {
+      res.json({ success: true, data: await service.correctLegacyCreditPaymentChannel(
+        validate(z.string().uuid(), req.params.id),
+        validate(z.string().uuid(), req.params.paymentId),
+        validate(paymentChannelUpdateSchema, req.body).paymentChannel,
+        req.authenticatedUser!.profile.id,
+      ) });
     } catch (error) { next(error); }
   });
 

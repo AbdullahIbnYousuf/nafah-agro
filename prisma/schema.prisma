@@ -64,6 +64,14 @@ enum SalesPaymentMethod {
   CREDIT
 }
 
+enum PaymentChannel {
+  CASH
+  BKASH
+  NAGAD
+  ROCKET
+  BANK
+}
+
 enum SalesPaymentStatus {
   UNPAID
   PARTIALLY_PAID
@@ -342,6 +350,7 @@ model SalesOrder {
   source                          SalesOrderSource     @default(PHYSICAL_SHOP)
   status                          SalesOrderStatus     @default(COMPLETED)
   paymentMethod                   SalesPaymentMethod   @default(CASH) @map("payment_method")
+  paymentChannel                  PaymentChannel?      @map("payment_channel")
   paymentStatus                   SalesPaymentStatus   @default(PAID) @map("payment_status")
   customerProfileId               String?              @map("customer_profile_id") @db.Uuid
   creditCustomerId                String?              @map("credit_customer_id") @db.Uuid
@@ -387,6 +396,7 @@ model SalesOrder {
   @@index([source, status, placedAt])
   @@index([paymentMethod, paymentStatus, nextFollowUpDate])
   @@index([customerProfileId, placedAt])
+  @@index([paymentChannel, soldOn], map: "sales_orders_payment_channel_sold_on_idx")
   @@index([creditCustomerId, completedAt])
   @@index([customerPhone])
   @@index([completedAt])
@@ -417,6 +427,7 @@ model CreditCustomerPayment {
   creditCustomerId   String    @map("credit_customer_id") @db.Uuid
   idempotencyKey     String    @unique @map("idempotency_key") @db.Uuid
   amount             Decimal   @db.Decimal(14, 2)
+  paymentChannel     PaymentChannel @default(CASH) @map("payment_channel")
   paidOn             DateTime  @map("paid_on") @db.Date
   note               String?
   createdByProfileId String    @map("created_by_profile_id") @db.Uuid
@@ -430,6 +441,7 @@ model CreditCustomerPayment {
   allocations        CreditCustomerPaymentAllocation[]
 
   @@index([creditCustomerId, paidOn, createdAt])
+  @@index([paymentChannel, paidOn], map: "credit_customer_payments_channel_paid_on_idx")
   @@map("credit_customer_payments")
 }
 
@@ -508,6 +520,7 @@ model PhysicalSaleReturn {
   refundAmount        Decimal                  @map("refund_amount") @db.Decimal(14, 2)
   creditOffsetAmount  Decimal                  @default(0) @map("credit_offset_amount") @db.Decimal(14, 2)
   cashRefundAmount    Decimal                  @default(0) @map("cash_refund_amount") @db.Decimal(14, 2)
+  refundChannel       PaymentChannel?          @map("refund_channel")
   reversedBuyingCost  Decimal                  @map("reversed_buying_cost") @db.Decimal(14, 2)
   reversedGrossProfit Decimal                  @map("reversed_gross_profit") @db.Decimal(14, 2)
   createdByProfileId  String                   @map("created_by_profile_id") @db.Uuid
@@ -517,6 +530,7 @@ model PhysicalSaleReturn {
   items               PhysicalSaleReturnItem[]
 
   @@index([salesOrderId, createdAt])
+  @@index([refundChannel, createdAt], map: "physical_sale_returns_channel_created_at_idx")
   @@map("physical_sale_returns")
 }
 
@@ -525,6 +539,7 @@ model CreditPayment {
   salesOrderId        String    @map("sales_order_id") @db.Uuid
   idempotencyKey      String    @unique @map("idempotency_key") @db.Uuid
   amount              Decimal   @db.Decimal(14, 2)
+  paymentChannel      PaymentChannel @default(CASH) @map("payment_channel")
   paidOn              DateTime  @map("paid_on") @db.Date
   note                String?
   createdByProfileId  String    @map("created_by_profile_id") @db.Uuid
@@ -537,6 +552,7 @@ model CreditPayment {
   voidedBy            Profile?   @relation("CreditPaymentsVoided", fields: [voidedByProfileId], references: [id], onDelete: Restrict)
 
   @@index([salesOrderId, paidOn, createdAt])
+  @@index([paymentChannel, paidOn], map: "credit_payments_channel_paid_on_idx")
   @@map("credit_payments")
 }
 

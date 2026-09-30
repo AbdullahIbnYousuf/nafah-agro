@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
+import { Prisma, type PaymentChannel, type PrismaClient } from "../generated/prisma/client.js";
 import type { AnalyticsDashboardQuery } from "../schemas/analytics.js";
 import { quantityCost, type ProductKindValue, type QuantityUnitValue } from "../lib/quantity.js";
 
@@ -22,6 +22,35 @@ type OrderStatus =
   | "CANCELLED"
   | typeof RETURN_STATUSES[number];
 type MoneyValue = string | number | { toString(): string };
+
+export function summarizePaymentChannels(input: {
+  paidShopSales: Array<{ grandTotal: MoneyValue; paymentChannel: PaymentChannel | null }>;
+  customerPayments: Array<{ amount: MoneyValue; paymentChannel: PaymentChannel | null }>;
+  legacyPayments: Array<{ amount: MoneyValue; paymentChannel: PaymentChannel | null }>;
+  payouts: Array<{ cashRefundAmount: MoneyValue; refundChannel: PaymentChannel | null }>;
+}) {
+  const methods = ["CASH", "BKASH", "NAGAD", "ROCKET", "BANK"] as const;
+  const receivedByMethod = new Map(methods.map((method) => [method, new Prisma.Decimal(0)]));
+  const refundedByMethod = new Map(methods.map((method) => [method, new Prisma.Decimal(0)]));
+  for (const sale of input.paidShopSales) {
+    const method = sale.paymentChannel ?? "CASH";
+    receivedByMethod.set(method, receivedByMethod.get(method)!.plus(String(sale.grandTotal)));
+  }
+  for (const payment of [...input.customerPayments, ...input.legacyPayments]) {
+    const method = payment.paymentChannel ?? "CASH";
+    receivedByMethod.set(method, receivedByMethod.get(method)!.plus(String(payment.amount)));
+  }
+  for (const payout of input.payouts) {
+    const method = payout.refundChannel ?? "CASH";
+    refundedByMethod.set(method, refundedByMethod.get(method)!.plus(String(payout.cashRefundAmount)));
+  }
+  return methods.map((method) => ({
+    method,
+    received: Number(receivedByMethod.get(method)!.toDecimalPlaces(2)),
+    refunded: Number(refundedByMethod.get(method)!.toDecimalPlaces(2)),
+    net: Number(receivedByMethod.get(method)!.minus(refundedByMethod.get(method)!).toDecimalPlaces(2)),
+  }));
+}
 
 export interface AnalyticsOrderRecord {
   id: string;
@@ -802,6 +831,8 @@ export function createAnalyticsService(prisma: PrismaClient) {
       const range = resolveAnalyticsRange(query, now);
       const earliest = range.previous.startUtc;
       const latest = range.current.endUtc;
+      const dateStart = new Date(`${range.current.from}T00:00:00.000Z`);
+      const dateEnd = new Date(`${addDays(range.current.to, 1)}T00:00:00.000Z`);
       const inventoryOperationsPromise = prisma.inventoryOperation?.findMany
         ? prisma.inventoryOperation.findMany({
           where: { effectiveDate: { gte: earliest, lt: latest } },
@@ -813,7 +844,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
           },
         })
         : Promise.resolve([]);
-      const [orders, physicalSaleReturns, openCodOrders, stockBatches, variants, inventoryOperations] = await Promise.all([
+      const [orders, physicalSaleReturns, openCodOrders, stockBatches, variants, inventoryOperations, paidShopSales, customerPayments, legacyPayments, payouts] = await Promise.all([
         prisma.salesOrder.findMany({
           where: {
             OR: [
@@ -911,9 +942,35 @@ export function createAnalyticsService(prisma: PrismaClient) {
           },
         }),
         inventoryOperationsPromise,
+        prisma.salesOrder.findMany({
+          where: {
+            source: "PHYSICAL_SHOP",
+            paymentMethod: "CASH",
+            status: { in: [...PHYSICAL_STATUSES] },
+            OR: [
+              { soldOn: { gte: dateStart, lt: dateEnd } },
+              { soldOn: null, completedAt: { gte: range.current.startUtc, lt: range.current.endUtc } },
+            ],
+          },
+          select: { grandTotal: true, paymentChannel: true },
+        }),
+        prisma.creditCustomerPayment.findMany({
+          where: { voidedAt: null, paidOn: { gte: dateStart, lt: dateEnd } },
+          select: { amount: true, paymentChannel: true },
+        }),
+        prisma.creditPayment.findMany({
+          where: { voidedAt: null, paidOn: { gte: dateStart, lt: dateEnd } },
+          select: { amount: true, paymentChannel: true },
+        }),
+        prisma.physicalSaleReturn.findMany({
+          where: { createdAt: { gte: range.current.startUtc, lt: range.current.endUtc }, cashRefundAmount: { gt: 0 } },
+          select: { cashRefundAmount: true, refundChannel: true },
+        }),
       ]);
 
-      return buildAnalyticsDashboard({
+      const paymentChannels = summarizePaymentChannels({ paidShopSales, customerPayments, legacyPayments, payouts });
+
+      return { ...buildAnalyticsDashboard({
         query,
         now,
         orders: orders as AnalyticsOrderRecord[],
@@ -922,7 +979,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
         openCodOrders: openCodOrders as Array<{ status: "PENDING" | "CONFIRMED" | "PROCESSING" }>,
         stockBatches,
         variants,
-      });
+      }), paymentChannels };
     },
   };
 }

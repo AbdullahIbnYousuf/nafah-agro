@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { ApiError } from '@/lib/api';
-import type { AmountUnit, PhysicalSale, PhysicalSaleItem, QuantityUnit } from '@/lib/types';
+import type { AmountUnit, PaymentChannel, PhysicalSale, PhysicalSaleItem, QuantityUnit } from '@/lib/types';
+import { PaymentChannelSelect } from '@/components/PaymentChannelSelect';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,6 +35,7 @@ interface PhysicalSaleReturnDialogProps {
   onConfirm: (input: {
     condition: ReturnCondition;
     reason?: string;
+    refundChannel?: PaymentChannel;
     items: Array<{ salesOrderItemId: string; amount: string; amountUnit: AmountUnit }>;
   }) => Promise<void>;
 }
@@ -88,6 +90,7 @@ function estimatedRefund(sale: PhysicalSale, item: PhysicalSaleItem, baseQuantit
 export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: PhysicalSaleReturnDialogProps) {
   const [condition, setCondition] = useState<ReturnCondition>('SELLABLE');
   const [reason, setReason] = useState('');
+  const [refundChannel, setRefundChannel] = useState<PaymentChannel>('CASH');
   const [lines, setLines] = useState<Record<string, ReturnLine>>({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -95,6 +98,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
   useEffect(() => {
     setCondition('SELLABLE');
     setReason('');
+    setRefundChannel('CASH');
     setError('');
     setSubmitting(false);
     setLines(Object.fromEntries((sale?.items ?? []).map((item) => {
@@ -140,6 +144,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
       await onConfirm({
         condition,
         reason: normalizedReason || undefined,
+        refundChannel,
         items: selected.map(({ item, line }) => ({
           salesOrderItemId: item.id,
           amount: line.amount,
@@ -238,6 +243,8 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
             : 'রিটার্ন করা পণ্য স্টকে অ্যাড হবে না।'}
           {' '}আনুমানিক রিফান্ড: <strong>৳{refundPreview.toFixed(2)}</strong>
         </AlertDescription>
+      {refundPreview > 0 && <div className="space-y-1"><PaymentChannelSelect value={refundChannel} onChange={setRefundChannel} disabled={submitting} label="টাকা ফেরতের মাধ্যম" /><p className="text-xs text-muted-foreground">শুধু টাকা ফেরত দিলে এই মাধ্যম সেভ হবে। বাকি কমলে টাকা ফেরত হিসেবে ধরা হবে না।</p></div>}
+
       </Alert>
 
       <div>

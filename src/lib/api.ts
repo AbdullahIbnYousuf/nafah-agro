@@ -609,6 +609,7 @@ export function createPhysicalSale(input: {
   idempotencyKey?: string;
   confirmPriceIncrease?: boolean;
   paymentMode?: 'PAID_NOW' | 'CREDIT';
+  paymentChannel?: import('./types').PaymentChannel;
   nextFollowUpDate?: string;
   confirmUnprofitable?: boolean;
 }): Promise<PhysicalSale> {
@@ -655,6 +656,7 @@ export function recordCreditCustomerPayment(id: string, input: {
   idempotencyKey: string;
   amount: number;
   paidOn: string;
+  paymentChannel?: import('./types').PaymentChannel;
   note?: string;
 }): Promise<CreditCustomer> {
   return requestV1<CreditCustomer>(`/credit-customers/${id}/payments`, {
@@ -705,6 +707,7 @@ export function recordCreditPayment(id: string, input: {
   idempotencyKey: string;
   amount: number;
   paidOn: string;
+  paymentChannel?: import('./types').PaymentChannel;
   note?: string;
 }): Promise<PhysicalSale> {
   return requestV1<PhysicalSale>(`/credit-sales/${id}/payments`, {
@@ -747,6 +750,7 @@ export function getPhysicalSales(input: {
 export function returnPhysicalSale(id: string, input: {
   condition: 'SELLABLE' | 'DAMAGED';
   reason?: string;
+  refundChannel?: import('./types').PaymentChannel;
   items: Array<{ salesOrderItemId: string; amount: string; amountUnit: AmountUnit }>;
 }): Promise<PhysicalSale> {
   return requestV1<PhysicalSale>(`/physical-sales/${id}/returns`, {
@@ -754,6 +758,35 @@ export function returnPhysicalSale(id: string, input: {
     body: JSON.stringify(input),
   });
 }
+
+export function correctPhysicalSalePaymentChannel(id: string, paymentChannel: import('./types').PaymentChannel): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/physical-sales/${id}/payment-channel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paymentChannel }),
+  });
+}
+
+export function correctPhysicalReturnChannel(id: string, returnId: string, paymentChannel: import('./types').PaymentChannel): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/physical-sales/${id}/returns/${returnId}/refund-channel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paymentChannel }),
+  });
+}
+
+export function correctCreditCustomerPaymentChannel(id: string, paymentId: string, paymentChannel: import('./types').PaymentChannel): Promise<CreditCustomer> {
+  return requestV1<CreditCustomer>(`/credit-customers/${id}/payments/${paymentId}/payment-channel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paymentChannel }),
+  });
+}
+
+export function correctLegacyCreditPaymentChannel(id: string, paymentId: string, paymentChannel: import('./types').PaymentChannel): Promise<PhysicalSale> {
+  return requestV1<PhysicalSale>(`/credit-sales/${id}/payments/${paymentId}/payment-channel`, {
+    method: 'PATCH',
+    body: JSON.stringify({ paymentChannel }),
+  });
+}
+
 
 export function getDeliveryRates(): Promise<DeliveryRate[]> {
   return requestV1<DeliveryRate[]>('/delivery-rates', { auth: false });

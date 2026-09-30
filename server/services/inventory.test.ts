@@ -76,6 +76,7 @@ interface SaleRow {
   source: "PHYSICAL_SHOP";
   status: "COMPLETED";
   paymentMethod: "CASH" | "CREDIT";
+  paymentChannel: "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK" | null;
   paymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID";
   nextFollowUpDate: Date | null;
   customerName: string | null;
@@ -141,6 +142,7 @@ interface PhysicalReturnRow {
   refundAmount: string;
   creditOffsetAmount: string;
   cashRefundAmount: string;
+  refundChannel: "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK" | null;
   reversedBuyingCost: string;
   reversedGrossProfit: string;
   createdByProfileId: string;
@@ -153,6 +155,7 @@ interface CreditPaymentRow {
   idempotencyKey: string;
   amount: string;
   paidOn: Date;
+  paymentChannel: "CASH" | "BKASH" | "NAGAD" | "ROCKET" | "BANK";
   note: string | null;
   createdByProfileId: string;
   createdAt: Date;
@@ -375,6 +378,7 @@ function createInMemoryPrisma() {
         const row: SaleRow = {
           id: id(), orderNumber: String(data.orderNumber), source: "PHYSICAL_SHOP", status: "COMPLETED",
           paymentMethod: (data.paymentMethod as SaleRow["paymentMethod"] | undefined) ?? "CASH",
+          paymentChannel: (data.paymentChannel as SaleRow["paymentChannel"] | undefined) ?? null,
           paymentStatus: (data.paymentStatus as SaleRow["paymentStatus"] | undefined) ?? "PAID",
           nextFollowUpDate: (data.nextFollowUpDate as Date | undefined) ?? null,
           customerName: (data.customerName as string | undefined) ?? null,
@@ -403,6 +407,7 @@ function createInMemoryPrisma() {
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const row = state.sales.find((sale) => sale.id === where.id)!;
         if (data.paymentStatus) row.paymentStatus = data.paymentStatus as SaleRow["paymentStatus"];
+        if (data.paymentChannel) row.paymentChannel = data.paymentChannel as SaleRow["paymentChannel"];
         if (Object.prototype.hasOwnProperty.call(data, "nextFollowUpDate")) row.nextFollowUpDate = data.nextFollowUpDate as Date | null;
         row.updatedAt = new Date();
         return row;
@@ -450,12 +455,22 @@ function createInMemoryPrisma() {
           refundAmount: money(data.refundAmount as MoneyValue),
           creditOffsetAmount: money(data.creditOffsetAmount as MoneyValue),
           cashRefundAmount: money(data.cashRefundAmount as MoneyValue),
+          refundChannel: (data.refundChannel as PhysicalReturnRow["refundChannel"] | undefined) ?? null,
           reversedBuyingCost: money(data.reversedBuyingCost as MoneyValue),
           reversedGrossProfit: money(data.reversedGrossProfit as MoneyValue),
           createdByProfileId: String(data.createdByProfileId),
           createdAt: data.createdAt as Date,
         };
         state.physicalReturns.push(row);
+        return row;
+      },
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const row = state.physicalReturns.find((value) => value.id === where.id);
+        return row ? { ...row, cashRefundAmount: new Prisma.Decimal(row.cashRefundAmount) } : null;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: { refundChannel: PhysicalReturnRow["refundChannel"] } }) => {
+        const row = state.physicalReturns.find((value) => value.id === where.id)!;
+        row.refundChannel = data.refundChannel;
         return row;
       },
     },
@@ -470,6 +485,7 @@ function createInMemoryPrisma() {
           idempotencyKey: String(data.idempotencyKey),
           amount: money(data.amount as MoneyValue),
           paidOn: data.paidOn as Date,
+          paymentChannel: (data.paymentChannel as CreditPaymentRow["paymentChannel"] | undefined) ?? "CASH",
           note: (data.note as string | undefined) ?? null,
           createdByProfileId: String(data.createdByProfileId),
           createdAt: new Date(),
@@ -482,9 +498,12 @@ function createInMemoryPrisma() {
       },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const row = state.creditPayments.find((payment) => payment.id === where.id)!;
-        row.voidedAt = data.voidedAt as Date;
-        row.voidedByProfileId = String(data.voidedByProfileId);
-        row.voidReason = String(data.voidReason);
+        if (data.paymentChannel) row.paymentChannel = data.paymentChannel as CreditPaymentRow["paymentChannel"];
+        if (data.voidedAt) {
+          row.voidedAt = data.voidedAt as Date;
+          row.voidedByProfileId = String(data.voidedByProfileId);
+          row.voidReason = String(data.voidReason);
+        }
         return row;
       },
     },
@@ -1106,5 +1125,57 @@ describe("physical-shop credit sales", () => {
     expect(result).toMatchObject({ overdueCount: 1, dueTodayCount: 1, upcomingCount: 1, openSaleCount: 3, totalOutstanding: 1500 });
     expect(todaySale.outstandingAmount).toBe(500);
     expect(upcoming.outstandingAmount).toBe(500);
+  });
+});
+describe("shop payment channel tracking", () => {
+  it("defaults new due collections to cash and keeps credit sales method-free", () => {
+    expect(creditPayment("20", "10000000-0000-4000-8000-000000000501").paymentChannel).toBe("CASH");
+    expect(physicalSaleCreateSchema.safeParse({ ...creditSale(1), paymentChannel: "BKASH" }).success).toBe(false);
+  });
+
+  it("stores and audits shop sale and cash-refund method corrections without changing totals", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 2, unitBuyingCost: "300" }]), OWNER_ID);
+    const sold = await service.createPhysicalSale({
+      ...sale([{ productVariantId: VARIANT_A, quantity: 1 }]),
+      paymentChannel: "BKASH",
+    }, OWNER_ID);
+    expect(sold.paymentChannel).toBe("BKASH");
+    const corrected = await service.correctPhysicalSalePaymentChannel(sold.id, "BANK", OWNER_ID);
+    expect(corrected.paymentChannel).toBe("BANK");
+    expect(corrected.grandTotal).toBe(sold.grandTotal);
+    expect(corrected.grossProfit).toBe(sold.grossProfit);
+
+    const returned = await service.returnPhysicalSale(sold.id, {
+      ...physicalReturn(sold.items[0].id, 1),
+      refundChannel: "ROCKET",
+    }, OWNER_ID);
+    expect(returned.returns[0]).toMatchObject({ refundChannel: "ROCKET", cashRefundAmount: 500 });
+    const refundCorrected = await service.correctPhysicalReturnChannel(sold.id, returned.returns[0].id, "NAGAD", OWNER_ID);
+    expect(refundCorrected.returns[0].refundChannel).toBe("NAGAD");
+    expect(refundCorrected.refundedAmount).toBe(returned.refundedAmount);
+    expect(state.audits.filter((entry) => entry.action === "PAYMENT_CHANNEL_CORRECTED")).toEqual([
+      expect.objectContaining({ previousData: { paymentChannel: "BKASH" }, newData: { paymentChannel: "BANK" } }),
+      expect.objectContaining({ previousData: { paymentChannel: "ROCKET" }, newData: { paymentChannel: "NAGAD" } }),
+    ]);
+  });
+
+  it("corrects a legacy due payment but blocks changing a voided payment", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 1, unitBuyingCost: "300" }]), OWNER_ID);
+    const sold = await service.createPhysicalSale(creditSale(1), OWNER_ID);
+    const paid = await service.recordCreditPayment(sold.id, {
+      ...creditPayment("100", "10000000-0000-4000-8000-000000000502"),
+      paymentChannel: "BKASH",
+    }, OWNER_ID);
+    const paymentId = paid.creditPayments[0].id;
+    const corrected = await service.correctLegacyCreditPaymentChannel(sold.id, paymentId, "ROCKET", OWNER_ID);
+    expect(corrected.creditPayments[0]).toMatchObject({ paymentChannel: "ROCKET", amount: 100 });
+    expect(corrected.grandTotal).toBe(sold.grandTotal);
+    await service.voidCreditPayment(sold.id, paymentId, creditPaymentVoidSchema.parse({ reason: "Wrong entry" }), OWNER_ID);
+    await expect(service.correctLegacyCreditPaymentChannel(sold.id, paymentId, "BANK", OWNER_ID))
+      .rejects.toMatchObject({ code: "PAYMENT_NOT_FOUND" });
   });
 });
