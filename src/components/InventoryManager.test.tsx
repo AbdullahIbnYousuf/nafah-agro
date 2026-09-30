@@ -146,7 +146,7 @@ describe('streamlined inventory workspace', () => {
 
   it('loads live batches only after expanding a stock row', async () => {
     renderInventory();
-    const row = await screen.findByRole('button', { name: /মিনিকেট চাল.*প্যাকেট/ });
+    const row = await screen.findByRole('button', { name: /মিনিকেট চাল.*ইউনিট/ });
     expect(mocks.getInventoryItemBatches).not.toHaveBeenCalled();
 
     fireEvent.click(row);

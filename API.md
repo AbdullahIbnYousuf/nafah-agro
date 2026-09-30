@@ -121,7 +121,14 @@ Catalog write clients do not submit or edit SKU values. Express generates an
 immutable internal SKU for each new variant. Existing SKU columns and historical
 snapshots remain for compatibility but are not part of the owner or customer UI.
 The initial pack/size name may be blank; an additional pack/size requires the
-existing internal default to be given a meaningful name first.
+existing internal default to be given a meaningful name first. New `PACKAGED`
+products require `initialVariant.unitLabel`; new pack/sizes require `unitLabel`
+(a trimmed 1–30 character label such as `বস্তা`, `ক্যান`, or `ট্রে`). Each
+variant stores its own label. Existing variants default to `ইউনিট`. The label
+can be changed only before stock or business history exists. Product, variant,
+stock, and order responses expose the label; sale items retain
+`unitLabelSnapshot`. Quantities remain whole `PIECE` values, with no conversion
+to the contents of a package. Eggs and measured products keep fixed labels.
 
 Products expose `kind`: `PACKAGED`, `LOOSE_WEIGHT`, `LOOSE_VOLUME`, or `EGG`.
 Loose products keep one hidden internal variant and cannot receive more

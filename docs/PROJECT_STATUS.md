@@ -78,6 +78,10 @@ is not approved for production until the external gates in this document and
   gram/millilitre stock, and use per-kg/per-litre FIFO rates. Public and manual
   delivery-order APIs reject them, while owner inventory, physical sales,
   returns, alerts, valuation, and analytics preserve their quantity units.
+- Added custom whole-unit labels for packaged pack/sizes. New labels are required
+  in owner creation flows; existing variants default to `ইউনিট`. Stock, sales,
+  and order snapshots retain the label without changing FIFO or quantities.
+  Apply `202609300001_custom_whole_units` before deploying this code.
 - Added the local egg-product foundation. Egg products keep one hidden variant,
   whole-piece FIFO stock, paired regular and 15+ prices, independent immutable
   price-tier history, and a price-tier snapshot on every order item. The same

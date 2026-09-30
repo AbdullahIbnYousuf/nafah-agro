@@ -4,6 +4,13 @@ export type ProductKindValue = "PACKAGED" | "LOOSE_WEIGHT" | "LOOSE_VOLUME" | "E
 export type AmountUnit = "PIECE" | "KG" | "G" | "LITER" | "ML";
 export type QuantityUnitValue = "PIECE" | "GRAM" | "MILLILITER";
 
+export function unitLabelForKind(kind: ProductKindValue, customLabel?: string | null) {
+  if (kind === "EGG") return "টি ডিম";
+  if (kind === "LOOSE_WEIGHT") return "কেজি";
+  if (kind === "LOOSE_VOLUME") return "লিটার";
+  return customLabel?.trim() || "ইউনিট";
+}
+
 const MAX_BASE_QUANTITY = 2_000_000_000;
 
 export function quantityUnitForKind(kind: ProductKindValue): QuantityUnitValue {

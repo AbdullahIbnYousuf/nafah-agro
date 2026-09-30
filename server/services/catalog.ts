@@ -15,7 +15,7 @@ import type {
   VariantUpdate,
 } from "../schemas/catalog.js";
 import { EGG_BULK_MINIMUM_QUANTITY, validateEggPrices } from "../lib/pricing.js";
-import { quantityUnitForKind } from "../lib/quantity.js";
+import { quantityUnitForKind, unitLabelForKind } from "../lib/quantity.js";
 
 const publicProductInclude = {
   category: { select: { id: true, name: true, slug: true, isActive: true, isVisibleInShop: true } },
@@ -34,6 +34,7 @@ const adminProductInclude = {
         select: {
           stockBatches: true,
           stockAdjustments: true,
+          inventoryOperations: true,
           salesOrderItems: true,
           priceHistory: true,
         },
@@ -98,6 +99,7 @@ function hasNoBusinessHistory(variant: ProductRecord["variants"][number], kind: 
     && variant.reservedStock === 0
     && variant._count.stockBatches === 0
     && variant._count.stockAdjustments === 0
+    && (variant._count.inventoryOperations ?? 0) === 0
     && variant._count.salesOrderItems === 0
     && variant._count.priceHistory <= (kind === "EGG" ? 2 : 1);
 }
@@ -130,11 +132,13 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
     stock: visibleVariants.reduce((total, variant) => total + variant.availableStock, 0),
     sku: defaultVariant?.sku,
     variantName: defaultVariant?.name,
+    unitLabel: defaultVariant ? unitLabelForKind(product.kind, defaultVariant.unitLabel) : "ইউনিট",
     defaultVariantId: defaultVariant?.id,
     canDelete: includeInactiveVariants && product.variants.every((variant) => hasNoBusinessHistory(variant, product.kind)),
     variants: visibleVariants.map((variant) => ({
       id: variant.id,
       name: variant.name,
+      unitLabel: unitLabelForKind(product.kind, variant.unitLabel),
       sku: variant.sku,
       sellingPrice: Number(variant.currentSellingPrice),
       bulkSellingPrice: variant.bulkSellingPrice === null ? null : Number(variant.bulkSellingPrice),
@@ -142,6 +146,7 @@ function productDto(product: ProductRecord, includeInactiveVariants: boolean) {
       availableStock: variant.availableStock,
       reservedStock: variant.reservedStock,
       lowStockThreshold: variant.lowStockThreshold,
+      canEditUnitLabel: includeInactiveVariants && product.kind === "PACKAGED" && hasNoBusinessHistory(variant, product.kind),
       isDefault: variant.isDefault,
       isActive: variant.isActive,
     })),
@@ -152,6 +157,7 @@ const variantOptionSelect = {
   id: true,
   productId: true,
   name: true,
+  unitLabel: true,
   currentSellingPrice: true,
   bulkSellingPrice: true,
   availableStock: true,
@@ -169,6 +175,7 @@ function variantOptionDto(variant: VariantOptionRecord) {
     variantName: variant.name,
     productKind: variant.product.kind,
     quantityUnit: quantityUnitForKind(variant.product.kind),
+    unitLabel: unitLabelForKind(variant.product.kind, variant.unitLabel),
     availableStock: variant.availableStock,
     reservedStock: variant.reservedStock,
     sellingPrice: Number(variant.currentSellingPrice),
@@ -382,6 +389,7 @@ export function createCatalogService(prisma: PrismaClient) {
                   id: variantId,
                   name: (input.kind ?? "PACKAGED") === "PACKAGED" ? input.initialVariant.name || "Default" : "Default",
                   sku: internalSku(variantId),
+                  unitLabel: unitLabelForKind(input.kind ?? "PACKAGED", input.initialVariant.unitLabel),
                   currentSellingPrice: input.initialVariant.sellingPrice,
                   bulkSellingPrice: (input.kind ?? "PACKAGED") === "EGG" ? input.initialVariant.bulkSellingPrice : null,
                   lowStockThreshold: input.initialVariant.lowStockThreshold,
@@ -472,6 +480,7 @@ export function createCatalogService(prisma: PrismaClient) {
             where: { id: variant.id },
             data: {
               name: "Default",
+              unitLabel: unitLabelForKind(input.kind, input.unitLabel),
               currentSellingPrice: input.sellingPrice,
               bulkSellingPrice: input.kind === "EGG" ? input.bulkSellingPrice : null,
               lowStockThreshold: input.lowStockThreshold,
@@ -619,6 +628,7 @@ export function createCatalogService(prisma: PrismaClient) {
             productId,
             name: input.name,
             sku: internalSku(variantId),
+            unitLabel: input.unitLabel,
             currentSellingPrice: input.sellingPrice,
             lowStockThreshold: input.lowStockThreshold,
             isDefault: input.isDefault,
@@ -639,8 +649,20 @@ export function createCatalogService(prisma: PrismaClient) {
     async updateVariant(variantId: string, input: VariantUpdate) {
       try {
         const productId = await prisma.$transaction(async (transaction) => {
-          const variant = await transaction.productVariant.findUnique({ where: { id: variantId } });
+          const variant = await transaction.productVariant.findUnique({ where: { id: variantId }, include: {
+            product: { select: { kind: true } },
+            _count: { select: { stockBatches: true, stockAdjustments: true, inventoryOperations: true, salesOrderItems: true, priceHistory: true } },
+          } });
           if (!variant) throw catalogError(404, "VARIANT_NOT_FOUND", "Variant not found");
+          if (input.unitLabel !== undefined && input.unitLabel !== variant.unitLabel) {
+            if (variant.product.kind !== "PACKAGED") throw catalogError(400, "UNIT_LABEL_FIXED", "এই পণ্যের ইউনিট পরিবর্তন করা যায় না।");
+            if (variant.availableStock !== 0 || variant.reservedStock !== 0
+              || variant._count.stockBatches > 0 || variant._count.stockAdjustments > 0
+              || variant._count.inventoryOperations > 0 || variant._count.salesOrderItems > 0
+              || variant._count.priceHistory > 1) {
+              throw catalogError(409, "UNIT_LABEL_LOCKED", "স্টক বা আগের ব্যবসার রেকর্ড থাকায় বিক্রির ইউনিট পরিবর্তন করা যায় না।");
+            }
+          }
 
           if (input.name && isUnnamedPackSize(input.name)) {
             const packSizeCount = await transaction.productVariant.count({

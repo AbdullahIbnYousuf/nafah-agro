@@ -26,6 +26,9 @@ orders, returns, analytics, and Cloudinary uploads.
 - Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
   are physical-shop-only, use exact gram/millilitre stock internally, and show
   owner inputs and balances in kg/g or litre/ml.
+- Packaged products can name each whole selling unit, such as `বস্তা`, `ক্যান`,
+  or `ট্রে`. Each pack/size keeps its own label, price, and FIFO stock; there is
+  no conversion into kg or sale of part of a unit. Existing pack/sizes use `ইউনিট`.
 - `EGG` products use one whole-piece FIFO stock pool and two server-enforced
   selling rates: the regular rate for 1–14 eggs and a lower rate for the whole
   line at 15 or more. Eggs are available in the storefront and every sales channel.
@@ -218,7 +221,10 @@ files are retained for manual orphan review. Apply all checked-in migrations
 before using this workflow.
 
 Packaged products use whole-piece stock and may have multiple pack/size
-options. A loose product has one hidden internal option, a selling/buying rate
+options. A new packaged pack/size requires a short `বিক্রির ইউনিট` label. It can
+be corrected only before stock or business history exists. Completed sale items
+keep a unit-label snapshot, so later setup changes cannot rewrite old orders.
+A loose product has one hidden internal option, a selling/buying rate
 per kg or litre, and independent FIFO stock. Loose products never appear in the
 public storefront or delivery-order forms.
 

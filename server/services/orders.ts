@@ -10,6 +10,7 @@ import type {
 import { reserveAvailableFifo, stockError, type FifoAllocation } from "./stockAllocation.js";
 import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
 import { sellingPriceForQuantity } from "../lib/pricing.js";
+import { unitLabelForKind } from "../lib/quantity.js";
 
 const orderInclude = {
   createdBy: { select: { fullName: true, role: true } },
@@ -86,6 +87,7 @@ function orderDto(order: OrderRecord) {
       productName: item.productNameSnapshot,
       variantName: item.variantNameSnapshot,
       quantityUnit: item.quantityUnit,
+      unitLabel: item.unitLabelSnapshot,
       sku: item.skuSnapshot,
       quantity: item.quantity,
       unitSellingPrice: moneyNumber(item.unitSellingPrice),
@@ -258,6 +260,7 @@ async function createOrderBase(
       skuSnapshot: variant.sku,
       quantity: item.quantity,
       quantityUnit: "PIECE",
+      unitLabelSnapshot: unitLabelForKind(variant.product.kind, variant.unitLabel),
       unitSellingPrice: prices[index].unitPrice,
       sellingPriceTier: prices[index].tier,
       grossLineRevenue: lineTotals[index],

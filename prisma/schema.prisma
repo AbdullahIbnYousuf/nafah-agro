@@ -180,6 +180,7 @@ model ProductVariant {
   id                  String                @id @default(uuid()) @db.Uuid
   productId           String                @map("product_id") @db.Uuid
   name                String
+  unitLabel           String                @default("ইউনিট") @map("unit_label")
   sku                 String                @unique
   currentSellingPrice Decimal               @map("current_selling_price") @db.Decimal(14, 2)
   bulkSellingPrice    Decimal?              @map("bulk_selling_price") @db.Decimal(14, 2)
@@ -454,6 +455,7 @@ model SalesOrderItem {
   skuSnapshot             String                   @map("sku_snapshot")
   quantity                Int
   quantityUnit            QuantityUnit             @default(PIECE) @map("quantity_unit")
+  unitLabelSnapshot       String                   @default("ইউনিট") @map("unit_label_snapshot")
   unitSellingPrice        Decimal                  @map("unit_selling_price") @db.Decimal(14, 2)
   sellingPriceTier        SellingPriceTier         @default(REGULAR) @map("selling_price_tier")
   grossLineRevenue        Decimal                  @map("gross_line_revenue") @db.Decimal(14, 2)

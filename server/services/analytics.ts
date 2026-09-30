@@ -42,6 +42,7 @@ export interface AnalyticsOrderRecord {
     variantNameSnapshot: string;
     skuSnapshot: string;
     quantityUnit?: QuantityUnitValue;
+    unitLabelSnapshot?: string;
     quantity: number;
     netLineRevenue: MoneyValue;
     totalBuyingCost: MoneyValue | null;
@@ -74,6 +75,7 @@ export interface AnalyticsPhysicalSaleReturnRecord {
       variantNameSnapshot: string;
       skuSnapshot: string;
       quantityUnit?: QuantityUnitValue;
+      unitLabelSnapshot?: string;
     };
   }>;
 }
@@ -88,6 +90,7 @@ export interface AnalyticsInventoryOperationRecord {
     id: string;
     name: string;
     sku: string;
+    unitLabel?: string;
   };
 }
 
@@ -98,6 +101,7 @@ export interface AnalyticsVariantRecord {
   availableStock: number;
   reservedStock: number;
   lowStockThreshold: number;
+  unitLabel?: string;
   product: { name: string; kind?: ProductKindValue };
 }
 
@@ -265,6 +269,7 @@ interface FinancialEvent {
     variantName: string;
     sku: string;
     quantityUnit: QuantityUnitValue;
+    unitLabel?: string;
     quantity: number;
     productRevenue: Prisma.Decimal;
     fifoCost: Prisma.Decimal;
@@ -385,6 +390,7 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
         variantName: item.variantNameSnapshot,
         sku: item.skuSnapshot,
         quantityUnit: item.quantityUnit ?? "PIECE",
+        unitLabel: item.unitLabelSnapshot,
         quantity: item.quantity * quantityDirection,
         productRevenue: revenue,
         fifoCost: cost,
@@ -420,6 +426,7 @@ function physicalSaleReturnEvent(value: AnalyticsPhysicalSaleReturnRecord): Fina
       variantName: item.salesOrderItem.variantNameSnapshot,
       sku: item.salesOrderItem.skuSnapshot,
       quantityUnit: item.salesOrderItem.quantityUnit ?? "PIECE",
+      unitLabel: item.salesOrderItem.unitLabelSnapshot,
       quantity: -item.quantity,
       productRevenue: decimal(item.refundAmount).negated(),
       fifoCost: decimal(item.reversedBuyingCost).negated(),
@@ -575,6 +582,7 @@ interface ProductAggregate {
   variantName: string;
   sku: string;
   quantityUnit: QuantityUnitValue;
+  unitLabel?: string;
   quantity: number;
   productRevenue: Prisma.Decimal;
   fifoCost: Prisma.Decimal;
@@ -592,11 +600,13 @@ function aggregateProducts(events: FinancialEvent[]) {
         variantName: item.variantName,
         sku: item.sku,
         quantityUnit: item.quantityUnit,
+        unitLabel: item.unitLabel,
         quantity: 0,
         productRevenue: new Prisma.Decimal(0),
         fifoCost: new Prisma.Decimal(0),
         grossProfit: new Prisma.Decimal(0),
       };
+      current.unitLabel ??= item.unitLabel;
       current.quantity += item.quantity;
       current.productRevenue = current.productRevenue.plus(item.productRevenue);
       current.fifoCost = current.fifoCost.plus(item.fifoCost);
@@ -617,6 +627,7 @@ function productDto(product: ProductAggregate) {
     sku: product.sku,
     quantity: product.quantity / divisor,
     quantityUnit: product.quantityUnit === "GRAM" ? "KG" : product.quantityUnit === "MILLILITER" ? "LITER" : "PIECE",
+    unitLabel: product.unitLabel,
     productRevenue: decimalNumber(product.productRevenue),
     fifoCost: decimalNumber(product.fifoCost),
     grossProfit: decimalNumber(product.grossProfit),
@@ -709,6 +720,7 @@ export function buildAnalyticsDashboard(input: {
     variantName: variant.name,
     sku: variant.sku,
     productKind: kind,
+    unitLabel: variant.unitLabel,
     quantityUnit,
     availableStock: variant.availableStock / divisor,
     reservedStock: variant.reservedStock / divisor,
@@ -796,7 +808,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
             type: true,
             effectiveDate: true,
             recognizedCostImpact: true,
-            productVariant: { select: { id: true, name: true, sku: true, product: { select: { id: true, name: true, kind: true } } } },
+            productVariant: { select: { id: true, name: true, sku: true, unitLabel: true, product: { select: { id: true, name: true, kind: true } } } },
           },
         })
         : Promise.resolve([]);
@@ -830,6 +842,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
                 skuSnapshot: true,
                 quantity: true,
                 quantityUnit: true,
+                unitLabelSnapshot: true,
                 netLineRevenue: true,
                 totalBuyingCost: true,
                 allocations: { select: { totalBuyingCost: true } },
@@ -859,6 +872,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
                     variantNameSnapshot: true,
                     skuSnapshot: true,
                     quantityUnit: true,
+                    unitLabelSnapshot: true,
                   },
                 },
               },
@@ -887,6 +901,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
             id: true,
             name: true,
             sku: true,
+            unitLabel: true,
             availableStock: true,
             reservedStock: true,
             lowStockThreshold: true,

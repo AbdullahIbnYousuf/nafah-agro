@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Product } from '@/lib/types';
 import { Leaf } from 'lucide-react';
+import { rateLabel } from '@/lib/quantity';
 
 interface Props {
   product: Product;
@@ -38,7 +39,7 @@ const ProductCard = ({ product, priority = false }: Props) => {
         </h3>
         {product.kind === 'EGG' && product.bulkSellingPrice != null
           ? <div className="mt-1"><p className="text-lg font-bold text-secondary">৳{product.price} <span className="text-xs font-normal">প্রতি ডিম</span></p><p className="text-xs text-muted-foreground">15টি+: ৳{product.bulkSellingPrice} প্রতি ডিম</p></div>
-          : <p className="mt-1 text-lg font-bold text-secondary">৳{product.price}</p>}
+          : <p className="mt-1 text-lg font-bold text-secondary">৳{product.price} <span className="text-xs font-normal">{rateLabel(product.kind, product.unitLabel)}</span></p>}
         {product.tags?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {product.tags.slice(0, 3).map(tag => (

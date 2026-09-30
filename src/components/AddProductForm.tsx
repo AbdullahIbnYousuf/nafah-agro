@@ -40,6 +40,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   const [name, setName] = useState(editProduct?.name ?? '');
   const [description, setDescription] = useState(editProduct?.description ?? '');
   const [kind, setKind] = useState<ProductKind>(editProduct?.kind ?? 'PACKAGED');
+  const [unitLabel, setUnitLabel] = useState(editProduct?.unitLabel ?? '');
   const [price, setPrice] = useState(editProduct ? String(editProduct.price) : '');
   const [bulkSellingPrice, setBulkSellingPrice] = useState(
     editProduct?.bulkSellingPrice == null ? '' : String(editProduct.bulkSellingPrice),
@@ -121,6 +122,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return toast.error('পণ্যের নাম দিন');
+    if (kind === 'PACKAGED' && (!isEdit || kind !== editProduct?.kind) && !unitLabel.trim()) return toast.error('বিক্রির ইউনিট লিখুন');
     if (!isEdit && (!price || isNaN(Number(price)))) return toast.error('সঠিক দাম দিন');
     if (kind === 'EGG' && (
       !bulkSellingPrice
@@ -153,6 +155,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         bulkSellingPrice: kind === 'EGG' ? Number(bulkSellingPrice) : null,
         stock: editProduct?.stock ?? 0,
         variantName: variantName.trim(),
+        unitLabel: kind === 'PACKAGED' ? unitLabel.trim() : undefined,
         kind,
         initialLowStockThreshold: thresholdBase,
         categoryId,
@@ -167,6 +170,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
         if (kindChanged) {
           updated = await changeProductKind(editProduct.id, {
             kind,
+            unitLabel: kind === 'PACKAGED' ? unitLabel.trim() : undefined,
             sellingPrice: Number(price),
             bulkSellingPrice: kind === 'EGG' ? Number(bulkSellingPrice) : undefined,
             lowStockThreshold: thresholdBase,
@@ -253,18 +257,26 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                     onChange={(event) => {
                       const next = event.target.value as ProductKind;
                       setKind(next);
+                      setUnitLabel('');
                       setVariantName('');
                       setLowStockThreshold('5');
                       if (next !== 'EGG') setBulkSellingPrice('');
                     }}
                   >
-                    <option value="PACKAGED">প্যাকেট বা নির্দিষ্ট সাইজ</option>
+                    <option value="PACKAGED">ইউনিট হিসেবে বিক্রি (প্যাকেট, বস্তা, ক্যান, ট্রে)</option>
                     <option value="LOOSE_WEIGHT">খোলা পণ্য, ওজনে বিক্রি</option>
                     <option value="LOOSE_VOLUME">খোলা পণ্য, লিটারে বিক্রি</option>
                     <option value="EGG">ডিম</option>
                   </select>
                   <p className="mt-1 text-xs text-muted-foreground">বর্তমান ধরন: {productKindLabel(kind)}</p>
                 </div>
+
+                {kind === 'PACKAGED' && (!isEdit || kind !== editProduct?.kind) && <div>
+                  <Label htmlFor="unit-label">বিক্রির ইউনিট *</Label>
+                  <Input id="unit-label" value={unitLabel} maxLength={30} onChange={(event) => setUnitLabel(event.target.value)} placeholder="যেমন: বস্তা, ক্যান, ট্রে" className="mt-1 bg-card" />
+                  <p className="mt-1 text-xs text-muted-foreground">পুরো ইউনিট একসাথে বিক্রি হবে।</p>
+                  {unitLabel.trim() && <p className="mt-1 text-sm font-medium">স্টক: ৮ {unitLabel.trim()} · দাম: ৳{price || '৫০০'} প্রতি {unitLabel.trim()}</p>}
+                </div>}
 
                 {kind === 'EGG' && <div>
                   <Label htmlFor="bulk-price">15টি বা তার বেশি হলে প্রতি ডিমের দাম (টাকা) *</Label>

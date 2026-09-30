@@ -35,29 +35,34 @@ export function majorQuantity(baseQuantity: number, unit: QuantityUnit = 'PIECE'
   return unit === 'PIECE' ? baseQuantity : baseQuantity / 1_000;
 }
 
-export function formatQuantity(baseQuantity: number, unit: QuantityUnit = 'PIECE', kind?: ProductKind): string {
-  const amount = majorQuantity(baseQuantity, unit);
-  const label = unit === 'GRAM' ? 'কেজি' : unit === 'MILLILITER' ? 'লিটার' : kind === 'EGG' ? 'টি ডিম' : 'ইউনিট';
+export function quantityLabel(unit: QuantityUnit = 'PIECE', kind?: ProductKind, customLabel?: string | null): string {
+  if (unit === 'GRAM') return 'কেজি';
+  if (unit === 'MILLILITER') return 'লিটার';
+  if (kind === 'EGG') return 'টি ডিম';
+  return customLabel?.trim() || 'ইউনিট';
+}
+
+export function formatQuantity(baseQuantity: number, unit: QuantityUnit = 'PIECE', kind?: ProductKind, customLabel?: string | null): string {
+  return `${numberFormat.format(majorQuantity(baseQuantity, unit))} ${quantityLabel(unit, kind, customLabel)}`;
+}
+
+export function formatMajorQuantity(amount: number, unit: 'PIECE' | 'KG' | 'LITER', customLabel?: string): string {
+  const label = unit === 'KG' ? 'কেজি' : unit === 'LITER' ? 'লিটার' : (customLabel || 'ইউনিট');
   return `${numberFormat.format(amount)} ${label}`;
 }
 
-export function formatMajorQuantity(amount: number, unit: 'PIECE' | 'KG' | 'LITER'): string {
-  const label = unit === 'KG' ? 'কেজি' : unit === 'LITER' ? 'লিটার' : 'ইউনিট';
-  return `${numberFormat.format(amount)} ${label}`;
-}
-
-export function rateLabel(kind?: ProductKind): string {
+export function rateLabel(kind?: ProductKind, customLabel?: string | null): string {
   if (kind === 'LOOSE_WEIGHT') return 'প্রতি কেজি';
   if (kind === 'LOOSE_VOLUME') return 'প্রতি লিটার';
   if (kind === 'EGG') return 'প্রতি ডিম';
-  return 'প্রতি ইউনিট';
+  return `প্রতি ${customLabel?.trim() || 'ইউনিট'}`;
 }
 
 export function productKindLabel(kind?: ProductKind): string {
   if (kind === 'LOOSE_WEIGHT') return 'খোলা ওজন';
   if (kind === 'LOOSE_VOLUME') return 'খোলা তরল';
   if (kind === 'EGG') return 'ডিম';
-  return 'প্যাকেট';
+  return 'ইউনিট হিসেবে বিক্রি';
 }
 
 export const EGG_BULK_MINIMUM_QUANTITY = 15;

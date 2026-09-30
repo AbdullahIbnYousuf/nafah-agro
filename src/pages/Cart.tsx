@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ApiError, createWebsiteOrder, getDeliveryRates } from '@/lib/api';
 import type { DeliveryRate, UnifiedOrder } from '@/lib/types';
 import { visiblePackSize } from '@/lib/productOptions';
-import { sellingPriceForQuantity } from '@/lib/quantity';
+import { sellingPriceForQuantity, quantityLabel, rateLabel } from '@/lib/quantity';
 
 export default function Cart() {
   const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
@@ -115,10 +115,10 @@ export default function Cart() {
           <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">{item.imageUrl
             ? <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
             : <ShoppingBag size={24} className="text-muted-foreground/50" aria-hidden="true" />}</div>
-          <div className="min-w-0 flex-1"><div className="break-words font-semibold">{item.productName}</div>{visiblePackSize(item.variantName) && <div className="break-words text-xs text-muted-foreground">{visiblePackSize(item.variantName)}</div>}{item.productKind === 'EGG' && <div className="text-xs text-secondary">{pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'} · ৳{pricing.unitPrice} প্রতি ডিম</div>}
+          <div className="min-w-0 flex-1"><div className="break-words font-semibold">{item.productName}</div>{visiblePackSize(item.variantName) && <div className="break-words text-xs text-muted-foreground">{visiblePackSize(item.variantName)}</div>}<div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(item.productKind, item.unitLabel)}</div>{item.productKind === 'EGG' && <div className="text-xs text-secondary">{pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'} · ৳{pricing.unitPrice} প্রতি ডিম</div>}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2">
               <button aria-label="পরিমাণ কমান" onClick={() => updateQuantity(item.productVariantId, item.quantity - 1)} className="flex h-11 w-11 items-center justify-center rounded-full border transition-colors hover:bg-muted"><Minus size={16} /></button>
-              <span>{item.quantity}</span>
+              <span>{item.quantity} {quantityLabel('PIECE', item.productKind, item.unitLabel)}</span>
               <button aria-label="পরিমাণ বাড়ান" onClick={() => updateQuantity(item.productVariantId, item.quantity + 1)} className="flex h-11 w-11 items-center justify-center rounded-full border transition-colors hover:bg-muted"><Plus size={16} /></button>
             </div><div className="ml-auto flex items-center gap-2"><strong>৳{pricing.unitPrice * item.quantity}</strong><button aria-label="কার্ট থেকে রিমুভ করুন" className="flex h-11 w-11 items-center justify-center rounded-md text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.productVariantId)}><Trash2 size={18} /></button></div></div>
           </div>

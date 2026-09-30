@@ -54,12 +54,12 @@ function amountFromBase(quantity: number, unit: AmountUnit) {
   return String(unit === 'KG' || unit === 'LITER' ? quantity / 1_000 : quantity);
 }
 
-function unitLabel(unit: AmountUnit) {
+function unitLabel(unit: AmountUnit, customLabel?: string) {
   if (unit === 'KG') return 'কেজি';
   if (unit === 'G') return 'গ্রাম';
   if (unit === 'LITER') return 'লিটার';
   if (unit === 'ML') return 'মিলি';
-  return 'ইউনিট';
+  return customLabel || 'ইউনিট';
 }
 
 function errorMessage(error: unknown) {
@@ -180,7 +180,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
               <Label htmlFor={`return-item-${item.id}`} className="min-w-0 flex-1 cursor-pointer">
                 <span className="block font-medium">{productPackLabel(item.productName, item.variantName)}</span>
                 <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                  বিক্রি হয়েছিল {formatQuantity(item.quantity, item.quantityUnit)} · রিটার্ন করা যাবে {formatQuantity(item.returnableQuantity, item.quantityUnit)}
+                  বিক্রি হয়েছিল {formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)} · রিটার্ন করা যাবে {formatQuantity(item.returnableQuantity, item.quantityUnit, undefined, item.unitLabel)}
                 </span>
               </Label>
             </div>
@@ -208,7 +208,7 @@ export default function PhysicalSaleReturnDialog({ sale, onClose, onConfirm }: P
                   setLines((current) => ({ ...current, [item.id]: { ...current[item.id], amountUnit: nextUnit, amount: amountFromBase(base, nextUnit) } }));
                 }}
               >
-                {unitsFor(item.quantityUnit).map((unit) => <option key={unit} value={unit}>{unitLabel(unit)}</option>)}
+                {unitsFor(item.quantityUnit).map((unit) => <option key={unit} value={unit}>{unitLabel(unit, item.unitLabel)}</option>)}
               </select>
             </div>}
           </div>;

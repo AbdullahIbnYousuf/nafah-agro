@@ -90,7 +90,7 @@ export default function VariantOptionCombobox({
       >
         <span className="min-w-0 flex-1">
           {selected
-            ? <><span className="block truncate font-medium text-foreground">{selectedLabel}</span><span className="block text-xs text-muted-foreground">স্টক {formatQuantity(selected.availableStock, selected.quantityUnit, selected.productKind)}</span></>
+            ? <><span className="block truncate font-medium text-foreground">{selectedLabel}</span><span className="block text-xs text-muted-foreground">স্টক {formatQuantity(selected.availableStock, selected.quantityUnit, selected.productKind, selected.unitLabel)}</span></>
             : <span className="text-muted-foreground">{placeholder}</span>}
         </span>
         <ChevronsUpDown className="shrink-0 text-muted-foreground" size={16} />
@@ -119,7 +119,7 @@ export default function VariantOptionCombobox({
                 className={cn('min-h-14 gap-2', reason && 'cursor-not-allowed opacity-60 data-[disabled=true]:pointer-events-auto')}
               >
                 <Check size={15} className={cn('shrink-0', isSelected ? 'opacity-100' : 'opacity-0')} />
-                <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{variantOptionLabel(option)}</strong><span className={cn('block text-xs', reason ? 'text-destructive' : 'text-muted-foreground')}>{reason ?? `স্টক ${formatQuantity(option.availableStock, option.quantityUnit, option.productKind)}`}</span></span>
+                <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{variantOptionLabel(option)}</strong><span className={cn('block text-xs', reason ? 'text-destructive' : 'text-muted-foreground')}>{reason ?? `স্টক ${formatQuantity(option.availableStock, option.quantityUnit, option.productKind, option.unitLabel)}`}</span></span>
               </CommandItem>;
             })}
           </CommandGroup>}

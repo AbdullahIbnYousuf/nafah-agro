@@ -85,7 +85,7 @@ export default function ReturnOrderDialog({ order, onClose, onConfirm }: ReturnO
         <div className="space-y-2">
           {order?.items.map(item => <div key={item.id} className="flex justify-between gap-4 text-sm">
             <span>{productPackLabel(item.productName, item.variantName)}</span>
-            <span className="font-medium whitespace-nowrap">× {formatQuantity(item.quantity, item.quantityUnit)}</span>
+            <span className="font-medium whitespace-nowrap">× {formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)}</span>
           </div>)}
         </div>
       </section>

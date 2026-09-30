@@ -16,6 +16,8 @@ export type SellingPriceTier = 'REGULAR' | 'EGG_BULK';
 export interface ProductVariant {
   id: string;
   name: string;
+  unitLabel?: string;
+  canEditUnitLabel?: boolean;
   sku: string;
   sellingPrice: number;
   bulkSellingPrice?: number | null;
@@ -36,6 +38,7 @@ export interface VariantOption {
   variantName: string;
   productKind: ProductKind;
   quantityUnit: QuantityUnit;
+  unitLabel?: string;
   availableStock: number;
   reservedStock: number;
   sellingPrice: number;
@@ -66,6 +69,7 @@ export interface StockBatch {
   variantName: string;
   productKind: ProductKind;
   quantityUnit?: QuantityUnit;
+  unitLabel?: string;
   sku: string;
   source: 'PURCHASE' | 'ADJUSTMENT' | 'SELLABLE_RETURN';
   purchasedQuantity: number;
@@ -95,6 +99,7 @@ export interface InventoryItem {
   productId: string;
   productName: string;
   variantName: string;
+  unitLabel?: string;
   productKind: ProductKind;
   quantityUnit: QuantityUnit;
   categoryId: string;
@@ -127,6 +132,7 @@ export interface InventoryBatchesPage {
 export interface InventoryRecordItem {
   batchId?: string;
   canCorrect?: boolean;
+  unitLabel?: string;
   productVariantId: string;
   productName: string;
   variantName: string;
@@ -180,6 +186,7 @@ export interface PhysicalSaleAllocation {
 
 export interface PhysicalSaleItem {
   id: string;
+  unitLabel?: string;
   productId: string;
   productVariantId: string;
   productName: string;
@@ -216,6 +223,7 @@ export interface PhysicalSaleReturn {
     productName: string;
     variantName: string;
     quantityUnit: QuantityUnit;
+    unitLabel?: string;
     quantity: number;
     refundAmount: number;
     reversedBuyingCost: number;
@@ -349,6 +357,7 @@ export interface Product {
   isVisibleInShop?: boolean;
   canDelete?: boolean;
   variants?: ProductVariant[];
+  unitLabel?: string;
   defaultVariantId?: string;
   sku?: string;
   variantName?: string;
@@ -364,6 +373,7 @@ export interface ProductsPage {
 }
 
 export interface CartItem {
+  unitLabel?: string;
   productId: string;
   productVariantId: string;
   productName: string;
@@ -389,6 +399,7 @@ export interface DeliveryRate {
 
 export interface UnifiedOrderItem {
   id: string;
+  unitLabel?: string;
   productId: string;
   productVariantId: string;
   productName: string;
@@ -517,6 +528,7 @@ export interface AnalyticsProductRow {
   sku: string;
   quantity: number;
   quantityUnit: 'PIECE' | 'KG' | 'LITER';
+  unitLabel?: string;
   productRevenue: number;
   fifoCost: number;
   grossProfit: number;
@@ -534,6 +546,7 @@ export interface AnalyticsStockVariant {
   lowStockThreshold: number;
   productKind: ProductKind;
   quantityUnit: 'PIECE' | 'KG' | 'LITER';
+  unitLabel?: string;
 }
 
 export interface AnalyticsDashboardData {

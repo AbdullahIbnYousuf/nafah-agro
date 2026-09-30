@@ -296,6 +296,20 @@ describe("unified PostgreSQL orders", () => {
     expect(await service.listCustomerWebsiteOrders(OWNER)).toHaveLength(0);
   });
 
+  it("keeps the custom unit on website and manual-order item snapshots", async () => {
+    const website = createMemoryPrisma();
+    website.state.variants[0].unitLabel = "বস্তা";
+    const placed = await createUnifiedOrderService(website.prisma).createWebsiteOrder(websiteInput());
+    expect(placed.order.items[0].unitLabel).toBe("বস্তা");
+    website.state.variants[0].unitLabel = "ক্যান";
+    expect((await createUnifiedOrderService(website.prisma).createWebsiteOrder(websiteInput())).order.items[0].unitLabel).toBe("বস্তা");
+
+    const manual = createMemoryPrisma();
+    manual.state.variants[0].unitLabel = "ট্রে";
+    const order = await createUnifiedOrderService(manual.prisma).createManualOrder(manualInput(), OWNER);
+    expect(order.items[0].unitLabel).toBe("ট্রে");
+  });
+
   it("reserves FIFO across batches only when confirmed", async () => {
     const { prisma, state } = createMemoryPrisma(); const service = createUnifiedOrderService(prisma);
     const pending = await service.createWebsiteOrder(websiteInput());

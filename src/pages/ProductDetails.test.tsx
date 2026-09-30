@@ -69,10 +69,10 @@ describe('product pack/size selection', () => {
     await waitFor(() => expect(document.title).toBe('Premium Miniket Rice | নাফাহ এগ্রো'));
     expect(screen.getByText('বিকল্প সিলেক্ট করুন')).toBeInTheDocument();
     expect(screen.queryByText(/^Weight:/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '5 kg · ৳620' })).toHaveClass('min-h-11');
+    expect(screen.getByRole('button', { name: '5 kg · ৳620 প্রতি ইউনিট' })).toHaveClass('min-h-11');
     expect(screen.getByRole('button', { name: 'কার্টে অ্যাড করুন' })).toHaveClass('min-h-12');
 
-    fireEvent.click(screen.getByRole('button', { name: '10 kg · ৳1180' }));
+    fireEvent.click(screen.getByRole('button', { name: '10 kg · ৳1180 প্রতি ইউনিট' }));
     expect(screen.getByText(/10 kg। স্টক অর্ডার কনফার্ম করার সময় যাচাই করা হবে/)).toBeInTheDocument();
     expect(screen.queryByText(/SKU/)).not.toBeInTheDocument();
 
@@ -82,6 +82,7 @@ describe('product pack/size selection', () => {
       productVariantId: 'variant-10',
       productName: 'Premium Miniket Rice',
       variantName: '10 kg',
+      unitLabel: undefined,
       quantity: 1,
       unitPrice: 1180,
       imageUrl: undefined,

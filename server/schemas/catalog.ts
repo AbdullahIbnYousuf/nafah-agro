@@ -4,6 +4,7 @@ const slug = z.string().trim().min(1).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$
 const money = z.string().regex(/^\d+(?:\.\d{1,2})?$/).refine((value) => Number(value) >= 0);
 const uuid = z.string().uuid();
 const productKind = z.enum(["PACKAGED", "LOOSE_WEIGHT", "LOOSE_VOLUME", "EGG"]);
+const wholeUnitLabel = z.string().trim().min(1).max(30);
 const optionalReason = (fallback: string) => z.string().trim().max(300).optional()
   .transform((value) => value || fallback);
 
@@ -30,12 +31,16 @@ export const productCreateSchema = z.object({
   attributes: z.array(z.unknown()).max(20).default([]),
   initialVariant: z.object({
     name: z.string().trim().max(120).default(""),
+    unitLabel: wholeUnitLabel.optional(),
     sellingPrice: money,
     bulkSellingPrice: money.optional(),
     lowStockThreshold: z.number().int().min(0).max(2_000_000_000).default(5),
   }).strict(),
   priceReason: optionalReason("প্রাথমিক দাম"),
 }).strict().superRefine((value, context) => {
+  if (value.kind === "PACKAGED" && !value.initialVariant.unitLabel) {
+    context.addIssue({ code: "custom", path: ["initialVariant", "unitLabel"], message: "বিক্রির ইউনিট লিখুন।" });
+  }
   if (value.kind !== "EGG") return;
   const regular = Number(value.initialVariant.sellingPrice);
   const bulk = Number(value.initialVariant.bulkSellingPrice);
@@ -64,11 +69,15 @@ export const productUpdateSchema = z.object({
 
 export const productKindChangeSchema = z.object({
   kind: productKind,
+  unitLabel: wholeUnitLabel.optional(),
   sellingPrice: money,
   bulkSellingPrice: money.optional(),
   lowStockThreshold: z.number().int().min(0).max(2_000_000_000),
   reason: optionalReason("পণ্যের ধরন পরিবর্তন"),
 }).strict().superRefine((value, context) => {
+  if (value.kind === "PACKAGED" && !value.unitLabel) {
+    context.addIssue({ code: "custom", path: ["unitLabel"], message: "বিক্রির ইউনিট লিখুন।" });
+  }
   if (value.kind !== "EGG") return;
   const regular = Number(value.sellingPrice);
   const bulk = Number(value.bulkSellingPrice);
@@ -79,6 +88,7 @@ export const productKindChangeSchema = z.object({
 
 export const variantCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  unitLabel: wholeUnitLabel,
   sellingPrice: money,
   lowStockThreshold: z.number().int().min(0).max(2_000_000_000).default(5),
   isDefault: z.boolean().default(false),
@@ -87,6 +97,7 @@ export const variantCreateSchema = z.object({
 
 export const variantUpdateSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
+  unitLabel: wholeUnitLabel.optional(),
   lowStockThreshold: z.number().int().min(0).max(2_000_000_000).optional(),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),

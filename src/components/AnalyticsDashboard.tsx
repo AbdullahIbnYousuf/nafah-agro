@@ -280,7 +280,7 @@ function ProductTable({ rows, mode }: { rows: AnalyticsProductRow[]; mode: 'sale
           {rows.map((row) => (
             <tr key={row.productVariantId} className="border-t">
               <td className="p-3"><strong>{productPackLabel(row.productName, row.variantName)}</strong></td>
-              <td className="p-3 text-right">{formatMajorQuantity(row.quantity, row.quantityUnit)}</td>
+              <td className="p-3 text-right">{formatMajorQuantity(row.quantity, row.quantityUnit, row.unitLabel)}</td>
               <td className="p-3 text-right">{money(row.productRevenue)}</td>
               {mode === 'profit' && <><td className="p-3 text-right">{money(row.fifoCost)}</td><td className="p-3 text-right font-semibold">{money(row.grossProfit)}</td><td className="p-3 text-right">{row.grossMargin === null ? 'লাভের হিসাব নেই' : `${numberFormatter.format(row.grossMargin)}%`}</td></>}
             </tr>

@@ -22,7 +22,7 @@ import type {
   StockBatchList,
 } from "../schemas/inventory.js";
 import { consumeAvailableFifo, type FifoAllocation } from "./stockAllocation.js";
-import { quantityCost, quantityUnitForKind, toBaseQuantity } from "../lib/quantity.js";
+import { quantityCost, quantityUnitForKind, toBaseQuantity, unitLabelForKind } from "../lib/quantity.js";
 import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
 import { sellingPriceForQuantity } from "../lib/pricing.js";
 
@@ -88,6 +88,7 @@ const saleInclude = {
               productNameSnapshot: true,
               variantNameSnapshot: true,
               quantityUnit: true,
+              unitLabelSnapshot: true,
             },
           },
         },
@@ -169,6 +170,7 @@ function saleDto(sale: SaleRecord) {
       productName: item.productNameSnapshot,
       variantName: item.variantNameSnapshot,
       quantityUnit: item.quantityUnit,
+      unitLabel: item.unitLabelSnapshot,
       sku: item.skuSnapshot,
       quantity: item.quantity,
       unitSellingPrice: moneyNumber(item.unitSellingPrice),
@@ -207,6 +209,7 @@ function saleDto(sale: SaleRecord) {
         productName: item.salesOrderItem.productNameSnapshot,
         variantName: item.salesOrderItem.variantNameSnapshot,
         quantityUnit: item.salesOrderItem.quantityUnit,
+        unitLabel: item.salesOrderItem.unitLabelSnapshot,
         quantity: item.quantity,
         refundAmount: Number(item.refundAmount),
         reversedBuyingCost: Number(item.reversedBuyingCost),
@@ -324,6 +327,7 @@ function purchaseBatchDto(batch: Prisma.StockBatchGetPayload<{
     variantName: batch.productVariant.name,
     productKind: batch.productVariant.product.kind,
     quantityUnit: quantityUnitForKind(batch.productVariant.product.kind),
+    unitLabel: unitLabelForKind(batch.productVariant.product.kind, batch.productVariant.unitLabel),
     sku: batch.productVariant.sku,
     source: batch.source,
     purchasedQuantity: batch.purchasedQuantity,
@@ -565,6 +569,7 @@ export function createInventoryService(prisma: PrismaClient) {
         id: true,
         productId: true,
         name: true,
+        unitLabel: true,
         availableStock: true,
         reservedStock: true,
         lowStockThreshold: true,
@@ -592,6 +597,7 @@ export function createInventoryService(prisma: PrismaClient) {
       variantName: variant.name,
       productKind: variant.product.kind,
       quantityUnit: quantityUnitForKind(variant.product.kind),
+      unitLabel: unitLabelForKind(variant.product.kind, variant.unitLabel),
       categoryId: variant.product.category.id,
       categoryName: variant.product.category.name,
       availableStock: variant.availableStock,
@@ -698,6 +704,7 @@ export function createInventoryService(prisma: PrismaClient) {
           variantName: batch.productVariant.name,
           productKind: batch.productVariant.product.kind,
           quantityUnit: quantityUnitForKind(batch.productVariant.product.kind),
+          unitLabel: unitLabelForKind(batch.productVariant.product.kind, batch.productVariant.unitLabel),
           direction: "INCREASE" as const,
           quantity: batch.purchasedQuantity,
           unitBuyingCost: moneyNumber(batch.unitBuyingCost),
@@ -718,6 +725,7 @@ export function createInventoryService(prisma: PrismaClient) {
           variantName: adjustment.productVariant.name,
           productKind: adjustment.productVariant.product.kind,
           quantityUnit: quantityUnitForKind(adjustment.productVariant.product.kind),
+          unitLabel: unitLabelForKind(adjustment.productVariant.product.kind, adjustment.productVariant.unitLabel),
           direction: adjustment.direction,
           quantity: adjustment.quantity,
           unitBuyingCost: adjustment.unitBuyingCost ? moneyNumber(adjustment.unitBuyingCost) : null,
@@ -747,6 +755,7 @@ export function createInventoryService(prisma: PrismaClient) {
           variantName: operation.productVariant.name,
           productKind: operation.productVariant.product.kind,
           quantityUnit: quantityUnitForKind(operation.productVariant.product.kind),
+          unitLabel: unitLabelForKind(operation.productVariant.product.kind, operation.productVariant.unitLabel),
           direction: operation.quantityDelta < 0 ? "DECREASE" as const : "INCREASE" as const,
           quantity: Math.abs(operation.quantityDelta),
           unitBuyingCost: operation.newUnitBuyingCost ? moneyNumber(operation.newUnitBuyingCost) : null,
@@ -1356,6 +1365,7 @@ export function createInventoryService(prisma: PrismaClient) {
             skuSnapshot: variant.sku,
             quantity: quantities[index],
             quantityUnit: quantityUnitForKind(variant.product.kind),
+            unitLabelSnapshot: unitLabelForKind(variant.product.kind, variant.unitLabel),
             unitSellingPrice: prices[index].unitPrice,
             sellingPriceTier: prices[index].tier,
             grossLineRevenue: lineTotals[index],

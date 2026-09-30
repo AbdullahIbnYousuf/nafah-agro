@@ -29,6 +29,9 @@ describe('quantity display helpers', () => {
     expect(formatQuantity(1_250, 'GRAM')).toContain('1.25 কেজি');
     expect(formatQuantity(500, 'MILLILITER')).toContain('0.5 লিটার');
     expect(formatQuantity(3, 'PIECE')).toContain('3 ইউনিট');
+    expect(formatQuantity(8, 'PIECE', 'PACKAGED', 'বস্তা')).toContain('8 বস্তা');
+    expect(formatQuantity(2, 'PIECE', 'PACKAGED', 'ক্যান')).toContain('2 ক্যান');
+    expect(formatQuantity(1_250, 'GRAM', 'LOOSE_WEIGHT', 'বস্তা')).toContain('1.25 কেজি');
     expect(formatQuantity(15, 'PIECE', 'EGG')).toContain('15 টি ডিম');
   });
 });

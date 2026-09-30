@@ -25,6 +25,7 @@ interface VariantRow {
   productId: string;
   name: string;
   sku: string;
+  unitLabel?: string;
   currentSellingPrice: string;
   bulkSellingPrice: string | null;
   availableStock: number;
@@ -103,6 +104,7 @@ interface SaleItemRow {
   skuSnapshot: string;
   quantity: number;
   quantityUnit: "PIECE" | "GRAM" | "MILLILITER";
+  unitLabelSnapshot: string;
   unitSellingPrice: string;
   sellingPriceTier: "REGULAR" | "EGG_BULK";
   grossLineRevenue: string;
@@ -405,6 +407,7 @@ function createInMemoryPrisma() {
           quantity: Number(data.quantity), unitSellingPrice: money(data.unitSellingPrice as MoneyValue),
           sellingPriceTier: (data.sellingPriceTier as SaleItemRow["sellingPriceTier"] | undefined) ?? "REGULAR",
           quantityUnit: (data.quantityUnit as SaleItemRow["quantityUnit"] | undefined) ?? "PIECE",
+          unitLabelSnapshot: String(data.unitLabelSnapshot ?? "ইউনিট"),
           grossLineRevenue: money(data.grossLineRevenue as MoneyValue),
           allocatedDiscount: money(data.allocatedDiscount as MoneyValue), netLineRevenue: money(data.netLineRevenue as MoneyValue),
           totalBuyingCost: money(data.totalBuyingCost as MoneyValue), grossProfit: money(data.grossProfit as MoneyValue),
@@ -675,6 +678,17 @@ describe("Milestone 3 inventory and physical sales", () => {
     expect(result.items[0].allocations).toHaveLength(1);
     expect(result.items[0].allocations[0]).toMatchObject({ quantity: 2, unitBuyingCost: 300 });
     expect(state.batches[0].availableQuantity).toBe(3);
+    expect(state.variants[0].availableStock).toBe(3);
+  });
+
+  it("keeps the packaged selling unit on a physical-sale snapshot", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    state.variants[0].unitLabel = "বস্তা";
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 5, unitBuyingCost: "300" }]), OWNER_ID);
+    const result = await service.createPhysicalSale(sale([{ productVariantId: VARIANT_A, quantity: 2 }]), OWNER_ID);
+    expect(result.items[0].unitLabel).toBe("বস্তা");
+    expect(state.saleItems[0].unitLabelSnapshot).toBe("বস্তা");
     expect(state.variants[0].availableStock).toBe(3);
   });
 

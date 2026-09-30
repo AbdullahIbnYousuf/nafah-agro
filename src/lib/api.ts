@@ -309,6 +309,7 @@ export async function createProduct(product: Omit<Product, 'id'>): Promise<Produ
       youtubeLinks: product.youtubeLinks,
       initialVariant: {
         name: product.variantName?.trim() ?? '',
+        unitLabel: product.kind === 'PACKAGED' ? product.unitLabel : undefined,
         sellingPrice: String(product.price),
         bulkSellingPrice: product.kind === 'EGG' && product.bulkSellingPrice != null
           ? String(product.bulkSellingPrice)
@@ -340,6 +341,7 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
 
 export function changeProductKind(id: string, input: {
   kind: ProductKind;
+  unitLabel?: string;
   sellingPrice: number;
   bulkSellingPrice?: number;
   lowStockThreshold: number;
@@ -385,6 +387,7 @@ export function deleteUnusedProduct(id: string): Promise<{ id: string }> {
 
 export interface VariantCreateInput {
   name: string;
+  unitLabel?: string;
   sellingPrice: number;
   lowStockThreshold: number;
   isDefault: boolean;
@@ -400,7 +403,7 @@ export function createVariant(productId: string, input: VariantCreateInput): Pro
 
 export function updateVariant(
   variantId: string,
-  input: Partial<Pick<ProductVariant, 'name' | 'lowStockThreshold' | 'isDefault' | 'isActive'>>,
+  input: Partial<Pick<ProductVariant, 'name' | 'unitLabel' | 'lowStockThreshold' | 'isDefault' | 'isActive'>>,
 ): Promise<Product> {
   return requestV1<Product>(`/variants/${variantId}`, {
     method: 'PATCH',

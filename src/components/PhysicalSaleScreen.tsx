@@ -256,7 +256,7 @@ export default function PhysicalSaleScreen() {
       return;
     }
     if (quantity > selectionDraft.option.availableStock) {
-      setSelectionError(`স্টকে সর্বোচ্চ ${formatQuantity(selectionDraft.option.availableStock, selectionDraft.option.quantityUnit, selectionDraft.option.productKind)} আছে।`);
+      setSelectionError(`স্টকে সর্বোচ্চ ${formatQuantity(selectionDraft.option.availableStock, selectionDraft.option.quantityUnit, selectionDraft.option.productKind, selectionDraft.option.unitLabel)} আছে।`);
       return;
     }
     setLines((current) => {
@@ -376,7 +376,7 @@ export default function PhysicalSaleScreen() {
               >
                 <div className="flex items-start justify-between gap-2"><div className="font-medium">{title}</div><ChevronDown size={17} className={`mt-0.5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
                 <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{productKindLabel(option.productKind)}</span>{isInSale && <span className="rounded-full bg-secondary/15 px-2 py-0.5 font-medium text-secondary">তালিকায় আছে</span>}</div>
-                <div className="flex justify-between gap-2 mt-2"><span>{option.productKind === 'EGG' && option.bulkSellingPrice != null ? `৳${option.sellingPrice} / 15টি+ ৳${option.bulkSellingPrice}` : `৳${option.sellingPrice} ${rateLabel(option.productKind)}`}</span><span>{option.availableStock <= 0 ? 'স্টক নেই' : `স্টক ${formatQuantity(option.availableStock, option.quantityUnit, option.productKind)}`}</span></div>
+                <div className="flex justify-between gap-2 mt-2"><span>{option.productKind === 'EGG' && option.bulkSellingPrice != null ? `৳${option.sellingPrice} / 15টি+ ৳${option.bulkSellingPrice}` : `৳${option.sellingPrice} ${rateLabel(option.productKind, option.unitLabel)}`}</span><span>{option.availableStock <= 0 ? 'স্টক নেই' : `স্টক ${formatQuantity(option.availableStock, option.quantityUnit, option.productKind, option.unitLabel)}`}</span></div>
               </button>
               {isOpen && selectionDraft && <div id={`physical-sale-selection-${option.productVariantId}`} className="space-y-3 border-t bg-muted/15 p-3">
                 <div><Label className="text-xs">পরিমাণ</Label><div className="mt-1"><SaleAmountInput line={selectionDraft} onChange={(patch) => { setSelectionError(''); setSelectionDraft((current) => current ? { ...current, ...patch } : current); }} /></div></div>
@@ -393,7 +393,7 @@ export default function PhysicalSaleScreen() {
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
-        <div className="space-y-2">{lines.map((line) => { const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0; const pricing = sellingPriceForQuantity({ kind: line.option.productKind, regularPrice: line.option.sellingPrice, bulkPrice: line.option.bulkSellingPrice, quantity: base }); const title = line.option.productKind === 'PACKAGED' ? productPackLabel(line.option.productName, line.option.variantName) : line.option.productName; return <div key={line.option.productVariantId} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{title}</strong><div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(line.option.productKind)}{line.option.productKind === 'EGG' ? ` · ${pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'}` : ''} · স্টক {formatQuantity(line.option.availableStock, line.option.quantityUnit, line.option.productKind)}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.option.productVariantId === line.option.productVariantId ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.option.productVariantId !== line.option.productVariantId))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>; })}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
+        <div className="space-y-2">{lines.map((line) => { const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0; const pricing = sellingPriceForQuantity({ kind: line.option.productKind, regularPrice: line.option.sellingPrice, bulkPrice: line.option.bulkSellingPrice, quantity: base }); const title = line.option.productKind === 'PACKAGED' ? productPackLabel(line.option.productName, line.option.variantName) : line.option.productName; return <div key={line.option.productVariantId} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{title}</strong><div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(line.option.productKind, line.option.unitLabel)}{line.option.productKind === 'EGG' ? ` · ${pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'}` : ''} · স্টক {formatQuantity(line.option.availableStock, line.option.quantityUnit, line.option.productKind, line.option.unitLabel)}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.option.productVariantId === line.option.productVariantId ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.option.productVariantId !== line.option.productVariantId))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>; })}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
         <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পেমেন্ট</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
         <div className="grid items-start gap-3 sm:grid-cols-2">
           <Field label={`ক্রেতার নাম${paymentMode === 'CREDIT' ? '' : ' (ঐচ্ছিক)'}`} error={errors.customerName ?? errors.customerSelection}>
@@ -483,10 +483,11 @@ function money(value: number) {
   return `৳${value.toFixed(2)}`;
 }
 
-function saleRateLabel(unit: PhysicalSale['items'][number]['quantityUnit']) {
+function saleRateLabel(unit: PhysicalSale['items'][number]['quantityUnit'], unitLabel?: string) {
   if (unit === 'GRAM') return 'প্রতি কেজি';
   if (unit === 'MILLILITER') return 'প্রতি লিটার';
-  return 'প্রতি ইউনিট';
+  if (unitLabel === 'টি ডিম') return 'প্রতি ডিম';
+  return `প্রতি ${unitLabel || 'ইউনিট'}`;
 }
 
 function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onReturn: () => void }) {
@@ -508,7 +509,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
             {remainingItems > 0 && <span className="shrink-0 rounded-full bg-secondary/15 px-2 py-0.5 text-xs font-medium text-secondary">আরও {remainingItems}টি</span>}
             {sale.paymentMethod === 'CREDIT' && <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${sale.outstandingAmount > 0 ? 'bg-amber-100 text-amber-900' : 'bg-green-100 text-green-800'}`}>{sale.outstandingAmount > 0 ? `বাকি ${money(sale.outstandingAmount)}` : 'বাকি শেষ'}</span>}
           </div>
-          {firstItem && <div className="mt-0.5 text-sm text-muted-foreground">{formatQuantity(firstItem.quantity, firstItem.quantityUnit)}{remainingItems > 0 ? ' এবং অন্যান্য পণ্য' : ''}</div>}
+          {firstItem && <div className="mt-0.5 text-sm text-muted-foreground">{formatQuantity(firstItem.quantity, firstItem.quantityUnit, undefined, firstItem.unitLabel)}{remainingItems > 0 ? ' এবং অন্যান্য পণ্য' : ''}</div>}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1"><Clock3 size={13} />{formatAppDateTime(sale.completedAt)}</span>
             <span className="inline-flex min-w-0 items-center gap-1"><UserRound size={13} /><span className="truncate">{customer || 'ক্রেতার তথ্য নেই'}</span></span>
@@ -534,9 +535,9 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
             <div className="min-w-0">
               <div className="break-words font-medium">{productPackLabel(item.productName, item.variantName)}</div>
               <div className="mt-0.5 text-sm text-muted-foreground">
-                {formatQuantity(item.quantity, item.quantityUnit)} × {money(item.unitSellingPrice)} {saleRateLabel(item.quantityUnit)}
+                {formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)} × {money(item.unitSellingPrice)} {saleRateLabel(item.quantityUnit, item.unitLabel)}
               </div>
-              {item.returnedQuantity > 0 && <div className="mt-1 text-xs text-destructive">রিটার্ন হয়েছে {formatQuantity(item.returnedQuantity, item.quantityUnit)} · বাকি {formatQuantity(item.returnableQuantity, item.quantityUnit)}</div>}
+              {item.returnedQuantity > 0 && <div className="mt-1 text-xs text-destructive">রিটার্ন হয়েছে {formatQuantity(item.returnedQuantity, item.quantityUnit, undefined, item.unitLabel)} · বাকি {formatQuantity(item.returnableQuantity, item.quantityUnit, undefined, item.unitLabel)}</div>}
             </div>
             <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm sm:min-w-64 sm:text-right">
               <span className="text-muted-foreground">পণ্যের দাম</span><strong>{money(item.grossLineRevenue)}</strong>
@@ -558,7 +559,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
           <h3 className="text-sm font-semibold">আগের রিটার্ন রেকর্ড</h3>
           {sale.returns.map((value) => <div key={value.id} className="rounded-lg border bg-card p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2"><strong>{value.condition}</strong><span>{formatAppDateTime(value.createdAt)}</span></div>
-            <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit)}`).join(', ')}</div>
+            <div className="mt-1 text-muted-foreground">{value.items.map((item) => `${productPackLabel(item.productName, item.variantName)} ${formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)}`).join(', ')}</div>
             <div className="mt-1">রিফান্ড {money(value.refundAmount)}{sale.paymentMethod === 'CREDIT' ? ` · বাকি কমেছে ${money(value.creditOffsetAmount)} · ক্যাশ রিফান্ড ${money(value.cashRefundAmount)}` : ''} · কারণ: {value.reason}</div>
           </div>)}
         </div>}
@@ -585,7 +586,7 @@ function SaleAmountInput({ line, onChange }: { line: SaleLine; onChange: (patch:
   return <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2">
     <Input aria-label={`${title} পরিমাণ`} type="number" min="0" step={line.amountUnit === 'KG' || line.amountUnit === 'LITER' ? '0.001' : '1'} value={line.amount} onChange={(event) => onChange({ amount: event.target.value })} />
     {units.length === 1
-      ? <div aria-label={`${title} একক`} className="flex h-11 items-center rounded-md border bg-muted/30 px-3 text-sm md:h-10">{line.option.productKind === 'EGG' ? 'টি ডিম' : 'ইউনিট'}</div>
+      ? <div aria-label={`${title} একক`} className="flex h-11 items-center rounded-md border bg-muted/30 px-3 text-sm md:h-10">{line.option.productKind === 'EGG' ? 'টি ডিম' : (line.option.unitLabel ?? 'ইউনিট')}</div>
       : <select aria-label={`${title} একক`} className="h-11 rounded-md border bg-background px-2 md:h-10" value={line.amountUnit} onChange={(event) => onChange({ amountUnit: event.target.value as AmountUnit, amount: '' })}>{units.map((unit) => <option key={unit} value={unit}>{unit === 'KG' ? 'কেজি' : unit === 'G' ? 'গ্রাম' : unit === 'LITER' ? 'লিটার' : 'মিলি'}</option>)}</select>}
   </div>;
 }

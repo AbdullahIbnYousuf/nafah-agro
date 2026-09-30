@@ -47,6 +47,7 @@ interface VariantRow {
   productId: string;
   name: string;
   sku: string;
+  unitLabel: string;
   currentSellingPrice: string | number;
   bulkSellingPrice: string | number | null;
   availableStock: number;
@@ -132,6 +133,7 @@ function createInMemoryPrisma() {
         _count: {
           stockBatches: state.usedVariantIds.includes(variant.id) ? 1 : 0,
           stockAdjustments: 0,
+          inventoryOperations: 0,
           salesOrderItems: 0,
           priceHistory: state.histories.filter((history) => history.variantId === variant.id).length,
         },
@@ -251,6 +253,7 @@ function createInMemoryPrisma() {
           productId: product.id,
           name: String(variantData.name),
           sku: String(variantData.sku),
+          unitLabel: String(variantData.unitLabel ?? "ইউনিট"),
           currentSellingPrice: String(variantData.currentSellingPrice),
           bulkSellingPrice: variantData.bulkSellingPrice == null ? null : String(variantData.bulkSellingPrice),
           availableStock: 0,
@@ -286,7 +289,13 @@ function createInMemoryPrisma() {
       findUnique: async ({ where }: { where: { id: string } }) => {
         const row = state.variants.find((variant) => variant.id === where.id);
         const product = row ? state.products.find((value) => value.id === row.productId) : undefined;
-        return row ? { ...row, product: product ? { kind: product.kind } : undefined } : null;
+        return row ? { ...row, product: product ? { kind: product.kind } : undefined, _count: {
+          stockBatches: state.usedVariantIds.includes(row.id) ? 1 : 0,
+          stockAdjustments: 0,
+          inventoryOperations: 0,
+          salesOrderItems: 0,
+          priceHistory: state.histories.filter((history) => history.variantId === row.id).length,
+        } } : null;
       },
       findMany: async ({ where }: { where: { id: { in: string[] } } }) => state.variants
         .filter((variant) => where.id.in.includes(variant.id))
@@ -303,6 +312,7 @@ function createInMemoryPrisma() {
           productId: data.productId,
           name: data.name,
           sku: data.sku,
+          unitLabel: data.unitLabel ?? "ইউনিট",
           currentSellingPrice: data.currentSellingPrice ?? 0,
           bulkSellingPrice: data.bulkSellingPrice ?? null,
           availableStock: 0,
@@ -380,7 +390,7 @@ function productInput(slug = "raw-honey", packSize = "", kind: ProductRow["kind"
     slug,
     categoryId: CATEGORY_ID,
     kind,
-    initialVariant: { name: packSize, sellingPrice: "500.00", ...(kind === "EGG" ? { bulkSellingPrice: "450.00" } : {}) },
+    initialVariant: { name: packSize, unitLabel: kind === "PACKAGED" ? "বস্তা" : undefined, sellingPrice: "500.00", ...(kind === "EGG" ? { bulkSellingPrice: "450.00" } : {}) },
     priceReason: "Initial selling price",
   });
 }
@@ -442,10 +452,36 @@ describe("PostgreSQL catalog service", () => {
     const service = createCatalogService(prisma);
     const product = await service.createProduct(productInput("raw-honey", "500 g"), ACTOR_ID);
     const updated = await service.createVariant(product.id, variantCreateSchema.parse({
-      name: "1 kg", sellingPrice: "900", priceReason: "Add larger pack",
+      name: "1 kg", unitLabel: "ক্যান", sellingPrice: "900", priceReason: "Add larger pack",
     }), ACTOR_ID);
     expect(updated.variants.map((variant) => variant.name)).toEqual(["500 g", "1 kg"]);
     expect(new Set(updated.variants.map((variant) => variant.sku)).size).toBe(2);
+  });
+
+  it("stores separate whole-unit labels for packaged pack sizes and locks them after stock use", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput("rice-sack", "50 kg"), ACTOR_ID);
+    expect(product.variants[0]).toMatchObject({ unitLabel: "বস্তা", canEditUnitLabel: true });
+    const second = await service.createVariant(product.id, variantCreateSchema.parse({
+      name: "5 litre", unitLabel: "ক্যান", sellingPrice: "900",
+    }), ACTOR_ID);
+    expect(second.variants.map((variant) => variant.unitLabel)).toEqual(["বস্তা", "ক্যান"]);
+    await service.updateVariant(second.variants[1].id, { unitLabel: "ট্রে" });
+    expect(state.variants.find((variant) => variant.id === second.variants[1].id)?.unitLabel).toBe("ট্রে");
+    state.usedVariantIds.push(second.variants[1].id);
+    await expect(service.updateVariant(second.variants[1].id, { unitLabel: "ক্যান" }))
+      .rejects.toMatchObject({ code: "UNIT_LABEL_LOCKED", status: 409 });
+  });
+
+  it("locks packaged-unit labels after a real selling-price change", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createCatalogService(prisma);
+    const product = await service.createProduct(productInput("tray-eggs-pack", "30 eggs"), ACTOR_ID);
+    const variantId = product.variants[0].id;
+    await service.changePrice(variantId, { sellingPrice: "550", reason: "New price" }, ACTOR_ID);
+    await expect(service.updateVariant(variantId, { unitLabel: "ট্রে" }))
+      .rejects.toMatchObject({ code: "UNIT_LABEL_LOCKED", status: 409 });
   });
 
   it("creates a loose product with one hidden option and rejects extra pack sizes", async () => {
@@ -454,7 +490,7 @@ describe("PostgreSQL catalog service", () => {
     const product = await service.createProduct(productInput("loose-rice", "ignored", "LOOSE_WEIGHT"), ACTOR_ID);
     expect(product).toMatchObject({ kind: "LOOSE_WEIGHT", variantName: "Default" });
     await expect(service.createVariant(product.id, variantCreateSchema.parse({
-      name: "5 kg", sellingPrice: "700", priceReason: "Not allowed",
+      name: "5 kg", unitLabel: "ইউনিট", sellingPrice: "700", priceReason: "Not allowed",
     }), ACTOR_ID)).rejects.toMatchObject({ code: "LOOSE_PRODUCT_SINGLE_OPTION", status: 409 });
   });
 
@@ -472,7 +508,7 @@ describe("PostgreSQL catalog service", () => {
     expect(state.histories).toHaveLength(2);
     expect(state.histories.map((history) => history.priceTier)).toEqual(["REGULAR", "EGG_BULK"]);
     await expect(service.createVariant(product.id, variantCreateSchema.parse({
-      name: "30 eggs", sellingPrice: "400", priceReason: "Not allowed",
+      name: "30 eggs", unitLabel: "ইউনিট", sellingPrice: "400", priceReason: "Not allowed",
     }), ACTOR_ID)).rejects.toMatchObject({ code: "LOOSE_PRODUCT_SINGLE_OPTION", status: 409 });
 
     const updated = await service.changePrice(product.variants[0].id, {
@@ -526,11 +562,11 @@ describe("PostgreSQL catalog service", () => {
     const service = createCatalogService(prisma);
     const product = await service.createProduct(productInput(), ACTOR_ID);
     await expect(service.createVariant(product.id, variantCreateSchema.parse({
-      name: "1 kg", sellingPrice: "700", priceReason: "Add named pack",
+      name: "1 kg", unitLabel: "ট্রে", sellingPrice: "700", priceReason: "Add named pack",
     }), ACTOR_ID)).rejects.toMatchObject({ code: "UNNAMED_DEFAULT_PACK_SIZE", status: 409 });
     await service.updateVariant(product.variants[0].id, { name: "500 g" });
     const updated = await service.createVariant(product.id, variantCreateSchema.parse({
-      name: "1 kg", sellingPrice: "700", priceReason: "Add named pack",
+      name: "1 kg", unitLabel: "ট্রে", sellingPrice: "700", priceReason: "Add named pack",
     }), ACTOR_ID);
     expect(updated.variants.map((variant) => variant.name)).toEqual(["500 g", "1 kg"]);
     await expect(service.updateVariant(updated.variants[0].id, { name: "Default" }))
@@ -553,7 +589,7 @@ describe("PostgreSQL catalog service", () => {
     const service = createCatalogService(prisma);
     const product = await service.createProduct(productInput("raw-honey", "500 g"), ACTOR_ID);
     const withSecond = await service.createVariant(product.id, variantCreateSchema.parse({
-      name: "1 kg", sellingPrice: "900", priceReason: "Add larger pack",
+      name: "1 kg", unitLabel: "ক্যান", sellingPrice: "900", priceReason: "Add larger pack",
     }), ACTOR_ID);
     const [first, second] = withSecond.variants;
     const bulk = bulkPriceChangeSchema.parse({

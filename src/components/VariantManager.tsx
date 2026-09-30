@@ -28,6 +28,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
   const variants = useMemo(() => product.variants ?? [], [product.variants]);
   const isPackaged = (product.kind ?? 'PACKAGED') === 'PACKAGED';
   const [name, setName] = useState('');
+  const [unitLabel, setUnitLabel] = useState('');
   const [price, setPrice] = useState('');
   const [threshold, setThreshold] = useState('5');
   const [isDefault, setIsDefault] = useState(false);
@@ -50,14 +51,15 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
       toast.error('নতুন প্যাক/সাইজ অ্যাড করার আগে আগেরটির নাম দিন');
       return;
     }
-    if (!name.trim() || price === '') {
-      toast.error('প্যাক/সাইজের নাম এবং দাম দিন');
+    if (!name.trim() || !unitLabel.trim() || price === '') {
+      toast.error('প্যাক/সাইজের নাম, বিক্রির ইউনিট এবং দাম দিন');
       return;
     }
     setCreating(true);
     try {
       const updated = await createVariant(product.id, {
         name: name.trim(),
+        unitLabel: unitLabel.trim(),
         sellingPrice: Number(price),
         lowStockThreshold: Number(threshold) || 0,
         isDefault: isDefault || variants.length === 0,
@@ -65,6 +67,7 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
       });
       onUpdated(updated);
       setName('');
+      setUnitLabel('');
       setPrice('');
       setThreshold('5');
       setIsDefault(false);
@@ -119,9 +122,12 @@ export default function VariantManager({ product, onClose, onUpdated }: VariantM
             {hasUnnamedPackSize && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">আরেকটি প্যাক/সাইজ অ্যাড করার আগে নিচে থাকা “প্যাক/সাইজ দেওয়া হয়নি” অপশনটির নাম দিন।</p>}
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Field label="প্যাক/সাইজের নাম"><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="যেমন: 1 কেজি" /></Field>
+              <Field label="বিক্রির ইউনিট *"><Input value={unitLabel} maxLength={30} onChange={(event) => setUnitLabel(event.target.value)} placeholder="যেমন: বস্তা, ক্যান, ট্রে" /></Field>
               <Field label="দাম"><Input type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></Field>
               <Field label={UI_TERMS.stock.lowLimit}><Input type="number" min="0" value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
             </div>
+            <p className="text-xs text-muted-foreground">পুরো ইউনিট একসাথে বিক্রি হবে।</p>
+            {unitLabel.trim() && <p className="text-sm font-medium">স্টক: ৮ {unitLabel.trim()} · দাম: ৳{price || "৫০০"} প্রতি {unitLabel.trim()}</p>}
             <Field label="প্রাথমিক দামের কারণ (ঐচ্ছিক)"><Input value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
             <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
               <label className="flex min-h-11 items-center gap-2 text-sm"><input className="h-5 w-5" type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} />মূল প্যাক/সাইজ</label>
@@ -165,6 +171,7 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
   const isEgg = product.kind === 'EGG';
   const quantityScale = product.kind === 'LOOSE_WEIGHT' || product.kind === 'LOOSE_VOLUME' ? 1_000 : 1;
   const [name, setName] = useState(variant.name);
+  const [unitLabel, setUnitLabel] = useState(variant.unitLabel ?? 'ইউনিট');
   const [threshold, setThreshold] = useState(String(variant.lowStockThreshold / quantityScale));
   const [newPrice, setNewPrice] = useState('');
   const [newBulkPrice, setNewBulkPrice] = useState('');
@@ -174,6 +181,7 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 
   useEffect(() => {
     setName(variant.name);
+    setUnitLabel(variant.unitLabel ?? 'ইউনিট');
     setThreshold(String(variant.lowStockThreshold / quantityScale));
   }, [quantityScale, variant]);
 
@@ -182,10 +190,12 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
       toast.error('প্যাক/সাইজের নাম দিন');
       return;
     }
+    if (isPackaged && !unitLabel.trim()) return toast.error('বিক্রির ইউনিট লিখুন');
+    if (isPackaged && unitLabel.trim() !== (variant.unitLabel ?? 'ইউনিট') && variant.canEditUnitLabel === false) return toast.error('স্টক বা আগের ব্যবসার রেকর্ড থাকায় বিক্রির ইউনিট পরিবর্তন করা যায় না।');
     setSaving(true);
     try {
       onUpdated(await updateVariant(variant.id, {
-        ...(isPackaged ? { name: name.trim() } : {}),
+        ...(isPackaged ? { name: name.trim(), unitLabel: unitLabel.trim() } : {}),
         lowStockThreshold: Math.round((Number(threshold) || 0) * quantityScale),
       }));
       toast.success(isPackaged ? 'প্যাক/সাইজ আপডেট হয়েছে' : 'তথ্য আপডেট হয়েছে');
@@ -262,12 +272,14 @@ function VariantEditor({ variant, product, onUpdated }: { variant: ProductVarian
 
       <div className="grid sm:grid-cols-2 gap-3">
         {isPackaged && <Field label="প্যাক/সাইজের নাম"><Input value={name.toLowerCase() === 'default' ? '' : name} onChange={(event) => setName(event.target.value)} placeholder="যেমন: 1 কেজি" /></Field>}
-        <Field label={`${UI_TERMS.stock.lowLimit} (${isEgg ? 'টি ডিম' : isPackaged ? 'ইউনিট' : product.kind === 'LOOSE_WEIGHT' ? 'কেজি' : 'লিটার'})`}><Input type="number" min="0" step={quantityScale === 1 ? '1' : '0.001'} value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
+        {isPackaged && <Field label="বিক্রির ইউনিট"><Input value={unitLabel} maxLength={30} disabled={variant.canEditUnitLabel === false} onChange={(event) => setUnitLabel(event.target.value)} /></Field>}
+        <Field label={`${UI_TERMS.stock.lowLimit} (${isEgg ? 'টি ডিম' : isPackaged ? (variant.unitLabel ?? 'ইউনিট') : product.kind === 'LOOSE_WEIGHT' ? 'কেজি' : 'লিটার'})`}><Input type="number" min="0" step={quantityScale === 1 ? '1' : '0.001'} value={threshold} onChange={(event) => setThreshold(event.target.value)} /></Field>
       </div>
+      {isPackaged && variant.canEditUnitLabel === false && <p className="text-xs text-muted-foreground">স্টক বা আগের ব্যবসার রেকর্ড থাকায় বিক্রির ইউনিট পরিবর্তন করা যায় না।</p>}
       <div className="text-right"><Button type="button" size="sm" disabled={saving} onClick={() => void saveMetadata()}><Save size={14} className="mr-1" />তথ্য সেভ করুন</Button></div>
 
       <div className={`grid gap-3 items-end border-t pt-4 ${isEgg ? 'sm:grid-cols-[1fr_1fr_2fr_auto]' : 'sm:grid-cols-[1fr_2fr_auto]'}`}>
-        <Field label={isEgg ? `1–14টি: ৳${variant.sellingPrice} প্রতি ডিম` : `বর্তমান দাম: ৳${variant.sellingPrice} (${rateLabel(product.kind)})`}><Input type="number" min="0" step="0.01" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} placeholder="নতুন দাম" /></Field>
+        <Field label={isEgg ? `1–14টি: ৳${variant.sellingPrice} প্রতি ডিম` : `বর্তমান দাম: ৳${variant.sellingPrice} (${rateLabel(product.kind, variant.unitLabel)})`}><Input type="number" min="0" step="0.01" value={newPrice} onChange={(event) => setNewPrice(event.target.value)} placeholder="নতুন দাম" /></Field>
         {isEgg && <Field label={`15টি+: ৳${variant.bulkSellingPrice ?? 0} প্রতি ডিম`}><Input type="number" min="0" step="0.01" value={newBulkPrice} onChange={(event) => setNewBulkPrice(event.target.value)} placeholder="15টি+ দাম" /></Field>}
         <Field label="পরিবর্তনের কারণ (ঐচ্ছিক)"><Input value={priceReason} onChange={(event) => setPriceReason(event.target.value)} /></Field>
         <Button type="button" disabled={saving} onClick={() => void updatePrice()}>দাম সেভ করুন</Button>

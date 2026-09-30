@@ -7,6 +7,7 @@ import {
   priceChangeSchema,
   productCreateSchema,
   productKindChangeSchema,
+  variantCreateSchema,
   variantUpdateSchema,
 } from './catalog.js';
 import {
@@ -63,7 +64,7 @@ describe('strict API input contracts', () => {
   it('uses truthful defaults when routine catalog reasons are omitted', () => {
     expect(productCreateSchema.parse({
       name: 'Rice', slug: 'rice', categoryId,
-      initialVariant: { name: '1 kg', sellingPrice: '100' },
+      initialVariant: { name: '1 kg', unitLabel: 'বস্তা', sellingPrice: '100' },
     }).priceReason).toBe('প্রাথমিক দাম');
     expect(productKindChangeSchema.parse({
       kind: 'LOOSE_WEIGHT', sellingPrice: '100', lowStockThreshold: 1,
@@ -73,6 +74,16 @@ describe('strict API input contracts', () => {
       { variantId, sellingPrice: '120' },
       { variantId: secondVariantId, sellingPrice: '220' },
     ] }).reason).toBe('একসাথে দাম পরিবর্তন');
+  });
+
+  it('requires a short selling-unit label for new packaged products and pack sizes', () => {
+    const base = { name: 'Rice', slug: 'rice', categoryId };
+    expect(productCreateSchema.safeParse({ ...base, initialVariant: { name: '', sellingPrice: '100' } }).success).toBe(false);
+    expect(productCreateSchema.safeParse({ ...base, initialVariant: { name: '', unitLabel: 'বস্তা', sellingPrice: '100' } }).success).toBe(true);
+    expect(productCreateSchema.safeParse({ ...base, kind: 'LOOSE_WEIGHT', initialVariant: { name: '', sellingPrice: '100' } }).success).toBe(true);
+    expect(variantCreateSchema.safeParse({ name: 'Large', sellingPrice: '100' }).success).toBe(false);
+    expect(variantCreateSchema.safeParse({ name: 'Large', unitLabel: 'ক্যান', sellingPrice: '100' }).success).toBe(true);
+    expect(productKindChangeSchema.safeParse({ kind: 'PACKAGED', sellingPrice: '100', lowStockThreshold: 5 }).success).toBe(false);
   });
 
   it('requires a positive lower 15+ price for egg products', () => {
