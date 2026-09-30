@@ -20,9 +20,12 @@ orders, returns, analytics, and Cloudinary uploads.
 - Product, pack/size, price-history, purchase, FIFO inventory, stock-adjustment,
   physical-sale, delivery-order, whole delivery-return, identified physical-sale
   item return, and delivery-rate management.
-- Physical-shop `বাকি` sales with required customer contact, date-based
+- Physical-shop `বাকি` sales with a required customer name, optional phone, date-based
   follow-up reminders, partial/full repayment history, payment correction, and
   return-aware outstanding balances.
+- Editable final product totals for shop sales and manual delivery orders,
+  with recorded discounts or extra charges. Owners can enter a forgotten shop
+  sale from the past 90 days without rewriting earlier stock or dashboard data.
 - Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
   are physical-shop-only, use exact gram/millilitre stock internally, and show
   owner inputs and balances in kg/g or litre/ml.
@@ -168,6 +171,10 @@ the previous balance and projected balance before completing the sale. One
 customer-level payment is allocated to the oldest outstanding sales, without
 recording revenue or profit again. Customer details, payments, returns, and
 contact-date changes remain available together in `/admin/dues`.
+The shop-sale form can record an earlier sale date, but stock is deducted and
+revenue is reported when that sale is entered. The earlier date remains visible
+beside the recording timestamp. Record any money already received through the
+customer's payment action after entering a forgotten বাকি sale.
 
 An OWNER may additionally enable browser push per device from `/profile`. New
 website orders notify only after the order commit succeeds. At 9 AM Dhaka, the

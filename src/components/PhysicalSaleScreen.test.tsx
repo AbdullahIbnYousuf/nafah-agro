@@ -35,6 +35,7 @@ const sale: PhysicalSale = {
   customerPhone: '01300000000',
   subtotal: 200,
   discountTotal: 20,
+  priceIncreaseTotal: 0,
   grandTotal: 180,
   totalBuyingCost: 120,
   grossProfit: 60,
@@ -48,6 +49,7 @@ const sale: PhysicalSale = {
   unprofitableOverrideConfirmed: false,
   createdBy: { fullName: 'দোকান মালিক', role: 'OWNER' },
   completedAt: '2026-08-15T12:00:00.000Z',
+  soldOn: '2026-08-15',
   items: [{
     id: '20000000-0000-4000-8000-000000000001',
     productId: '30000000-0000-4000-8000-000000000001',
@@ -60,6 +62,7 @@ const sale: PhysicalSale = {
     unitSellingPrice: 100,
     grossLineRevenue: 200,
     allocatedDiscount: 20,
+    allocatedPriceIncrease: 0,
     netLineRevenue: 180,
     totalBuyingCost: 120,
     grossProfit: 60,
@@ -243,6 +246,29 @@ describe('physical sale history', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'দেশি ডিম পরিমাণ' }), { target: { value: '15' } });
     expect(screen.getAllByText('৳150.00').length).toBeGreaterThan(0);
     expect(screen.getByText(/15টি\+ দাম/)).toBeInTheDocument();
+  });
+
+  it('requires the actual price and sale date for an earlier shop sale', async () => {
+    mocks.getVariantOptions.mockResolvedValue(productOptions(packagedProduct));
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'প্যাকেট আটা · ১ কেজি পরিমাণ সিলেক্ট করুন' }));
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রির তালিকায় অ্যাড করুন' }));
+    fireEvent.click(screen.getByLabelText('আগের বিক্রি রেকর্ড করুন'));
+    expect(screen.getByRole('spinbutton', { name: 'মোট পণ্যের দাম' })).toHaveValue(null);
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রি সম্পন্ন করুন' }));
+    expect(screen.getByText('আগের বিক্রির আসল মোট দাম লিখুন।')).toBeInTheDocument();
+    expect(mocks.createPhysicalSale).not.toHaveBeenCalled();
+
+    const past = new Date(Date.now() + 6 * 60 * 60 * 1_000 - 10 * 86_400_000).toISOString().slice(0, 10);
+    fireEvent.change(screen.getByLabelText('আসলে যেদিন বিক্রি হয়েছে'), { target: { value: past } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'মোট পণ্যের দাম' }), { target: { value: '75' } });
+    fireEvent.click(screen.getByRole('button', { name: 'বিক্রি সম্পন্ন করুন' }));
+    await waitFor(() => expect(mocks.createPhysicalSale).toHaveBeenCalledWith(expect.objectContaining({
+      finalProductTotal: 75,
+      discountTotal: 0,
+      soldOn: past,
+      idempotencyKey: expect.any(String),
+    })));
   });
 
   it('explains how to make an out-of-stock product available', async () => {

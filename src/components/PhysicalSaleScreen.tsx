@@ -9,6 +9,7 @@ import { FormattedDateInput } from '@/components/ui/formatted-date-input';
 import { Label } from '@/components/ui/label';
 import { FilterField, FilterFields, FilterForm, FilterPanel, FilterResetButton } from '@/components/ui/filter-panel';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
+import PriceIncreaseDialog from '@/components/PriceIncreaseDialog';
 import PhysicalSaleReturnDialog from '@/components/PhysicalSaleReturnDialog';
 import { ApiError, createPhysicalSale, getPhysicalSales, getVariantOptions, returnPhysicalSale, suggestCreditCustomers } from '@/lib/api';
 import type { AmountUnit, CreditCustomerSuggestion, PhysicalSale, VariantOption } from '@/lib/types';
@@ -63,6 +64,10 @@ function dhakaDate(offsetDays = 0) {
   return value.toISOString().slice(0, 10);
 }
 
+function dhakaDateFromTimestamp(value: string) {
+  return new Date(new Date(value).getTime() + 6 * 60 * 60 * 1_000).toISOString().slice(0, 10);
+}
+
 function normalizeCustomerName(value: string) {
   return value.trim().replace(/\s+/gu, ' ').normalize('NFKC').toLocaleLowerCase('bn-BD');
 }
@@ -87,20 +92,25 @@ export default function PhysicalSaleScreen() {
   const [highlightedCustomerOption, setHighlightedCustomerOption] = useState(-1);
   const [customerSuggestionsDismissed, setCustomerSuggestionsDismissed] = useState(false);
   const [newCreditCustomerConfirmed, setNewCreditCustomerConfirmed] = useState(false);
-  const [discount, setDiscount] = useState('0');
+  const [finalProductTotal, setFinalProductTotal] = useState('');
+  const [priceEdited, setPriceEdited] = useState(false);
+  const [lateEntry, setLateEntry] = useState(false);
+  const [soldOn, setSoldOn] = useState('');
   const [paymentMode, setPaymentMode] = useState<'PAID_NOW' | 'CREDIT'>('PAID_NOW');
   const [nextFollowUpDate, setNextFollowUpDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState<PhysicalSale | null>(null);
   const [projectedLoss, setProjectedLoss] = useState<unknown>(null);
+  const [projectedIncrease, setProjectedIncrease] = useState<number | null>(null);
   const [returnSale, setReturnSale] = useState<PhysicalSale | null>(null);
   const [historyProduct, setHistoryProduct] = useState(initialHistoryFilters.product);
   const [historyQuery, setHistoryQuery] = useState(initialHistoryFilters.query);
   const [historyDateFrom, setHistoryDateFrom] = useState(initialHistoryFilters.dateFrom);
   const [historyDateTo, setHistoryDateTo] = useState(initialHistoryFilters.dateTo);
   const [historyFilters, setHistoryFilters] = useState(initialHistoryFilters);
-  const [errors, setErrors] = useState<{ items?: string; customerName?: string; customerSelection?: string; phone?: string; followUp?: string; discount?: string; submit?: string }>({});
+  const [errors, setErrors] = useState<{ items?: string; customerName?: string; customerSelection?: string; phone?: string; followUp?: string; finalTotal?: string; soldOn?: string; submit?: string }>({});
   const productGridRef = useRef<HTMLDivElement>(null);
+  const saleRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const load = useCallback(() => {
     getPhysicalSales({
@@ -230,8 +240,10 @@ export default function PhysicalSaleScreen() {
     });
     return sum + pricing.unitPrice * base / scale;
   }, 0);
-  const discountNumber = Number(discount) || 0;
-  const total = subtotal - discountNumber;
+  const displayedFinalTotal = priceEdited ? finalProductTotal : subtotal.toFixed(2);
+  const total = Number(displayedFinalTotal);
+  const discountNumber = Math.max(0, subtotal - total);
+  const increaseNumber = Math.max(0, total - subtotal);
 
   function toggleProductSelection(option: VariantOption) {
     if (option.availableStock <= 0) {
@@ -270,7 +282,7 @@ export default function PhysicalSaleScreen() {
     setSelectionError('');
   }
 
-  async function saveSale(confirmUnprofitable = false) {
+  async function saveSale(confirmUnprofitable = false, confirmPriceIncrease = false) {
     const nextErrors: typeof errors = {};
     if (lines.length === 0) {
       nextErrors.items = 'কমপক্ষে একটি পণ্য অ্যাড করুন।';
@@ -284,33 +296,47 @@ export default function PhysicalSaleScreen() {
     if (paymentMode === 'CREDIT' && !customerName.trim()) nextErrors.customerName = 'বাকি বিক্রির জন্য ক্রেতার নাম দিন।';
     if (paymentMode === 'CREDIT' && !selectedCreditCustomer && !newCreditCustomerConfirmed) nextErrors.customerSelection = 'তালিকা থেকে ক্রেতা সিলেক্ট করুন অথবা নতুন ক্রেতা হিসেবে অ্যাড করুন।';
     if (paymentMode === 'CREDIT' && (!nextFollowUpDate || nextFollowUpDate < dhakaDate())) nextErrors.followUp = 'আজ বা পরের কোনো যোগাযোগের তারিখ দিন।';
-    if (!Number.isFinite(discountNumber) || discountNumber < 0 || discountNumber > subtotal) nextErrors.discount = 'ডিসকাউন্ট শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
+    if (!/^\d+(?:\.\d{1,2})?$/.test(displayedFinalTotal) || !Number.isFinite(total)) nextErrors.finalTotal = 'মোট পণ্যের সঠিক দাম দিন (সর্বোচ্চ ২ ঘর দশমিক)।';
+    if (lateEntry && (!soldOn || soldOn >= dhakaDate() || soldOn < dhakaDate(-90))) nextErrors.soldOn = 'আগের ৯০ দিনের মধ্যে বিক্রির তারিখ সিলেক্ট করুন।';
+    if (lateEntry && !displayedFinalTotal) nextErrors.finalTotal = 'আগের বিক্রির আসল মোট দাম লিখুন।';
     if (Object.keys(nextErrors).length > 0) { setErrors(nextErrors); return; }
     setErrors({});
     setSaving(true);
     try {
-      const result = await createPhysicalSale({
+      const payload = {
         items: lines.map((line) => ({ productVariantId: line.option.productVariantId, amount: line.amount, amountUnit: line.amountUnit })),
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         creditCustomerId: paymentMode === 'CREDIT' ? selectedCreditCustomer?.id : undefined,
         createCreditCustomer: paymentMode === 'CREDIT' ? newCreditCustomerConfirmed : undefined,
-        discountTotal: discountNumber,
+        discountTotal: 0,
+        finalProductTotal: priceEdited ? total : undefined,
+        soldOn: lateEntry ? soldOn : undefined,
         paymentMode,
         nextFollowUpDate: paymentMode === 'CREDIT' ? nextFollowUpDate : undefined,
+      };
+      const fingerprint = JSON.stringify(payload);
+      if (saleRequestRef.current?.fingerprint !== fingerprint) saleRequestRef.current = { fingerprint, key: crypto.randomUUID() };
+      const result = await createPhysicalSale({
+        ...payload,
+        idempotencyKey: saleRequestRef.current.key,
         confirmUnprofitable,
+        confirmPriceIncrease,
       });
       setCompleted(result);
-      setLines([]); setCustomerName(''); setCustomerPhone(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setDiscount('0'); setPaymentMode('PAID_NOW'); setNextFollowUpDate('');
+      setLines([]); setCustomerName(''); setCustomerPhone(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setFinalProductTotal(''); setPriceEdited(false); setLateEntry(false); setSoldOn(''); setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); saleRequestRef.current = null;
       setProjectedLoss(null);
+      setProjectedIncrease(null);
       toast.success(`বিক্রয় ${result.orderNumber} সম্পন্ন হয়েছে`);
       load();
     } catch (error) {
-      if (!confirmUnprofitable && error instanceof ApiError && error.code === 'UNPROFITABLE_SALE_CONFIRMATION_REQUIRED') {
+      if (!confirmPriceIncrease && error instanceof ApiError && error.code === 'PRICE_INCREASE_CONFIRMATION_REQUIRED') {
+        setProjectedIncrease(Number(error.details?.priceIncreaseTotal ?? increaseNumber));
+      } else if (!confirmUnprofitable && error instanceof ApiError && error.code === 'UNPROFITABLE_SALE_CONFIRMATION_REQUIRED') {
         setProjectedLoss(error.details?.projectedGrossProfit ?? 'ক্ষতি হবে');
       } else if (error instanceof ApiError && error.code === 'DUPLICATE_CREDIT_CUSTOMER_NAME') {
         setErrors({ customerSelection: 'এই নামে একজন ক্রেতা আগে থেকেই আছেন। নাম লিখে তালিকা থেকে তাকে সিলেক্ট করুন।' });
-      } else if (confirmUnprofitable) {
+      } else if (confirmUnprofitable || confirmPriceIncrease) {
         throw error;
       } else {
         setErrors({ submit: getErrorMessage(error, 'বিক্রয় সম্পন্ন হয়নি') });
@@ -393,6 +419,10 @@ export default function PhysicalSaleScreen() {
 
       <section className="bg-card border rounded-lg p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2"><ShoppingCart size={18} />বিক্রয় তালিকা</h2>
+        <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 font-medium"><input type="checkbox" checked={lateEntry} onChange={(event) => { setLateEntry(event.target.checked); setSoldOn(''); setFinalProductTotal(''); setPriceEdited(event.target.checked); setErrors((current) => ({ ...current, soldOn: undefined, finalTotal: undefined })); }} />আগের বিক্রি রেকর্ড করুন</label>
+          {lateEntry && <div className="mt-3 space-y-2"><Field label="আসলে যেদিন বিক্রি হয়েছে" error={errors.soldOn}><FormattedDateInput aria-label="আসলে যেদিন বিক্রি হয়েছে" min={dhakaDate(-90)} max={dhakaDate()} value={soldOn} onChange={(event) => { setSoldOn(event.target.value); setErrors((current) => ({ ...current, soldOn: undefined })); }} aria-invalid={Boolean(errors.soldOn)} /></Field><p className="text-xs text-muted-foreground">স্টক ও ড্যাশবোর্ডের হিসাব আজ রেকর্ড করার সময় আপডেট হবে। আগের দিনের স্টক বা হিসাব বদলাবে না।</p></div>}
+        </div>
         <div className="space-y-2">{lines.map((line) => { const base = toBaseQuantity(line.amount, line.amountUnit) ?? 0; const pricing = sellingPriceForQuantity({ kind: line.option.productKind, regularPrice: line.option.sellingPrice, bulkPrice: line.option.bulkSellingPrice, quantity: base }); const title = line.option.productKind === 'PACKAGED' ? productPackLabel(line.option.productName, line.option.variantName) : line.option.productName; return <div key={line.option.productVariantId} className="grid items-center gap-3 rounded border p-3 sm:grid-cols-[minmax(0,1fr)_190px_auto]"><div className="min-w-0"><strong className="break-words">{title}</strong><div className="text-xs text-muted-foreground">৳{pricing.unitPrice} {rateLabel(line.option.productKind, line.option.unitLabel)}{line.option.productKind === 'EGG' ? ` · ${pricing.tier === 'EGG_BULK' ? '15টি+ দাম' : 'সাধারণ দাম'}` : ''} · স্টক {formatQuantity(line.option.availableStock, line.option.quantityUnit, line.option.productKind, line.option.unitLabel)}</div></div><SaleAmountInput line={line} onChange={(patch) => { setErrors(current => ({ ...current, items: undefined })); setLines((current) => current.map((item) => item.option.productVariantId === line.option.productVariantId ? { ...item, ...patch } : item)); }} /><Button className="w-full sm:w-auto" type="button" variant="ghost" aria-label="বাদ দিন" onClick={() => setLines((current) => current.filter((item) => item.option.productVariantId !== line.option.productVariantId))}><Trash2 size={16} /> <span className="sm:sr-only">বাদ দিন</span></Button></div>; })}{lines.length === 0 && <p className="text-center text-muted-foreground py-8">বাম পাশ থেকে পণ্য অ্যাড করুন</p>}{errors.items && <p role="alert" className="text-sm text-destructive">{errors.items}</p>}</div>
         <div><Label className="text-xs">পেমেন্ট</Label><div className="mt-1 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-1"><Button type="button" variant={paymentMode === 'PAID_NOW' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('PAID_NOW'); setNextFollowUpDate(''); setSelectedCreditCustomer(null); setNewCreditCustomerConfirmed(false); setCreditCustomerSuggestions([]); setErrors((current) => ({ ...current, customerName: undefined, customerSelection: undefined, phone: undefined, followUp: undefined })); }}>এখন পেমেন্ট</Button><Button type="button" variant={paymentMode === 'CREDIT' ? 'default' : 'ghost'} onClick={() => { setPaymentMode('CREDIT'); setNextFollowUpDate((current) => current || dhakaDate(7)); }}>বাকি</Button></div></div>
         <div className="grid items-start gap-3 sm:grid-cols-2">
@@ -436,14 +466,14 @@ export default function PhysicalSaleScreen() {
           <Metric label="যোগাযোগের তারিখ" value={formatAppDate(nextFollowUpDate) || 'তারিখ দিন'} />
         </div>}
         {paymentMode === 'CREDIT' && <Field label="পরের যোগাযোগের তারিখ" error={errors.followUp}><FormattedDateInput aria-label="পরের যোগাযোগের তারিখ" min={dhakaDate()} value={nextFollowUpDate} onChange={(event) => { setNextFollowUpDate(event.target.value); setErrors((current) => ({ ...current, followUp: undefined })); }} aria-invalid={Boolean(errors.followUp)} /></Field>}
-        <Field label="ডিসকাউন্ট (৳)" error={errors.discount}><Input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(event) => { setDiscount(event.target.value); setErrors(current => ({ ...current, discount: undefined })); }} aria-invalid={Boolean(errors.discount)} /></Field>
-        <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>সাবটোটাল</span><strong>৳{subtotal.toFixed(2)}</strong></div><div className="flex justify-between"><span>ডিসকাউন্ট</span><span>-৳{discountNumber.toFixed(2)}</span></div><div className="flex justify-between text-lg"><span>মোট</span><strong>৳{total.toFixed(2)}</strong></div></div>
+        <Field label="মোট পণ্যের দাম (৳)" error={errors.finalTotal}><Input aria-label="মোট পণ্যের দাম" type="number" min="0" step="0.01" value={displayedFinalTotal} onChange={(event) => { setFinalProductTotal(event.target.value); setPriceEdited(true); setErrors(current => ({ ...current, finalTotal: undefined })); }} aria-invalid={Boolean(errors.finalTotal)} /></Field>
+        <div className="border-t pt-3 space-y-1 text-sm"><div className="flex justify-between"><span>বর্তমান পণ্যের দাম</span><strong>৳{subtotal.toFixed(2)}</strong></div>{Number.isFinite(total) && discountNumber > 0 && <div className="flex justify-between"><span>ছাড়</span><span>-৳{discountNumber.toFixed(2)}</span></div>}{Number.isFinite(total) && increaseNumber > 0 && <div className="flex justify-between"><span>বাড়তি দাম</span><span>+৳{increaseNumber.toFixed(2)}</span></div>}<div className="flex justify-between text-lg"><span>মোট</span><strong>{Number.isFinite(total) ? `৳${total.toFixed(2)}` : 'দাম দিন'}</strong></div></div>
         {errors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{errors.submit}</p>}
         <Button className="min-h-11 w-full aria-disabled:border aria-disabled:border-amber-600 aria-disabled:bg-amber-50 aria-disabled:text-amber-950 aria-disabled:hover:bg-amber-100" disabled={saving} aria-disabled={lines.length === 0} onClick={() => void saveSale()}><Plus size={16} className="mr-2" />{saving ? 'সম্পন্ন হচ্ছে…' : paymentMode === 'CREDIT' ? 'বাকি বিক্রি সম্পন্ন করুন' : 'বিক্রি সম্পন্ন করুন'}</Button>
       </section>
     </div>
 
-    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2>{completed.paymentMethod === 'CREDIT' && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">বাকি {money(completed.outstandingAmount)}</span>}</div><div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label={completed.paymentMethod === 'CREDIT' ? 'পরের যোগাযোগ' : 'মার্জিন'} value={completed.paymentMethod === 'CREDIT' ? formatAppDate(completed.nextFollowUpDate) || 'বাকি শেষ' : completed.grossProfitMargin === null ? 'লাভের হিসাব নেই' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
+    {completed && <section className={`border rounded-lg p-5 ${completed.grossProfit < 0 ? 'border-destructive bg-destructive/5' : 'border-green-500 bg-green-50'}`}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">সর্বশেষ বিক্রয়: {completed.orderNumber}</h2>{completed.paymentMethod === 'CREDIT' && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">বাকি {money(completed.outstandingAmount)}</span>}</div>{completed.soldOn !== dhakaDate() && <p className="mt-2 text-sm">বিক্রি হয়েছে: {formatAppDate(completed.soldOn)} · রেকর্ড হয়েছে: {formatAppDateTime(completed.completedAt)}</p>}<div className="grid sm:grid-cols-4 gap-3 mt-3 text-sm"><Metric label="বিক্রয়" value={`৳${completed.grandTotal.toFixed(2)}`} /><Metric label="ক্রয়মূল্য" value={`৳${completed.totalBuyingCost.toFixed(2)}`} /><Metric label="মোট লাভ" value={`৳${completed.grossProfit.toFixed(2)}`} /><Metric label={completed.paymentMethod === 'CREDIT' ? 'পরের যোগাযোগ' : 'মার্জিন'} value={completed.paymentMethod === 'CREDIT' ? formatAppDate(completed.nextFollowUpDate) || 'বাকি শেষ' : completed.grossProfitMargin === null ? 'লাভের হিসাব নেই' : `${completed.grossProfitMargin.toFixed(2)}%`} /></div></section>}
 
     <section>
       <h2 className="mb-3 text-lg font-semibold">দোকানের সাম্প্রতিক বিক্রি</h2>
@@ -457,8 +487,8 @@ export default function PhysicalSaleScreen() {
               onChange={(event) => setHistoryQuery(event.target.value)}
               placeholder="নাম, ফোন, বিক্রয় নম্বর বা মোট দাম"
             /></FilterField>
-            <FilterField label="তারিখ থেকে"><FormattedDateInput aria-label="বিক্রির তারিখ থেকে" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></FilterField>
-            <FilterField label="তারিখ পর্যন্ত"><FormattedDateInput aria-label="বিক্রির তারিখ পর্যন্ত" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></FilterField>
+            <FilterField label="রেকর্ডের তারিখ থেকে"><FormattedDateInput aria-label="রেকর্ডের তারিখ থেকে" value={historyDateFrom} onChange={(event) => setHistoryDateFrom(event.target.value)} /></FilterField>
+            <FilterField label="রেকর্ডের তারিখ পর্যন্ত"><FormattedDateInput aria-label="রেকর্ডের তারিখ পর্যন্ত" value={historyDateTo} onChange={(event) => setHistoryDateTo(event.target.value)} /></FilterField>
           </FilterFields>
         </FilterForm>
       </FilterPanel>
@@ -466,7 +496,8 @@ export default function PhysicalSaleScreen() {
         ? <div className="rounded-lg border bg-card px-4 py-10 text-center text-sm text-muted-foreground">এই খোঁজে কোনো বিক্রি পাওয়া যায়নি</div>
         : <div className="space-y-3">{recentSales.map((sale) => <PhysicalSaleHistoryCard key={sale.id} sale={sale} onReturn={() => setReturnSale(sale)} />)}</div>}
     </section>
-    <ProfitWarningDialog open={projectedLoss !== null} projectedGrossProfit={projectedLoss} onClose={() => setProjectedLoss(null)} onConfirm={() => saveSale(true)} />
+    <PriceIncreaseDialog open={projectedIncrease !== null} increase={projectedIncrease ?? 0} onClose={() => setProjectedIncrease(null)} onConfirm={() => saveSale(false, true)} />
+    <ProfitWarningDialog open={projectedLoss !== null} projectedGrossProfit={projectedLoss} onClose={() => setProjectedLoss(null)} onConfirm={() => saveSale(true, increaseNumber > 0)} />
     <PhysicalSaleReturnDialog sale={returnSale} onClose={() => setReturnSale(null)} onConfirm={submitReturn} />
   </div>;
 }
@@ -511,7 +542,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
           </div>
           {firstItem && <div className="mt-0.5 text-sm text-muted-foreground">{formatQuantity(firstItem.quantity, firstItem.quantityUnit, undefined, firstItem.unitLabel)}{remainingItems > 0 ? ' এবং অন্যান্য পণ্য' : ''}</div>}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><Clock3 size={13} />{formatAppDateTime(sale.completedAt)}</span>
+            <span className="inline-flex items-center gap-1"><Clock3 size={13} />{sale.soldOn !== dhakaDateFromTimestamp(sale.completedAt) ? `বিক্রি ${formatAppDate(sale.soldOn)} · রেকর্ড ${formatAppDateTime(sale.completedAt)}` : formatAppDateTime(sale.completedAt)}</span>
             <span className="inline-flex min-w-0 items-center gap-1"><UserRound size={13} /><span className="truncate">{customer || 'ক্রেতার তথ্য নেই'}</span></span>
             <span className="truncate">{sale.orderNumber}</span>
           </div>
@@ -542,6 +573,7 @@ function PhysicalSaleHistoryCard({ sale, onReturn }: { sale: PhysicalSale; onRet
             <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm sm:min-w-64 sm:text-right">
               <span className="text-muted-foreground">পণ্যের দাম</span><strong>{money(item.grossLineRevenue)}</strong>
               {item.allocatedDiscount > 0 && <><span className="text-muted-foreground">ডিসকাউন্ট</span><span>-{money(item.allocatedDiscount)}</span></>}
+              {item.allocatedPriceIncrease > 0 && <><span className="text-muted-foreground">বাড়তি দাম</span><span>+{money(item.allocatedPriceIncrease)}</span></>}
               <span className="text-muted-foreground">ক্রয়মূল্য</span><span>{money(item.totalBuyingCost)}</span>
               <span className="text-muted-foreground">লাভ</span><span className={item.grossProfit < 0 ? 'text-destructive' : ''}>{money(item.grossProfit)}</span>
             </div>

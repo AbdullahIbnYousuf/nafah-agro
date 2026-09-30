@@ -114,11 +114,21 @@ export const physicalSaleCreateSchema = z.object({
   creditCustomerId: uuid.optional(),
   createCreditCustomer: z.boolean().default(false),
   discountTotal: nonNegativeMoney.default("0"),
+  finalProductTotal: nonNegativeMoney.optional(),
+  confirmPriceIncrease: z.boolean().default(false),
+  soldOn: dateOnly.optional(),
+  idempotencyKey: uuid.optional(),
   paymentMode: z.enum(["PAID_NOW", "CREDIT"]).default("PAID_NOW"),
   nextFollowUpDate: dateOnly.optional(),
   confirmUnprofitable: z.boolean().default(false),
 }).strict().superRefine((value, context) => {
   uniqueVariantIds(value, context);
+  if (value.finalProductTotal !== undefined && Number(value.discountTotal) !== 0) {
+    context.addIssue({ code: "custom", path: ["discountTotal"], message: "Use finalProductTotal instead of discountTotal" });
+  }
+  if (value.soldOn && value.finalProductTotal === undefined) {
+    context.addIssue({ code: "custom", path: ["finalProductTotal"], message: "A past sale requires its actual product total" });
+  }
   if (value.paymentMode !== "CREDIT") {
     if (value.nextFollowUpDate) {
       context.addIssue({ code: "custom", path: ["nextFollowUpDate"], message: "Paid sales cannot have a credit follow-up date" });

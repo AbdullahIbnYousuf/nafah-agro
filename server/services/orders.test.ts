@@ -42,7 +42,7 @@ function createMemoryPrisma() {
     const rate = state.rates.find((value: any) => value.id === row.deliveryRateId);
     return {
       ...row,
-      subtotal: new Prisma.Decimal(row.subtotal), discountTotal: new Prisma.Decimal(row.discountTotal),
+      subtotal: new Prisma.Decimal(row.subtotal), discountTotal: new Prisma.Decimal(row.discountTotal), priceIncreaseTotal: new Prisma.Decimal(row.priceIncreaseTotal ?? 0),
       deliveryCharge: new Prisma.Decimal(row.deliveryCharge), grandTotal: new Prisma.Decimal(row.grandTotal),
       totalBuyingCost: row.totalBuyingCost === null ? null : new Prisma.Decimal(row.totalBuyingCost),
       grossProfit: row.grossProfit === null ? null : new Prisma.Decimal(row.grossProfit),
@@ -54,6 +54,7 @@ function createMemoryPrisma() {
         ...item,
         unitSellingPrice: new Prisma.Decimal(item.unitSellingPrice), grossLineRevenue: new Prisma.Decimal(item.grossLineRevenue),
         allocatedDiscount: new Prisma.Decimal(item.allocatedDiscount), netLineRevenue: new Prisma.Decimal(item.netLineRevenue),
+        allocatedPriceIncrease: new Prisma.Decimal(item.allocatedPriceIncrease ?? 0),
         totalBuyingCost: item.totalBuyingCost === null ? null : new Prisma.Decimal(item.totalBuyingCost),
         grossProfit: item.grossProfit === null ? null : new Prisma.Decimal(item.grossProfit),
         allocations: state.allocations.filter((allocation: any) => allocation.salesOrderItemId === item.id).map((allocation: any) => ({
@@ -108,7 +109,7 @@ function createMemoryPrisma() {
           customerProfileId: data.customerProfileId ?? null, customerName: data.customerName ?? null,
           customerPhone: data.customerPhone ?? null, customerEmail: data.customerEmail ?? null,
           customerAddress: data.customerAddress ?? null, deliveryRateId: data.deliveryRateId ?? null,
-          deliveryCharge: money(data.deliveryCharge ?? 0), subtotal: money(data.subtotal), discountTotal: money(data.discountTotal ?? 0),
+          deliveryCharge: money(data.deliveryCharge ?? 0), subtotal: money(data.subtotal), discountTotal: money(data.discountTotal ?? 0), priceIncreaseTotal: money(data.priceIncreaseTotal ?? 0),
           grandTotal: money(data.grandTotal), totalBuyingCost: data.totalBuyingCost === null ? null : money(data.totalBuyingCost ?? 0),
           grossProfit: data.grossProfit === null ? null : money(data.grossProfit ?? 0), grossProfitMargin: data.grossProfitMargin == null ? null : money(data.grossProfitMargin),
           unprofitableOverrideConfirmed: Boolean(data.unprofitableOverrideConfirmed), unprofitableOverrideByProfileId: data.unprofitableOverrideByProfileId ?? null,
@@ -144,7 +145,7 @@ function createMemoryPrisma() {
     },
     salesOrderItem: {
       create: async ({ data }: any) => {
-        const row = { id: id(), ...data, unitSellingPrice: money(data.unitSellingPrice), grossLineRevenue: money(data.grossLineRevenue), allocatedDiscount: money(data.allocatedDiscount), netLineRevenue: money(data.netLineRevenue), totalBuyingCost: data.totalBuyingCost === null ? null : money(data.totalBuyingCost), grossProfit: data.grossProfit === null ? null : money(data.grossProfit), createdAt: new Date() };
+        const row = { id: id(), ...data, unitSellingPrice: money(data.unitSellingPrice), grossLineRevenue: money(data.grossLineRevenue), allocatedDiscount: money(data.allocatedDiscount), allocatedPriceIncrease: money(data.allocatedPriceIncrease ?? 0), netLineRevenue: money(data.netLineRevenue), totalBuyingCost: data.totalBuyingCost === null ? null : money(data.totalBuyingCost), grossProfit: data.grossProfit === null ? null : money(data.grossProfit), createdAt: new Date() };
         state.items.push(row); return row;
       },
       update: async ({ where, data }: any) => {
@@ -340,6 +341,26 @@ describe("unified PostgreSQL orders", () => {
     const { prisma } = createMemoryPrisma();
     const order = await createUnifiedOrderService(prisma).createManualOrder(manualInput({ discountTotal: "100" }), OWNER);
     expect(order).toMatchObject({ source: "PHONE", status: "CONFIRMED", subtotal: 1500, discountTotal: 100, grandTotal: 1480 });
+  });
+
+  it("records an edited manual product total without changing the delivery charge", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    const service = createUnifiedOrderService(prisma);
+    await expect(service.createManualOrder(manualInput({ finalProductTotal: "1600" }), OWNER))
+      .rejects.toMatchObject({ code: "PRICE_INCREASE_CONFIRMATION_REQUIRED" });
+    expect(state.orders).toHaveLength(0);
+
+    const increased = await service.createManualOrder(manualInput({ finalProductTotal: "1600", confirmPriceIncrease: true }), OWNER);
+    expect(increased).toMatchObject({ subtotal: 1500, discountTotal: 0, priceIncreaseTotal: 100, deliveryCharge: 80, grandTotal: 1680, grossProfit: 950 });
+    expect(increased.items[0]).toMatchObject({ unitSellingPrice: 500, grossLineRevenue: 1500, allocatedPriceIncrease: 100, netLineRevenue: 1600 });
+
+    const reduced = await service.createManualOrder(manualInput({ finalProductTotal: "1400", initialStatus: "PENDING" }), OWNER);
+    expect(reduced).toMatchObject({ subtotal: 1500, discountTotal: 100, priceIncreaseTotal: 0, deliveryCharge: 80, grandTotal: 1480 });
+    expect(reduced.items[0]).toMatchObject({ allocatedDiscount: 100, allocatedPriceIncrease: 0, netLineRevenue: 1400 });
+  });
+
+  it("keeps website checkout at catalog prices even when manual prices can be edited", () => {
+    expect(() => websiteCheckoutSchema.parse({ ...websiteInput(), finalProductTotal: "1" })).toThrow();
   });
 
   it("rejects discounts greater than subtotal", async () => {

@@ -15,6 +15,7 @@ const sale: PhysicalSale = {
   customerPhone: null,
   subtotal: 200,
   discountTotal: 20,
+  priceIncreaseTotal: 0,
   grandTotal: 180,
   totalBuyingCost: 120,
   grossProfit: 60,
@@ -28,6 +29,7 @@ const sale: PhysicalSale = {
   unprofitableOverrideConfirmed: false,
   createdBy: { fullName: 'Owner', role: 'OWNER' },
   completedAt: '2026-08-15T12:00:00.000Z',
+  soldOn: '2026-08-15',
   items: [{
     id: '20000000-0000-4000-8000-000000000001',
     productId: '30000000-0000-4000-8000-000000000001',
@@ -40,6 +42,7 @@ const sale: PhysicalSale = {
     unitSellingPrice: 100,
     grossLineRevenue: 200,
     allocatedDiscount: 20,
+    allocatedPriceIncrease: 0,
     netLineRevenue: 180,
     totalBuyingCost: 120,
     grossProfit: 60,

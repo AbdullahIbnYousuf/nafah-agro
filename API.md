@@ -168,10 +168,24 @@ pieces, grams, or millilitres and treats prices/costs as rates per piece, kg,
 or litre. Incompatible units and overselling are rejected transactionally.
 
 Physical-sale creation accepts `paymentMode: "PAID_NOW" | "CREDIT"`. Credit
-sales require `customerName`, `customerPhone`, and a date-only
+sales require an existing or explicitly new credit customer and a date-only
 `nextFollowUpDate` that is today or later in `Asia/Dhaka`. They are stored as
 `COMPLETED + CREDIT + UNPAID`; FIFO stock, recognized revenue, and gross profit
 are recorded at completion exactly like an immediately paid sale.
+Phone is optional. The owner may send `finalProductTotal` as a BDT string to
+record the actual product amount; otherwise the server uses current catalog
+prices. The server derives `discountTotal` or `priceIncreaseTotal`, allocates
+the difference to sale items, and requires `confirmPriceIncrease: true` for an
+amount above catalog price. Legacy `discountTotal` requests remain supported,
+but cannot be combined with `finalProductTotal`.
+
+For an earlier physical sale, include `soldOn` (`YYYY-MM-DD`, within the past
+90 Dhaka days), the actual `finalProductTotal`, and a UUID `idempotencyKey`.
+The sale date is descriptive; `completedAt` remains the recording time used for
+FIFO allocation, revenue, analytics, and oldest-first credit payment allocation.
+Retrying the same key and payload returns the existing sale without consuming
+stock again. Returns use the adjusted per-item amount. A forgotten earlier
+payment is entered separately in the customer-level payment ledger.
 
 Credit payment input uses a UUID idempotency key:
 
@@ -235,8 +249,12 @@ Website and manual delivery-order APIs reject loose products. Loose products
 can be sold only through `/api/v1/physical-sales`.
 
 Manual delivery order additionally accepts `source`, `initialStatus` (`PENDING`
-or `CONFIRMED`), owner-set `discountTotal`, and `confirmUnprofitable`. Discount may
-not exceed subtotal. A loss requires explicit retry/confirmation.
+or `CONFIRMED`), optional `finalProductTotal`, and `confirmUnprofitable`.
+`finalProductTotal` changes only the product amount; the selected delivery charge
+is added separately. An increase requires `confirmPriceIncrease: true`; a
+projected loss requires the existing explicit confirmation. Legacy
+`discountTotal` remains supported but cannot be combined with
+`finalProductTotal`. Manual orders cannot be backdated in V1.
 
 Status actions:
 
@@ -306,7 +324,7 @@ Financial rules:
 - physical sales contribute on `completed_at`; delivery orders contribute on
   `delivered_at`
 - total recognized sales use the captured order `grand_total`
-- product revenue is captured `subtotal - discount_total`
+- product revenue is captured `subtotal - discount_total + price_increase_total`
 - gross profit is product revenue minus exact FIFO allocation costs
 - delivery charge contributes to total recognized sales but not product profit
 - sellable and damaged whole delivery returns add equal negative financial,
@@ -320,8 +338,8 @@ Financial rules:
 - margin is `gross_profit / product_revenue × 100`, or `null` when product
   revenue is zero
 - authoritative BDT money uses PostgreSQL/Prisma decimal values with two decimal
-  places; proportional line discounts and displayed percentages round half-up
-  (line discounts to 2 places, margins/comparisons to 2 displayed places)
+  places; proportional line discounts/increases preserve the exact transaction
+  total, and displayed percentages round half-up
 
 ## Image upload
 

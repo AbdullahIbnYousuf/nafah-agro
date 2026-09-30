@@ -198,6 +198,7 @@ export interface PhysicalSaleItem {
   sellingPriceTier?: SellingPriceTier;
   grossLineRevenue: number;
   allocatedDiscount: number;
+  allocatedPriceIncrease: number;
   netLineRevenue: number;
   totalBuyingCost: number;
   grossProfit: number;
@@ -244,6 +245,7 @@ export interface PhysicalSale {
   customerPhone: string | null;
   subtotal: number;
   discountTotal: number;
+  priceIncreaseTotal: number;
   grandTotal: number;
   totalBuyingCost: number;
   grossProfit: number;
@@ -257,6 +259,7 @@ export interface PhysicalSale {
   unprofitableOverrideConfirmed: boolean;
   createdBy: { fullName: string; role: Role };
   completedAt: string;
+  soldOn: string;
   items: PhysicalSaleItem[];
   returns: PhysicalSaleReturn[];
   creditPayments: CreditPayment[];
@@ -411,6 +414,7 @@ export interface UnifiedOrderItem {
   sellingPriceTier?: SellingPriceTier;
   grossLineRevenue: number;
   allocatedDiscount: number;
+  allocatedPriceIncrease: number;
   netLineRevenue: number;
   totalBuyingCost: number | null;
   grossProfit: number | null;
@@ -440,6 +444,7 @@ export interface UnifiedOrder {
   deliveryRate: Pick<DeliveryRate, 'id' | 'code' | 'name' | 'charge'> | null;
   subtotal: number;
   discountTotal: number;
+  priceIncreaseTotal: number;
   deliveryCharge: number;
   grandTotal: number;
   totalBuyingCost: number | null;

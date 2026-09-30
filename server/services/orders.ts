@@ -10,6 +10,7 @@ import type {
 import { reserveAvailableFifo, stockError, type FifoAllocation } from "./stockAllocation.js";
 import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
 import { sellingPriceForQuantity } from "../lib/pricing.js";
+import { allocateSaleAmount } from "../lib/saleAdjustment.js";
 import { unitLabelForKind } from "../lib/quantity.js";
 
 const orderInclude = {
@@ -65,6 +66,7 @@ function orderDto(order: OrderRecord) {
     },
     subtotal: moneyNumber(order.subtotal),
     discountTotal: moneyNumber(order.discountTotal),
+    priceIncreaseTotal: moneyNumber(order.priceIncreaseTotal),
     deliveryCharge: moneyNumber(order.deliveryCharge),
     grandTotal: moneyNumber(order.grandTotal),
     totalBuyingCost: moneyNumber(order.totalBuyingCost),
@@ -94,6 +96,7 @@ function orderDto(order: OrderRecord) {
       sellingPriceTier: item.sellingPriceTier,
       grossLineRevenue: moneyNumber(item.grossLineRevenue),
       allocatedDiscount: moneyNumber(item.allocatedDiscount),
+      allocatedPriceIncrease: moneyNumber(item.allocatedPriceIncrease),
       netLineRevenue: moneyNumber(item.netLineRevenue),
       totalBuyingCost: moneyNumber(item.totalBuyingCost),
       grossProfit: moneyNumber(item.grossProfit),
@@ -108,19 +111,6 @@ function orderDto(order: OrderRecord) {
       })),
     })),
   };
-}
-
-function allocateDiscount(lineTotals: Prisma.Decimal[], subtotal: Prisma.Decimal, discount: Prisma.Decimal) {
-  if (discount.isZero()) return lineTotals.map(() => new Prisma.Decimal(0));
-  let assigned = new Prisma.Decimal(0);
-  return lineTotals.map((lineTotal, index) => {
-    if (index === lineTotals.length - 1) return discount.minus(assigned);
-    const rounded = lineTotal.mul(discount).div(subtotal).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-    const remaining = discount.minus(assigned);
-    const share = rounded.gt(remaining) ? remaining : rounded;
-    assigned = assigned.plus(share);
-    return share;
-  });
 }
 
 function fingerprint(input: WebsiteCheckout) {
@@ -177,6 +167,8 @@ async function createOrderBase(
     customer: { name: string; phone: string; email?: string; address: string };
     deliveryRateId: string;
     discountTotal: string;
+    finalProductTotal?: string;
+    confirmPriceIncrease?: boolean;
     customerProfileId?: string;
     createdByProfileId?: string;
     idempotencyKey?: string;
@@ -219,9 +211,21 @@ async function createOrderBase(
   });
   const lineTotals = prices.map((price) => price.lineTotal);
   const subtotal = lineTotals.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
-  const discount = money(input.discountTotal);
+  if (input.finalProductTotal === undefined && money(input.discountTotal).gt(subtotal)) {
+    throw orderError(400, "DISCOUNT_EXCEEDS_SUBTOTAL", "Discount cannot exceed subtotal.");
+  }
+  const finalProductTotal = input.finalProductTotal === undefined ? subtotal.minus(money(input.discountTotal)) : money(input.finalProductTotal);
+  if (finalProductTotal.isNegative()) throw orderError(400, "INVALID_FINAL_TOTAL", "মোট পণ্যের দাম শূন্য বা তার বেশি হতে হবে।");
+  const discount = Prisma.Decimal.max(subtotal.minus(finalProductTotal), 0);
+  const priceIncrease = Prisma.Decimal.max(finalProductTotal.minus(subtotal), 0);
   if (discount.gt(subtotal)) throw orderError(400, "DISCOUNT_EXCEEDS_SUBTOTAL", "Discount cannot exceed subtotal.");
-  const discounts = allocateDiscount(lineTotals, subtotal, discount);
+  if (priceIncrease.gt(0) && !input.confirmPriceIncrease) {
+    throw orderError(409, "PRICE_INCREASE_CONFIRMATION_REQUIRED", "পণ্যের দাম আগের দামের চেয়ে বেশি। কনফার্ম করুন।", {
+      subtotal: Number(subtotal), finalProductTotal: Number(finalProductTotal), priceIncreaseTotal: Number(priceIncrease),
+    });
+  }
+  const discounts = allocateSaleAmount(lineTotals, subtotal, discount);
+  const priceIncreases = allocateSaleAmount(lineTotals, subtotal, priceIncrease);
   const rate = await loadDeliveryRate(transaction, input.deliveryRateId);
   const placedAt = new Date();
   const order = await transaction.salesOrder.create({ data: {
@@ -241,7 +245,8 @@ async function createOrderBase(
     deliveryCharge: rate.charge,
     subtotal,
     discountTotal: discount,
-    grandTotal: subtotal.minus(discount).plus(rate.charge),
+    priceIncreaseTotal: priceIncrease,
+    grandTotal: finalProductTotal.plus(rate.charge),
     totalBuyingCost: null,
     grossProfit: null,
     grossProfitMargin: null,
@@ -265,7 +270,8 @@ async function createOrderBase(
       sellingPriceTier: prices[index].tier,
       grossLineRevenue: lineTotals[index],
       allocatedDiscount: discounts[index],
-      netLineRevenue: lineTotals[index].minus(discounts[index]),
+      allocatedPriceIncrease: priceIncreases[index],
+      netLineRevenue: lineTotals[index].minus(discounts[index]).plus(priceIncreases[index]),
       totalBuyingCost: null,
       grossProfit: null,
     } });
@@ -303,7 +309,7 @@ async function reserveOrder(
     (sum, allocation) => sum.plus(allocation.totalBuyingCost), new Prisma.Decimal(0),
   ));
   const totalBuyingCost = lineCosts.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
-  const productRevenue = order.subtotal.minus(order.discountTotal);
+  const productRevenue = order.subtotal.minus(order.discountTotal).plus(order.priceIncreaseTotal);
   const grossProfit = productRevenue.minus(totalBuyingCost);
   const unprofitable = grossProfit.isNegative();
   if (unprofitable && !confirmUnprofitable) {
@@ -414,6 +420,7 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
           const orderId = await createOrderBase(transaction, {
             source: input.source, items: input.items, customer: input.customer,
             deliveryRateId: input.deliveryRateId, discountTotal: input.discountTotal,
+            finalProductTotal: input.finalProductTotal, confirmPriceIncrease: input.confirmPriceIncrease,
             createdByProfileId: actorId,
           });
           if (input.initialStatus === "CONFIRMED") {
@@ -421,7 +428,7 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
           }
           await writeAudit(transaction, {
             actorProfileId: actorId, action: "MANUAL_ORDER_CREATED", entityId: orderId,
-            newData: { source: input.source, status: input.initialStatus },
+            newData: { source: input.source, status: input.initialStatus, finalProductTotal: input.finalProductTotal ?? null },
           });
           return orderId;
         }, SERIALIZABLE_TRANSACTION_OPTIONS);

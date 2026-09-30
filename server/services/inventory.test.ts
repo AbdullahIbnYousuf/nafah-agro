@@ -82,6 +82,7 @@ interface SaleRow {
   customerPhone: string | null;
   subtotal: string;
   discountTotal: string;
+  priceIncreaseTotal: string;
   grandTotal: string;
   totalBuyingCost: string;
   grossProfit: string;
@@ -90,6 +91,9 @@ interface SaleRow {
   unprofitableOverrideByProfileId: string | null;
   createdByProfileId: string;
   completedAt: Date;
+  soldOn: Date | null;
+  idempotencyKey: string | null;
+  requestFingerprint: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -109,6 +113,7 @@ interface SaleItemRow {
   sellingPriceTier: "REGULAR" | "EGG_BULK";
   grossLineRevenue: string;
   allocatedDiscount: string;
+  allocatedPriceIncrease: string;
   netLineRevenue: string;
   totalBuyingCost: string;
   grossProfit: string;
@@ -223,6 +228,7 @@ function createInMemoryPrisma() {
     ...sale,
     subtotal: new Prisma.Decimal(sale.subtotal),
     discountTotal: new Prisma.Decimal(sale.discountTotal),
+    priceIncreaseTotal: new Prisma.Decimal(sale.priceIncreaseTotal),
     grandTotal: new Prisma.Decimal(sale.grandTotal),
     totalBuyingCost: new Prisma.Decimal(sale.totalBuyingCost),
     grossProfit: new Prisma.Decimal(sale.grossProfit),
@@ -260,6 +266,7 @@ function createInMemoryPrisma() {
       unitSellingPrice: new Prisma.Decimal(item.unitSellingPrice),
       grossLineRevenue: new Prisma.Decimal(item.grossLineRevenue),
       allocatedDiscount: new Prisma.Decimal(item.allocatedDiscount),
+      allocatedPriceIncrease: new Prisma.Decimal(item.allocatedPriceIncrease),
       netLineRevenue: new Prisma.Decimal(item.netLineRevenue),
       totalBuyingCost: new Prisma.Decimal(item.totalBuyingCost),
       grossProfit: new Prisma.Decimal(item.grossProfit),
@@ -372,20 +379,23 @@ function createInMemoryPrisma() {
           nextFollowUpDate: (data.nextFollowUpDate as Date | undefined) ?? null,
           customerName: (data.customerName as string | undefined) ?? null,
           customerPhone: (data.customerPhone as string | undefined) ?? null,
-          subtotal: money(data.subtotal as MoneyValue), discountTotal: money(data.discountTotal as MoneyValue),
+          subtotal: money(data.subtotal as MoneyValue), discountTotal: money(data.discountTotal as MoneyValue), priceIncreaseTotal: money((data.priceIncreaseTotal ?? 0) as MoneyValue),
           grandTotal: money(data.grandTotal as MoneyValue), totalBuyingCost: money(data.totalBuyingCost as MoneyValue),
           grossProfit: money(data.grossProfit as MoneyValue),
           grossProfitMargin: data.grossProfitMargin === null ? null : new Prisma.Decimal(data.grossProfitMargin as MoneyValue).toFixed(4),
           unprofitableOverrideConfirmed: Boolean(data.unprofitableOverrideConfirmed),
           unprofitableOverrideByProfileId: (data.unprofitableOverrideByProfileId as string | null) ?? null,
           createdByProfileId: String(data.createdByProfileId), completedAt: data.completedAt as Date,
+          soldOn: (data.soldOn as Date | undefined) ?? null,
+          idempotencyKey: (data.idempotencyKey as string | undefined) ?? null,
+          requestFingerprint: (data.requestFingerprint as string | undefined) ?? null,
           createdAt: now, updatedAt: now,
         };
         state.sales.push(row);
         return row;
       },
-      findUnique: async ({ where }: { where: { id: string } }) => {
-        const row = state.sales.find((sale) => sale.id === where.id);
+      findUnique: async ({ where }: { where: { id?: string; idempotencyKey?: string } }) => {
+        const row = state.sales.find((sale) => where.id ? sale.id === where.id : sale.idempotencyKey === where.idempotencyKey);
         return row ? hydrateSale(row) : null;
       },
       findMany: async ({ take }: { take?: number }) => state.sales.slice(-(take ?? state.sales.length)).reverse().map(hydrateSale),
@@ -409,7 +419,7 @@ function createInMemoryPrisma() {
           quantityUnit: (data.quantityUnit as SaleItemRow["quantityUnit"] | undefined) ?? "PIECE",
           unitLabelSnapshot: String(data.unitLabelSnapshot ?? "ইউনিট"),
           grossLineRevenue: money(data.grossLineRevenue as MoneyValue),
-          allocatedDiscount: money(data.allocatedDiscount as MoneyValue), netLineRevenue: money(data.netLineRevenue as MoneyValue),
+          allocatedDiscount: money(data.allocatedDiscount as MoneyValue), allocatedPriceIncrease: money((data.allocatedPriceIncrease ?? 0) as MoneyValue), netLineRevenue: money(data.netLineRevenue as MoneyValue),
           totalBuyingCost: money(data.totalBuyingCost as MoneyValue), grossProfit: money(data.grossProfit as MoneyValue),
           createdAt: new Date(),
         };
@@ -756,6 +766,68 @@ describe("Milestone 3 inventory and physical sales", () => {
     expect(result.grossProfitMargin).toBeCloseTo(33.3333, 4);
     expect(result.paymentMethod).toBe("CASH");
     expect(result.paymentStatus).toBe("PAID");
+  });
+
+  it("allocates a higher final price across products and refunds the actual charged amount", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([
+      { productVariantId: VARIANT_A, quantity: 1, unitBuyingCost: "300" },
+      { productVariantId: VARIANT_B, quantity: 1, unitBuyingCost: "200" },
+    ]), OWNER_ID);
+    const input = physicalSaleCreateSchema.parse({
+      items: [
+        { productVariantId: VARIANT_A, amount: "1", amountUnit: "PIECE" },
+        { productVariantId: VARIANT_B, amount: "1", amountUnit: "PIECE" },
+      ],
+      finalProductTotal: "1000",
+    });
+    await expect(service.createPhysicalSale(input, OWNER_ID)).rejects.toMatchObject({ code: "PRICE_INCREASE_CONFIRMATION_REQUIRED" });
+    expect(state.sales).toHaveLength(0);
+    const sold = await service.createPhysicalSale({ ...input, confirmPriceIncrease: true }, OWNER_ID);
+    expect(sold).toMatchObject({ subtotal: 800, priceIncreaseTotal: 200, grandTotal: 1000, totalBuyingCost: 500, grossProfit: 500 });
+    expect(sold.items.map((item) => item.allocatedPriceIncrease)).toEqual([125, 75]);
+    const returned = await service.returnPhysicalSale(sold.id, physicalReturn(sold.items[0].id, 1), OWNER_ID);
+    expect(returned).toMatchObject({ refundedAmount: 625, remainingRevenue: 375 });
+  });
+
+  it("records an earlier shop sale today, rejects invalid dates, and replays duplicate requests", async () => {
+    const { prisma, state } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 2, unitBuyingCost: "300" }]), OWNER_ID);
+    const request = physicalSaleCreateSchema.parse({
+      items: [{ productVariantId: VARIANT_A, amount: "1", amountUnit: "PIECE" }],
+      finalProductTotal: "505",
+      confirmPriceIncrease: true,
+      soldOn: dateOffset(-10),
+      idempotencyKey: "10000000-0000-4000-8000-000000000301",
+    });
+    const first = await service.createPhysicalSale(request, OWNER_ID);
+    expect(first).toMatchObject({ soldOn: dateOffset(-10), grandTotal: 505 });
+    expect(Math.abs(new Date(first.completedAt).getTime() - Date.now())).toBeLessThan(5_000);
+    const replay = await service.createPhysicalSale(request, OWNER_ID);
+    expect(replay.id).toBe(first.id);
+    expect(state.sales).toHaveLength(1);
+    expect(state.variants[0].availableStock).toBe(1);
+    await expect(service.createPhysicalSale({ ...request, finalProductTotal: "500" }, OWNER_ID))
+      .rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    await expect(service.createPhysicalSale({ ...request, idempotencyKey: undefined, soldOn: dateOffset(-91) }, OWNER_ID))
+      .rejects.toMatchObject({ code: "INVALID_SOLD_ON" });
+    await expect(service.createPhysicalSale({ ...request, idempotencyKey: undefined, soldOn: dateOffset(1) }, OWNER_ID))
+      .rejects.toMatchObject({ code: "INVALID_SOLD_ON" });
+    const boundary = await service.createPhysicalSale({ ...request, idempotencyKey: undefined, soldOn: dateOffset(-90), finalProductTotal: "500", confirmPriceIncrease: false }, OWNER_ID);
+    expect(boundary.soldOn).toBe(dateOffset(-90));
+    await expect(service.createPhysicalSale({ ...request, idempotencyKey: undefined, finalProductTotal: "500", confirmPriceIncrease: false }, OWNER_ID))
+      .rejects.toMatchObject({ code: "INSUFFICIENT_STOCK" });
+  });
+
+  it("lets a late credit sale carry its own actual date and current outstanding balance", async () => {
+    const { prisma } = createInMemoryPrisma();
+    const service = createInventoryService(prisma);
+    await service.createPurchase(purchase([{ productVariantId: VARIANT_A, quantity: 1, unitBuyingCost: "300" }]), OWNER_ID);
+    const result = await service.createPhysicalSale({ ...creditSale(1), soldOn: dateOffset(-15), finalProductTotal: "490" }, OWNER_ID);
+    expect(result).toMatchObject({ soldOn: dateOffset(-15), paymentMethod: "CREDIT", grandTotal: 490, outstandingAmount: 490, collectedAmount: 0 });
+    expect(Math.abs(new Date(result.completedAt).getTime() - Date.now())).toBeLessThan(5_000);
   });
 
   it("rejects a discount above subtotal and requires confirmation for a loss", async () => {

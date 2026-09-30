@@ -112,6 +112,23 @@ describe("customer-based credit ledger", () => {
     expect(sales.map((sale) => sale.paymentStatus)).toEqual(["PAID", "PARTIALLY_PAID"]);
   });
 
+  it("keeps an earlier payment on recorded older sales when a new sale is added later", async () => {
+    const { service, allocations, sales } = setup();
+    const firstPayment = "50000000-0000-4000-8000-000000000020";
+    await service.recordCreditCustomerPayment(CUSTOMER_ID, payment("600", firstPayment), OWNER_ID);
+    const original = allocations.map((value) => ({ sale: value.salesOrderId, amount: Number(value.amount) }));
+    sales.push({
+      id: "30000000-0000-4000-8000-000000000003",
+      grandTotal: new Prisma.Decimal(100),
+      completedAt: new Date(), createdAt: new Date(),
+      physicalSaleReturns: [], paymentStatus: "UNPAID",
+    });
+    await service.recordCreditCustomerPayment(CUSTOMER_ID, payment("250", "50000000-0000-4000-8000-000000000021"), OWNER_ID);
+    expect(allocations.filter((value) => value.creditPaymentId !== allocations.at(-1)?.creditPaymentId)
+      .map((value) => ({ sale: value.salesOrderId, amount: Number(value.amount) }))).toEqual(original);
+    expect(allocations.at(-1)).toMatchObject({ salesOrderId: "30000000-0000-4000-8000-000000000003" });
+  });
+
   it("makes retries idempotent and serializes concurrent overpayments", async () => {
     const { service, payments } = setup();
     const same = payment("100", "50000000-0000-4000-8000-000000000002");

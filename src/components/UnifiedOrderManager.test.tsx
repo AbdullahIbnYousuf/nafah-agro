@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UnifiedOrderManager from './UnifiedOrderManager';
@@ -53,6 +53,16 @@ describe('order list view preferences', () => {
     expect(screen.getByLabelText('অর্ডারের স্ট্যাটাস')).toHaveValue('PENDING');
     expect(screen.getByLabelText('অর্ডার নম্বর')).toHaveValue('NA-1001');
     expect(screen.getByLabelText('গ্রাহকের ফোন')).toHaveValue('01300000000');
+  });
+
+  it('shows one editable product total while keeping delivery charge separate', async () => {
+    mocks.getAdminDeliveryRates.mockResolvedValue([{ id: 'rate-1', name: 'Bogura', code: 'BOGURA', charge: 80, isActive: true }]);
+    render(<MemoryRouter><UnifiedOrderManager /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'ম্যানুয়াল অর্ডার' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'ডেলিভারি চার্জ' })).toBeInTheDocument());
+    expect(screen.getByLabelText('মোট পণ্যের দাম (৳)')).toBeInTheDocument();
+    expect(screen.queryByLabelText('ছাড়')).not.toBeInTheDocument();
+    expect(screen.getByText('গ্রাহকের মোট দাম')).toBeInTheDocument();
   });
 
 });

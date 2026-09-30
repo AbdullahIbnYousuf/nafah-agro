@@ -38,8 +38,15 @@ export const manualDeliveryOrderSchema = z.object({
   customer: deliveryCustomer,
   deliveryRateId: uuid,
   discountTotal: money.default("0"),
+  finalProductTotal: money.optional(),
+  confirmPriceIncrease: z.boolean().default(false),
   confirmUnprofitable: z.boolean().default(false),
-}).strict().superRefine((value, context) => uniqueItems(value.items, context));
+}).strict().superRefine((value, context) => {
+  uniqueItems(value.items, context);
+  if (value.finalProductTotal !== undefined && Number(value.discountTotal) !== 0) {
+    context.addIssue({ code: "custom", path: ["discountTotal"], message: "Use finalProductTotal instead of discountTotal" });
+  }
+});
 
 export const orderLifecycleSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("CONFIRM"), confirmUnprofitable: z.boolean().default(false) }).strict(),

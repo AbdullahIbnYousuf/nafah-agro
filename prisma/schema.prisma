@@ -353,6 +353,7 @@ model SalesOrder {
   deliveryCharge                  Decimal              @default(0) @map("delivery_charge") @db.Decimal(14, 2)
   subtotal                        Decimal              @db.Decimal(14, 2)
   discountTotal                   Decimal              @default(0) @map("discount_total") @db.Decimal(14, 2)
+  priceIncreaseTotal              Decimal              @default(0) @map("price_increase_total") @db.Decimal(14, 2)
   grandTotal                      Decimal              @map("grand_total") @db.Decimal(14, 2)
   totalBuyingCost                 Decimal?             @map("total_buying_cost") @db.Decimal(14, 2)
   grossProfit                     Decimal?             @map("gross_profit") @db.Decimal(14, 2)
@@ -363,6 +364,7 @@ model SalesOrder {
   placedAt                        DateTime             @default(now()) @map("placed_at")
   confirmedAt                     DateTime?            @map("confirmed_at")
   completedAt                     DateTime?            @map("completed_at")
+  soldOn                          DateTime?            @map("sold_on") @db.Date
   deliveredAt                     DateTime?            @map("delivered_at")
   cancelledAt                     DateTime?            @map("cancelled_at")
   returnedAt                      DateTime?            @map("returned_at")
@@ -460,6 +462,7 @@ model SalesOrderItem {
   sellingPriceTier        SellingPriceTier         @default(REGULAR) @map("selling_price_tier")
   grossLineRevenue        Decimal                  @map("gross_line_revenue") @db.Decimal(14, 2)
   allocatedDiscount       Decimal                  @default(0) @map("allocated_discount") @db.Decimal(14, 2)
+  allocatedPriceIncrease  Decimal                  @default(0) @map("allocated_price_increase") @db.Decimal(14, 2)
   netLineRevenue          Decimal                  @map("net_line_revenue") @db.Decimal(14, 2)
   totalBuyingCost         Decimal?                 @map("total_buying_cost") @db.Decimal(14, 2)
   grossProfit             Decimal?                 @map("gross_profit") @db.Decimal(14, 2)

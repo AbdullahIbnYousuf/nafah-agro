@@ -604,13 +604,17 @@ export function createPhysicalSale(input: {
   creditCustomerId?: string;
   createCreditCustomer?: boolean;
   discountTotal: number;
+  finalProductTotal?: number;
+  soldOn?: string;
+  idempotencyKey?: string;
+  confirmPriceIncrease?: boolean;
   paymentMode?: 'PAID_NOW' | 'CREDIT';
   nextFollowUpDate?: string;
   confirmUnprofitable?: boolean;
 }): Promise<PhysicalSale> {
   return requestV1<PhysicalSale>('/physical-sales', {
     method: 'POST',
-    body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal) }),
+    body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal), ...(input.finalProductTotal === undefined ? {} : { finalProductTotal: String(input.finalProductTotal) }) }),
   });
 }
 
@@ -785,11 +789,13 @@ export function createManualOrder(input: {
   customer: { name: string; phone: string; email?: string; address: string };
   deliveryRateId: string;
   discountTotal: number;
+  finalProductTotal?: number;
+  confirmPriceIncrease?: boolean;
   confirmUnprofitable?: boolean;
 }): Promise<UnifiedOrder> {
   return requestV1('/orders/manual', {
     method: 'POST',
-    body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal) }),
+    body: JSON.stringify({ ...input, discountTotal: String(input.discountTotal), ...(input.finalProductTotal === undefined ? {} : { finalProductTotal: String(input.finalProductTotal) }) }),
   });
 }
 

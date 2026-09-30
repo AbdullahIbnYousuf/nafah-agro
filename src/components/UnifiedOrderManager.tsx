@@ -11,8 +11,10 @@ import { FilterField, FilterFields, FilterPanel, FilterRefreshButton, FilterRese
 import ReturnOrderDialog, { type ReturnCondition } from '@/components/ReturnOrderDialog';
 import OrderActionDialog, { type OrderAction } from '@/components/OrderActionDialog';
 import ProfitWarningDialog from '@/components/ProfitWarningDialog';
+import PriceIncreaseDialog from '@/components/PriceIncreaseDialog';
 import DeliveryRateDialog from '@/components/DeliveryRateDialog';
 import {
+  ApiError,
   createManualOrder,
   getAdminDeliveryRates,
   getOrders,
@@ -78,12 +80,14 @@ export default function UnifiedOrderManager() {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [deliveryRateId, setDeliveryRateId] = useState('');
-  const [discount, setDiscount] = useState(0);
+  const [finalProductTotal, setFinalProductTotal] = useState('');
+  const [priceEdited, setPriceEdited] = useState(false);
   const [manualItems, setManualItems] = useState<ManualItem[]>([{ option: null, quantity: 1 }]);
   const [returnOrder, setReturnOrder] = useState<UnifiedOrder | null>(null);
   const [pendingAction, setPendingAction] = useState<{ order: UnifiedOrder; action: OrderAction } | null>(null);
   const [editingRate, setEditingRate] = useState<DeliveryRate | null>(null);
   const [manualProjectedLoss, setManualProjectedLoss] = useState<unknown>(null);
+  const [manualPriceIncrease, setManualPriceIncrease] = useState<number | null>(null);
   const [manualErrors, setManualErrors] = useState<Record<string, string>>({});
 
   const loadOrders = useCallback(async () => {
@@ -130,6 +134,9 @@ export default function UnifiedOrderManager() {
     });
     return total + pricing.unitPrice * item.quantity;
   }, 0), [manualItems]);
+  const displayedFinalTotal = priceEdited ? finalProductTotal : manualSubtotal.toFixed(2);
+  const finalTotalNumber = Number(displayedFinalTotal);
+  const selectedDeliveryCharge = rates.find((rate) => rate.id === deliveryRateId)?.charge ?? 0;
   const hasActiveFilters = Boolean(source || status || orderNumber || phoneFilter || dateFrom || dateTo);
 
   function clearFilters() {
@@ -163,7 +170,7 @@ export default function UnifiedOrderManager() {
     await loadOrders();
   }
 
-  async function saveManual(confirmUnprofitable = false) {
+  async function saveManual(confirmUnprofitable = false, confirmPriceIncrease = false) {
     const items = manualItems.filter(item => item.option && item.quantity > 0).map((item) => ({ productVariantId: item.option!.productVariantId, quantity: item.quantity }));
     const nextErrors: Record<string, string> = {};
     if (!customerName.trim()) nextErrors.name = 'গ্রাহকের নাম লিখুন।';
@@ -172,24 +179,27 @@ export default function UnifiedOrderManager() {
     if (customerAddress.trim().length < 5) nextErrors.address = 'কমপক্ষে 5 অক্ষরের ডেলিভারি ঠিকানা লিখুন।';
     if (!deliveryRateId) nextErrors.deliveryRate = 'ডেলিভারি এলাকা সিলেক্ট করুন।';
     if (items.length === 0 || items.length !== manualItems.length) nextErrors.items = 'প্রতিটি আইটেমে পণ্য ও 1 বা তার বেশি পরিমাণ দিন।';
-    if (!Number.isFinite(discount) || discount < 0 || discount > manualSubtotal) nextErrors.discount = 'ছাড় শূন্য থেকে সাবটোটালের মধ্যে হতে হবে।';
+    if (!/^\d+(?:\.\d{1,2})?$/.test(displayedFinalTotal) || !Number.isFinite(finalTotalNumber)) nextErrors.finalTotal = 'মোট পণ্যের সঠিক দাম দিন (সর্বোচ্চ ২ ঘর দশমিক)।';
     if (Object.keys(nextErrors).length > 0) { setManualErrors(nextErrors); return; }
     setManualErrors({});
     try {
       await createManualOrder({ source: manualSource, initialStatus, items, customer: {
         name: customerName.trim(), phone: customerPhone.trim(), address: customerAddress.trim(),
         ...(customerEmail.trim() ? { email: customerEmail.trim() } : {}),
-      }, deliveryRateId, discountTotal: discount, confirmUnprofitable });
+      }, deliveryRateId, discountTotal: 0, finalProductTotal: priceEdited ? finalTotalNumber : undefined, confirmUnprofitable, confirmPriceIncrease });
       toast.success('ম্যানুয়াল ডেলিভারি অর্ডার তৈরি হয়েছে');
-      setShowManual(false); setManualItems([{ option: null, quantity: 1 }]); setDiscount(0);
+      setShowManual(false); setManualItems([{ option: null, quantity: 1 }]); setFinalProductTotal(''); setPriceEdited(false);
       setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setCustomerAddress('');
       setManualProjectedLoss(null);
+      setManualPriceIncrease(null);
       await loadOrders();
     } catch (error) {
-      if (!confirmUnprofitable && error instanceof Error && 'code' in error && error.code === 'UNPROFITABLE_ORDER_CONFIRMATION_REQUIRED') {
+      if (!confirmPriceIncrease && error instanceof ApiError && error.code === 'PRICE_INCREASE_CONFIRMATION_REQUIRED') {
+        setManualPriceIncrease(Number(error.details?.priceIncreaseTotal ?? Math.max(0, finalTotalNumber - manualSubtotal)));
+      } else if (!confirmUnprofitable && error instanceof Error && 'code' in error && error.code === 'UNPROFITABLE_ORDER_CONFIRMATION_REQUIRED') {
         const details = 'details' in error && error.details && typeof error.details === 'object' ? error.details as Record<string, unknown> : {};
         setManualProjectedLoss(details.projectedGrossProfit ?? 'ক্ষতি হবে');
-      } else if (confirmUnprofitable) {
+      } else if (confirmUnprofitable || confirmPriceIncrease) {
         throw error;
       } else setManualErrors({ submit: error instanceof Error ? error.message : 'ম্যানুয়াল অর্ডার তৈরি হয়নি' });
     }
@@ -205,10 +215,10 @@ export default function UnifiedOrderManager() {
   return <div>
     <div className="flex flex-wrap justify-between gap-3 mb-6"><div><h1 className="text-2xl font-bold">অর্ডার</h1><p className="text-sm text-muted-foreground">ওয়েবসাইট, দোকান ও ম্যানুয়াল ডেলিভারি অর্ডার</p></div><Button onClick={() => setShowManual(value => !value)}><Plus size={16} className="mr-2" />ম্যানুয়াল অর্ডার</Button></div>
     <section className="bg-card border rounded-lg p-4 mb-5"><h2 className="font-semibold mb-3">ডেলিভারি চার্জ</h2><div className="grid gap-3 sm:flex sm:flex-wrap">{rates.map(rate => <button key={rate.id} type="button" onClick={() => setEditingRate(rate)} className="min-h-12 rounded border px-4 py-2 text-left"><strong>{rate.name}</strong><div className="text-sm text-muted-foreground">{rate.charge === null ? 'সেট করা হয়নি' : `৳${rate.charge}`} · {rate.isActive ? 'অ্যাকটিভ' : 'ইনঅ্যাকটিভ'}</div></button>)}</div></section>
-    {showManual && <section className="bg-card border rounded-lg p-5 mb-5 space-y-4"><h2 className="font-semibold">নতুন ম্যানুয়াল ডেলিভারি অর্ডার</h2><div className="grid md:grid-cols-4 gap-3"><label>উৎস<select className="min-h-11 w-full rounded border bg-background p-2" value={manualSource} onChange={event => setManualSource(event.target.value as typeof manualSource)}>{manualSources.map(value => <option key={value}>{value}</option>)}</select></label><label>শুরুর স্ট্যাটাস<select className="min-h-11 w-full rounded border bg-background p-2" value={initialStatus} onChange={event => setInitialStatus(event.target.value as typeof initialStatus)}><option>PENDING</option><option>CONFIRMED</option></select></label><label>ডেলিভারি এলাকা<select className="min-h-11 w-full rounded border bg-background p-2" value={deliveryRateId} onChange={event => { setDeliveryRateId(event.target.value); setManualErrors(current => ({ ...current, deliveryRate: '' })); }} aria-invalid={Boolean(manualErrors.deliveryRate)}><option value="">সিলেক্ট করুন</option>{rates.filter(rate => rate.isActive).map(rate => <option key={rate.id} value={rate.id}>{rate.name} ({rate.charge ?? 'সেট করা হয়নি'})</option>)}</select>{manualErrors.deliveryRate && <FieldError>{manualErrors.deliveryRate}</FieldError>}</label><label>ছাড়<Input type="number" min="0" max={manualSubtotal} step="0.01" value={discount} onChange={event => { setDiscount(Number(event.target.value)); setManualErrors(current => ({ ...current, discount: '' })); }} aria-invalid={Boolean(manualErrors.discount)} />{manualErrors.discount && <FieldError>{manualErrors.discount}</FieldError>}</label></div>
+    {showManual && <section className="bg-card border rounded-lg p-5 mb-5 space-y-4"><h2 className="font-semibold">নতুন ম্যানুয়াল ডেলিভারি অর্ডার</h2><div className="grid md:grid-cols-3 gap-3"><label>উৎস<select className="min-h-11 w-full rounded border bg-background p-2" value={manualSource} onChange={event => setManualSource(event.target.value as typeof manualSource)}>{manualSources.map(value => <option key={value}>{value}</option>)}</select></label><label>শুরুর স্ট্যাটাস<select className="min-h-11 w-full rounded border bg-background p-2" value={initialStatus} onChange={event => setInitialStatus(event.target.value as typeof initialStatus)}><option>PENDING</option><option>CONFIRMED</option></select></label><label>ডেলিভারি এলাকা<select className="min-h-11 w-full rounded border bg-background p-2" value={deliveryRateId} onChange={event => { setDeliveryRateId(event.target.value); setManualErrors(current => ({ ...current, deliveryRate: '' })); }} aria-invalid={Boolean(manualErrors.deliveryRate)}><option value="">সিলেক্ট করুন</option>{rates.filter(rate => rate.isActive).map(rate => <option key={rate.id} value={rate.id}>{rate.name} ({rate.charge ?? 'সেট করা হয়নি'})</option>)}</select>{manualErrors.deliveryRate && <FieldError>{manualErrors.deliveryRate}</FieldError>}</label></div>
       <div className="grid md:grid-cols-4 gap-3"><div><Label htmlFor="manual-customer-name">নাম</Label><Input id="manual-customer-name" value={customerName} onChange={event => { setCustomerName(event.target.value); setManualErrors(current => ({ ...current, name: '' })); }} aria-invalid={Boolean(manualErrors.name)} />{manualErrors.name && <FieldError>{manualErrors.name}</FieldError>}</div><div><Label htmlFor="manual-customer-phone">ফোন</Label><Input id="manual-customer-phone" inputMode="tel" value={customerPhone} onChange={event => { setCustomerPhone(event.target.value); setManualErrors(current => ({ ...current, phone: '' })); }} aria-invalid={Boolean(manualErrors.phone)} />{manualErrors.phone && <FieldError>{manualErrors.phone}</FieldError>}</div><div><Label htmlFor="manual-customer-email">ইমেইল (ঐচ্ছিক)</Label><Input id="manual-customer-email" type="email" value={customerEmail} onChange={event => { setCustomerEmail(event.target.value); setManualErrors(current => ({ ...current, email: '' })); }} aria-invalid={Boolean(manualErrors.email)} />{manualErrors.email && <FieldError>{manualErrors.email}</FieldError>}</div><div><Label htmlFor="manual-customer-address">ঠিকানা</Label><Input id="manual-customer-address" value={customerAddress} onChange={event => { setCustomerAddress(event.target.value); setManualErrors(current => ({ ...current, address: '' })); }} aria-invalid={Boolean(manualErrors.address)} />{manualErrors.address && <FieldError>{manualErrors.address}</FieldError>}</div></div>
       <div className="space-y-2">{manualItems.map((item, index) => <div key={index} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_6rem_auto] sm:border-0 sm:p-0"><VariantOptionCombobox context="MANUAL_ORDER" selected={item.option} ariaLabel={`আইটেম ${index + 1} পণ্য`} disabledReason={(option) => manualItems.some((other, itemIndex) => itemIndex !== index && other.option?.productVariantId === option.productVariantId) ? 'এই পণ্যটি অর্ডারে আগেই আছে।' : initialStatus === 'CONFIRMED' && option.availableStock <= 0 ? 'কনফার্মড অর্ডারের জন্য এই পণ্যের স্টক নেই।' : undefined} onSelect={(option) => { setManualErrors(current => ({ ...current, items: '' })); setManualItems(current => current.map((value, itemIndex) => itemIndex === index ? { ...value, option } : value)); }} /><div><Input aria-label={`আইটেম ${index + 1} পরিমাণ`} className="w-full" type="number" min="1" step="1" value={item.quantity} onChange={event => { setManualErrors(current => ({ ...current, items: '' })); setManualItems(current => current.map((value, itemIndex) => itemIndex === index ? { ...value, quantity: Number(event.target.value) } : value)); }} />{item.option && <span className="mt-1 block text-xs text-muted-foreground">{item.option.productKind === "EGG" ? "টি ডিম" : (item.option.unitLabel ?? "ইউনিট")}</span>}</div><Button type="button" variant="outline" onClick={() => setManualItems(current => current.filter((_, itemIndex) => itemIndex !== index))}>রিমুভ করুন</Button></div>)}{manualErrors.items && <FieldError>{manualErrors.items}</FieldError>}</div>
-      <div className="text-sm text-muted-foreground">পণ্যের সাবটোটাল: ৳{manualSubtotal.toFixed(2)}</div>
+      <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-sm"><div className="flex justify-between"><span>বর্তমান পণ্যের দাম</span><strong>৳{manualSubtotal.toFixed(2)}</strong></div><div><Label htmlFor="manual-final-product-total">মোট পণ্যের দাম (৳)</Label><Input id="manual-final-product-total" type="number" min="0" step="0.01" value={displayedFinalTotal} onChange={event => { setFinalProductTotal(event.target.value); setPriceEdited(true); setManualErrors(current => ({ ...current, finalTotal: '' })); }} aria-invalid={Boolean(manualErrors.finalTotal)} />{manualErrors.finalTotal && <FieldError>{manualErrors.finalTotal}</FieldError>}</div>{Number.isFinite(finalTotalNumber) && finalTotalNumber < manualSubtotal && <div className="flex justify-between"><span>ছাড়</span><span>-৳{(manualSubtotal - finalTotalNumber).toFixed(2)}</span></div>}{Number.isFinite(finalTotalNumber) && finalTotalNumber > manualSubtotal && <div className="flex justify-between"><span>বাড়তি দাম</span><span>+৳{(finalTotalNumber - manualSubtotal).toFixed(2)}</span></div>}<div className="flex justify-between"><span>ডেলিভারি চার্জ</span><span>৳{selectedDeliveryCharge.toFixed(2)}</span></div><div className="flex justify-between border-t pt-2 font-semibold"><span>গ্রাহকের মোট দাম</span><span>{Number.isFinite(finalTotalNumber) ? `৳${(finalTotalNumber + selectedDeliveryCharge).toFixed(2)}` : 'দাম দিন'}</span></div></div>
       {manualErrors.submit && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{manualErrors.submit}</p>}
       <div className="grid gap-2 sm:flex"><Button type="button" className="min-h-11 w-full sm:w-auto" variant="outline" onClick={() => setManualItems(current => [...current, { option: null, quantity: 1 }])}>আরও আইটেম</Button><Button type="button" className="min-h-11 w-full sm:w-auto" onClick={() => void saveManual()}>অর্ডার তৈরি করুন</Button></div>
     </section>}
@@ -224,13 +234,15 @@ export default function UnifiedOrderManager() {
     </FilterPanel>
     {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin mr-2" />লোড হচ্ছে…</div> : <div className="space-y-3">{orders.map(order => <article key={order.id} className="bg-card border rounded-lg p-4"><div className="flex flex-wrap justify-between gap-3"><div><strong>{order.orderNumber}</strong><div className="text-sm">{order.source} · {order.status} · {order.customerName ?? 'গ্রাহক নেই'} · {order.customerPhone ?? 'ফোন নেই'}</div><div className="text-xs text-muted-foreground">{formatAppDateTime(order.placedAt)}</div></div><div className="text-right"><div className="font-bold">মোট ৳{order.grandTotal}</div><div className="text-sm">ক্রয়মূল্য {order.totalBuyingCost === null ? 'এখনও হিসাব হয়নি' : `৳${order.totalBuyingCost}`} · লাভ {order.grossProfit === null ? 'এখনও হিসাব হয়নি' : `৳${order.grossProfit}`} · মার্জিন {order.grossProfitMargin === null ? 'লাভের হিসাব নেই' : `${order.grossProfitMargin}%`}</div></div></div>
         <div className="text-sm mt-3">{order.items.map(item => `${productPackLabel(item.productName, item.variantName)} × ${formatQuantity(item.quantity, item.quantityUnit, undefined, item.unitLabel)}`).join(', ')}</div>
+        {(order.discountTotal > 0 || order.priceIncreaseTotal > 0) && <div className="mt-2 text-xs text-muted-foreground">বর্তমান পণ্যের দাম ৳{order.subtotal.toFixed(2)}{order.discountTotal > 0 ? ` · ছাড় -৳${order.discountTotal.toFixed(2)}` : ''}{order.priceIncreaseTotal > 0 ? ` · বাড়তি দাম +৳${order.priceIncreaseTotal.toFixed(2)}` : ''} · ডেলিভারি ৳{order.deliveryCharge.toFixed(2)}</div>}
         {order.statusReason && <div className="text-sm text-destructive mt-2">কারণ: {order.statusReason}</div>}
         <div className="flex flex-wrap gap-2 mt-3">{order.status === 'PENDING' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'CONFIRM' })}>অর্ডার কনফার্ম ও স্টক রিজার্ভ</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'CANCEL' })}>বাতিল</Button></>}{order.status === 'CONFIRMED' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'PROCESS' })}>প্রসেসিং</Button><Button size="sm" onClick={() => setPendingAction({ order, action: 'DELIVER' })}>ডেলিভারড</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'FAILED_DELIVERY' })}>ডেলিভারি ব্যর্থ</Button></>}{order.status === 'PROCESSING' && <><Button size="sm" onClick={() => setPendingAction({ order, action: 'DELIVER' })}>ডেলিভারড</Button><Button size="sm" variant="outline" onClick={() => setPendingAction({ order, action: 'FAILED_DELIVERY' })}>ডেলিভারি ব্যর্থ</Button></>}{order.source !== 'PHYSICAL_SHOP' && (order.status === 'DELIVERED' || order.status === 'COMPLETED') && <Button size="sm" variant="outline" onClick={() => setReturnOrder(order)}>পুরো অর্ডার রিটার্ন</Button>}</div>
       </article>)}</div>}
     <ReturnOrderDialog order={returnOrder} onClose={() => setReturnOrder(null)} onConfirm={submitReturn} />
     <OrderActionDialog order={pendingAction?.order ?? null} action={pendingAction?.action ?? null} onClose={() => setPendingAction(null)} onConfirm={submitAction} />
     <DeliveryRateDialog rate={editingRate} onClose={() => setEditingRate(null)} onConfirm={saveRate} />
-    <ProfitWarningDialog open={manualProjectedLoss !== null} projectedGrossProfit={manualProjectedLoss} onClose={() => setManualProjectedLoss(null)} onConfirm={() => saveManual(true)} />
+    <PriceIncreaseDialog open={manualPriceIncrease !== null} increase={manualPriceIncrease ?? 0} subject="অর্ডার" onClose={() => setManualPriceIncrease(null)} onConfirm={() => saveManual(false, true)} />
+    <ProfitWarningDialog open={manualProjectedLoss !== null} projectedGrossProfit={manualProjectedLoss} onClose={() => setManualProjectedLoss(null)} onConfirm={() => saveManual(true, finalTotalNumber > manualSubtotal)} />
   </div>;
 }
 

@@ -30,6 +30,7 @@ export interface AnalyticsOrderRecord {
   paymentMethod: "CASH" | "CASH_ON_DELIVERY" | "CREDIT";
   subtotal: MoneyValue;
   discountTotal: MoneyValue;
+  priceIncreaseTotal?: MoneyValue;
   deliveryCharge: MoneyValue;
   grandTotal: MoneyValue;
   completedAt: Date | null;
@@ -360,7 +361,7 @@ function financialEvent(order: AnalyticsOrderRecord, date: Date, kind: Financial
   const quantityDirection = kind === "SALE" ? 1 : -1;
   const quantities = emptyQuantities();
   for (const item of order.items) addQuantity(quantities, item.quantityUnit, item.quantity * quantityDirection);
-  const productRevenue = decimal(order.subtotal).minus(decimal(order.discountTotal)).mul(direction);
+  const productRevenue = decimal(order.subtotal).minus(decimal(order.discountTotal)).plus(decimal(order.priceIncreaseTotal ?? 0)).mul(direction);
   const isCredit = order.paymentMethod === "CREDIT";
   const fifoCost = order.items.reduce(
     (total, item) => total.plus(itemCost(item)),
@@ -828,6 +829,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
             paymentMethod: true,
             subtotal: true,
             discountTotal: true,
+            priceIncreaseTotal: true,
             deliveryCharge: true,
             grandTotal: true,
             completedAt: true,

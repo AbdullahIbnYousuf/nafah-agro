@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type {
   CreditCustomerList,
@@ -25,6 +25,7 @@ import { consumeAvailableFifo, type FifoAllocation } from "./stockAllocation.js"
 import { quantityCost, quantityUnitForKind, toBaseQuantity, unitLabelForKind } from "../lib/quantity.js";
 import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/transactions.js";
 import { sellingPriceForQuantity } from "../lib/pricing.js";
+import { allocateSaleAmount } from "../lib/saleAdjustment.js";
 
 interface InventoryHttpError extends Error {
   status: number;
@@ -148,6 +149,7 @@ function saleDto(sale: SaleRecord) {
     customerPhone: sale.creditCustomer?.phone ?? sale.customerPhone,
     subtotal: moneyNumber(sale.subtotal),
     discountTotal: moneyNumber(sale.discountTotal),
+    priceIncreaseTotal: moneyNumber(sale.priceIncreaseTotal),
     grandTotal: moneyNumber(sale.grandTotal),
     totalBuyingCost: moneyNumber(sale.totalBuyingCost),
     grossProfit: moneyNumber(sale.grossProfit),
@@ -161,6 +163,7 @@ function saleDto(sale: SaleRecord) {
     unprofitableOverrideConfirmed: sale.unprofitableOverrideConfirmed,
     createdBy: sale.createdBy,
     completedAt: sale.completedAt,
+    soldOn: sale.soldOn?.toISOString().slice(0, 10) ?? dhakaDateOnly(sale.completedAt ?? sale.createdAt),
     items: sale.items.map((item) => {
       const returnedQuantity = item.physicalSaleReturnItems.reduce((total, value) => total + value.quantity, 0);
       return ({
@@ -177,6 +180,7 @@ function saleDto(sale: SaleRecord) {
       sellingPriceTier: item.sellingPriceTier,
       grossLineRevenue: moneyNumber(item.grossLineRevenue),
       allocatedDiscount: moneyNumber(item.allocatedDiscount),
+      allocatedPriceIncrease: moneyNumber(item.allocatedPriceIncrease),
       netLineRevenue: moneyNumber(item.netLineRevenue),
       totalBuyingCost: moneyNumber(item.totalBuyingCost),
       grossProfit: moneyNumber(item.grossProfit),
@@ -295,23 +299,6 @@ function creditPaymentStatus(collected: Prisma.Decimal, outstanding: Prisma.Deci
   return collected.isZero() ? "UNPAID" as const : "PARTIALLY_PAID" as const;
 }
 
-
-function allocateDiscount(
-  lineTotals: Prisma.Decimal[],
-  subtotal: Prisma.Decimal,
-  discount: Prisma.Decimal,
-): Prisma.Decimal[] {
-  if (discount.isZero()) return lineTotals.map(() => new Prisma.Decimal(0));
-  let assigned = new Prisma.Decimal(0);
-  return lineTotals.map((lineTotal, index) => {
-    if (index === lineTotals.length - 1) return discount.minus(assigned);
-    const roundedShare = lineTotal.mul(discount).div(subtotal).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-    const remaining = discount.minus(assigned);
-    const share = roundedShare.gt(remaining) ? remaining : roundedShare;
-    assigned = assigned.plus(share);
-    return share;
-  });
-}
 
 function purchaseBatchDto(batch: Prisma.StockBatchGetPayload<{
   include: {
@@ -1066,10 +1053,10 @@ export function createInventoryService(prisma: PrismaClient) {
               );
               const order = await transaction.salesOrder.findUnique({
                 where: { id: orderId },
-                select: { subtotal: true, discountTotal: true },
+                select: { subtotal: true, discountTotal: true, priceIncreaseTotal: true },
               });
               if (order) {
-                const productRevenue = order.subtotal.minus(order.discountTotal);
+                const productRevenue = order.subtotal.minus(order.discountTotal).plus(order.priceIncreaseTotal);
                 const grossProfit = productRevenue.minus(totalBuyingCost);
                 await transaction.salesOrder.update({
                   where: { id: orderId },
@@ -1212,6 +1199,24 @@ export function createInventoryService(prisma: PrismaClient) {
     },
 
     async createPhysicalSale(input: PhysicalSaleCreate, actorId: string) {
+      const today = dhakaDateOnly();
+      const soldOn = input.soldOn ?? today;
+      const earliestSoldOn = new Date(asDate(today).getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
+      if (soldOn < earliestSoldOn || soldOn > today) {
+        throw inventoryError(400, "INVALID_SOLD_ON", "বিক্রির তারিখ আজ থেকে আগের ৯০ দিনের মধ্যে হতে হবে।");
+      }
+      const requestFingerprint = input.idempotencyKey
+        ? createHash("sha256").update(JSON.stringify({ actorId, ...input, idempotencyKey: undefined, confirmUnprofitable: undefined, confirmPriceIncrease: undefined })).digest("hex")
+        : null;
+      if (input.idempotencyKey) {
+        const existing = await prisma.salesOrder.findUnique({ where: { idempotencyKey: input.idempotencyKey }, select: { id: true, requestFingerprint: true, source: true } });
+        if (existing) {
+          if (existing.source !== "PHYSICAL_SHOP" || existing.requestFingerprint !== requestFingerprint) {
+            throw inventoryError(409, "IDEMPOTENCY_KEY_REUSED", "এই বিক্রির রিকোয়েস্ট আগে অন্য তথ্য দিয়ে ব্যবহার হয়েছে।");
+          }
+          return readSale(existing.id);
+        }
+      }
       let saleId: string;
       try {
         saleId = await prisma.$transaction(async (transaction) => {
@@ -1281,14 +1286,29 @@ export function createInventoryService(prisma: PrismaClient) {
         });
         const lineTotals = prices.map((price) => price.lineTotal);
         const subtotal = lineTotals.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
-        const discount = asMoney(input.discountTotal);
+        if (input.finalProductTotal === undefined && asMoney(input.discountTotal).gt(subtotal)) {
+          throw inventoryError(400, "DISCOUNT_EXCEEDS_SUBTOTAL", "Discount cannot exceed subtotal.", {
+            subtotal: Number(subtotal), discountTotal: Number(input.discountTotal),
+          });
+        }
+        const finalProductTotal = input.finalProductTotal === undefined
+          ? subtotal.minus(asMoney(input.discountTotal))
+          : asMoney(input.finalProductTotal);
+        const discount = Prisma.Decimal.max(subtotal.minus(finalProductTotal), 0);
+        const priceIncrease = Prisma.Decimal.max(finalProductTotal.minus(subtotal), 0);
         if (discount.gt(subtotal)) {
           throw inventoryError(400, "DISCOUNT_EXCEEDS_SUBTOTAL", "Discount cannot exceed subtotal.", {
             subtotal: Number(subtotal),
             discountTotal: Number(discount),
           });
         }
-        const discounts = allocateDiscount(lineTotals, subtotal, discount);
+        if (priceIncrease.gt(0) && !input.confirmPriceIncrease) {
+          throw inventoryError(409, "PRICE_INCREASE_CONFIRMATION_REQUIRED", "পণ্যের দাম আগের দামের চেয়ে বেশি। কনফার্ম করুন।", {
+            subtotal: Number(subtotal), finalProductTotal: Number(finalProductTotal), priceIncreaseTotal: Number(priceIncrease),
+          });
+        }
+        const discounts = allocateSaleAmount(lineTotals, subtotal, discount);
+        const priceIncreases = allocateSaleAmount(lineTotals, subtotal, priceIncrease);
 
         const fifoByVariant = new Map<string, FifoAllocation[]>();
         for (const [index, item] of sortedItems.entries()) {
@@ -1305,7 +1325,7 @@ export function createInventoryService(prisma: PrismaClient) {
             new Prisma.Decimal(0),
           ));
         const totalBuyingCost = lineCosts.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));
-        const grandTotal = subtotal.minus(discount);
+        const grandTotal = finalProductTotal;
         if (input.paymentMode === "CREDIT") {
           if (grandTotal.lte(0)) {
             throw inventoryError(400, "CREDIT_BALANCE_REQUIRED", "A credit sale must have an amount to collect.");
@@ -1340,6 +1360,7 @@ export function createInventoryService(prisma: PrismaClient) {
           creditCustomerId: creditCustomer?.id,
           subtotal,
           discountTotal: discount,
+          priceIncreaseTotal: priceIncrease,
           grandTotal,
           totalBuyingCost,
           grossProfit,
@@ -1348,6 +1369,9 @@ export function createInventoryService(prisma: PrismaClient) {
           unprofitableOverrideByProfileId: isUnprofitable ? actorId : null,
           createdByProfileId: actorId,
           completedAt,
+          soldOn: asDate(soldOn),
+          idempotencyKey: input.idempotencyKey ?? null,
+          requestFingerprint,
           paymentMethod: input.paymentMode === "CREDIT" ? "CREDIT" : "CASH",
           paymentStatus: input.paymentMode === "CREDIT" ? "UNPAID" : "PAID",
           nextFollowUpDate: input.paymentMode === "CREDIT" ? asDate(input.nextFollowUpDate!) : null,
@@ -1355,7 +1379,7 @@ export function createInventoryService(prisma: PrismaClient) {
 
         for (const [index, item] of sortedItems.entries()) {
           const variant = byId.get(item.productVariantId)!;
-          const netLineRevenue = lineTotals[index].minus(discounts[index]);
+          const netLineRevenue = lineTotals[index].minus(discounts[index]).plus(priceIncreases[index]);
           const orderItem = await transaction.salesOrderItem.create({ data: {
             salesOrderId: sale.id,
             productId: variant.product.id,
@@ -1370,6 +1394,7 @@ export function createInventoryService(prisma: PrismaClient) {
             sellingPriceTier: prices[index].tier,
             grossLineRevenue: lineTotals[index],
             allocatedDiscount: discounts[index],
+            allocatedPriceIncrease: priceIncreases[index],
             netLineRevenue,
             totalBuyingCost: lineCosts[index],
             grossProfit: netLineRevenue.minus(lineCosts[index]),
@@ -1388,7 +1413,7 @@ export function createInventoryService(prisma: PrismaClient) {
         }
         await transaction.auditLog.create({ data: {
           actorProfileId: actorId,
-          action: "PHYSICAL_SALE_COMPLETED",
+          action: soldOn < today ? "PAST_PHYSICAL_SALE_RECORDED" : "PHYSICAL_SALE_COMPLETED",
           entityType: "SALES_ORDER",
           entityId: sale.id,
           newData: {
@@ -1398,6 +1423,11 @@ export function createInventoryService(prisma: PrismaClient) {
             paymentStatus: input.paymentMode === "CREDIT" ? "UNPAID" : "PAID",
             nextFollowUpDate: input.paymentMode === "CREDIT" ? input.nextFollowUpDate : null,
             creditCustomerId: creditCustomer?.id ?? null,
+            soldOn,
+            recordedAt: completedAt.toISOString(),
+            finalProductTotal: Number(finalProductTotal),
+            discountTotal: Number(discount),
+            priceIncreaseTotal: Number(priceIncrease),
           },
         } });
         if (creditCustomer && previousCustomerFollowUpDate !== input.nextFollowUpDate) {
@@ -1418,6 +1448,11 @@ export function createInventoryService(prisma: PrismaClient) {
         }, SERIALIZABLE_TRANSACTION_OPTIONS);
       } catch (error) {
         if (isUniqueConstraintError(error)) {
+          if (input.idempotencyKey) {
+            const existing = await prisma.salesOrder.findUnique({ where: { idempotencyKey: input.idempotencyKey }, select: { id: true, source: true, requestFingerprint: true } });
+            if (existing?.source === "PHYSICAL_SHOP" && existing.requestFingerprint === requestFingerprint) return readSale(existing.id);
+            if (existing) throw inventoryError(409, "IDEMPOTENCY_KEY_REUSED", "এই বিক্রির রিকোয়েস্ট আগে অন্য তথ্য দিয়ে ব্যবহার হয়েছে।");
+          }
           throw inventoryError(409, "DUPLICATE_CREDIT_CUSTOMER_NAME", "A credit customer with this name already exists.");
         }
         rethrowInventoryTransactionError(error);

@@ -13,10 +13,10 @@ vi.mock('@/lib/api', async (importOriginal) => ({ ...await importOriginal<typeof
 const sale: PhysicalSale = {
   id: '10000000-0000-4000-8000-000000000001', orderNumber: 'PS-CREDIT-1', source: 'PHYSICAL_SHOP', status: 'COMPLETED',
   paymentMethod: 'CREDIT', paymentStatus: 'PARTIALLY_PAID', nextFollowUpDate: '2099-08-29', customerName: 'রহিম', customerPhone: null,
-  subtotal: 1000, discountTotal: 0, grandTotal: 1000, totalBuyingCost: 600, grossProfit: 400, grossProfitMargin: 40,
+  subtotal: 1000, discountTotal: 0, priceIncreaseTotal: 0, grandTotal: 1000, totalBuyingCost: 600, grossProfit: 400, grossProfitMargin: 40,
   refundedAmount: 0, remainingRevenue: 1000, collectedAmount: 400, outstandingAmount: 600, remainingBuyingCost: 600, remainingGrossProfit: 400,
-  unprofitableOverrideConfirmed: false, createdBy: { fullName: 'Owner', role: 'OWNER' }, completedAt: '2026-08-22T10:00:00.000Z',
-  items: [{ id: '20000000-0000-4000-8000-000000000001', productId: '30000000-0000-4000-8000-000000000001', productVariantId: '40000000-0000-4000-8000-000000000001', productName: 'মিনিকেট চাল', variantName: '5 kg', quantityUnit: 'PIECE', sku: 'INTERNAL', quantity: 2, unitSellingPrice: 500, grossLineRevenue: 1000, allocatedDiscount: 0, netLineRevenue: 1000, totalBuyingCost: 600, grossProfit: 400, returnedQuantity: 0, returnableQuantity: 2, allocations: [] }],
+  unprofitableOverrideConfirmed: false, createdBy: { fullName: 'Owner', role: 'OWNER' }, completedAt: '2026-08-22T10:00:00.000Z', soldOn: '2026-08-22',
+  items: [{ id: '20000000-0000-4000-8000-000000000001', productId: '30000000-0000-4000-8000-000000000001', productVariantId: '40000000-0000-4000-8000-000000000001', productName: 'মিনিকেট চাল', variantName: '5 kg', quantityUnit: 'PIECE', sku: 'INTERNAL', quantity: 2, unitSellingPrice: 500, grossLineRevenue: 1000, allocatedDiscount: 0, allocatedPriceIncrease: 0, netLineRevenue: 1000, totalBuyingCost: 600, grossProfit: 400, returnedQuantity: 0, returnableQuantity: 2, allocations: [] }],
   returns: [], creditPayments: [],
 };
 

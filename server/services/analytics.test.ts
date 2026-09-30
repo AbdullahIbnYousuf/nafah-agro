@@ -272,6 +272,21 @@ describe("recognized sales and returns", () => {
     expect(result.summary.grossMargin.value).toBe(44.44);
   });
 
+  it("includes an approved price increase in product revenue and gross profit", () => {
+    const result = dashboard({ orders: [order({
+      id: "increased-shop-sale",
+      priceIncreaseTotal: "50.00",
+      grandTotal: "550.00",
+      items: [{
+        ...order({ id: "template" }).items[0],
+        netLineRevenue: "550.00",
+      }],
+    })] });
+    expect(result.summary.recognizedSales.value).toBe(550);
+    expect(result.summary.productRevenue.value).toBe(550);
+    expect(result.summary.grossProfit.value).toBe(350);
+  });
+
   it("separates cash and credit product revenue", () => {
     const result = dashboard({ orders: [
       order({ id: "cash", subtotal: "400.00", grandTotal: "400.00" }),
