@@ -112,6 +112,27 @@ describe("shop payment methods", () => {
 
 });
 
+describe("expense-adjusted dashboard", () => {
+  it("subtracts paid expenses once and does not subtract stock loss twice", async () => {
+    const operation: AnalyticsInventoryOperationRecord = {
+      type: "STOCK_LOSS", effectiveDate: new Date("2026-08-04T00:00:00.000Z"), recognizedCostImpact: "0", stockLossAmount: "10.00",
+      productVariant: { id: "variant-1", name: "500 g", sku: "HONEY-500", product: { id: "product-1", name: "Raw Honey", kind: "PACKAGED" } },
+    };
+    const aggregate = vi.fn(async ({ where }: { where: { paidOn: { gte: Date } } }) => ({ _sum: { amount: where.paidOn.gte.toISOString().startsWith("2026-08-04") ? "50.00" : "20.00" } }));
+    const prisma = {
+      salesOrder: { findMany: async ({ where }: { where: Record<string, unknown> }) => "OR" in where && !("source" in where) ? [order({ id: "expense-sale" })] : [] },
+      physicalSaleReturn: { findMany: async () => [] },
+      creditCustomerPayment: { findMany: async () => [] }, creditPayment: { findMany: async () => [] },
+      stockBatch: { findMany: async () => [] }, productVariant: { findMany: async () => [] },
+      inventoryOperation: { findMany: async () => [operation] }, shopExpense: { aggregate },
+    } as unknown as PrismaClient;
+    const result = await createAnalyticsService(prisma).getDashboard({ preset: "custom", from: "2026-08-04", to: "2026-08-04" });
+    expect(result.summary.grossProfit.value).toBe(290);
+    expect(result.expenseSummary).toMatchObject({ total: { value: 50, previousValue: 20 }, stockLoss: { value: 10 }, profitAfterExpenses: { value: 240 } });
+    expect(aggregate).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("analytics date boundaries", () => {
   it("uses Asia/Dhaka midnight for today", () => {
     const result = dashboard({

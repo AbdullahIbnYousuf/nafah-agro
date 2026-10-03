@@ -561,6 +561,7 @@ export interface AnalyticsStockVariant {
 
 export interface AnalyticsDashboardData {
   paymentChannels?: Array<{ method: PaymentChannel; received: number; refunded: number; net: number }>;
+  expenseSummary?: { total: ComparedAnalyticsMetric; stockLoss: ComparedAnalyticsMetric; profitAfterExpenses: ComparedAnalyticsMetric };
   generatedAt: string;
   currency: 'BDT';
   timezone: 'Asia/Dhaka';
@@ -607,3 +608,32 @@ export interface AnalyticsDashboardData {
   };
   pendingCod: { total: number; pending: number; confirmed: number; processing: number };
 }
+
+export interface ShopExpenseHistory {
+  id: string;
+  action: string;
+  reason: string | null;
+  previousData: Record<string, unknown> | null;
+  newData: Record<string, unknown> | null;
+  actor: string;
+  createdAt: string;
+}
+
+export interface ShopExpense {
+  id: string;
+  name: string;
+  amount: number;
+  paidOn: string;
+  paymentChannel: PaymentChannel;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  voidedBy: string | null;
+  history?: ShopExpenseHistory[];
+}
+
+export interface ShopExpensesPage { data: ShopExpense[]; total: number; page: number; limit: number; totalPages: number }
+export interface ShopExpenseSummary { total: number; count: number; byMethod: Array<{ method: PaymentChannel; amount: number; count: number }> }

@@ -280,4 +280,21 @@ describe('analytics dashboard date controls', () => {
     await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-07'));
     expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-07');
   });
+  it('links dated paid expenses and shows an expense-adjusted profit estimate', async () => {
+    mocks.getAnalyticsDashboard.mockResolvedValue({
+      ...dashboard,
+      expenseSummary: {
+        total: { ...metric, value: 50 },
+        stockLoss: { ...metric, value: 10 },
+        profitAfterExpenses: { ...metric, value: 200 },
+      },
+    });
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'রিফ্রেশ' }));
+    const link = (await screen.findByText('খরচ দেখুন')).closest('a');
+    expect(link).toHaveAttribute('href', '/admin/expenses?from=2026-08-01&to=2026-08-07');
+    expect(screen.getByText('খরচ বাদে লাভ')).toBeInTheDocument();
+    expect(screen.getByText(/স্টক লস.*মোট লাভে আগেই ধরা আছে/)).toBeInTheDocument();
+  });
+
 });

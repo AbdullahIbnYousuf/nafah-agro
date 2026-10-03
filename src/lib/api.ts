@@ -926,3 +926,23 @@ export async function uploadImages(files: File[]): Promise<string[]> {
   if (!response.ok) throw new Error(body?.error?.message ?? 'Image upload failed');
   return body.data.urls as string[];
 }
+
+export interface ExpenseFilters { from?: string; to?: string; q?: string; paymentChannel?: import("./types").PaymentChannel; status?: "ACTIVE" | "VOIDED" | "ALL"; page?: number; limit?: number }
+function expenseQuery(filters: ExpenseFilters) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== "") params.set(key, String(value));
+  return params.toString();
+}
+export function getExpenses(filters: ExpenseFilters): Promise<import("./types").ShopExpensesPage> { return requestV1(`/expenses?${expenseQuery(filters)}`); }
+export function getExpenseSummary(filters: Pick<ExpenseFilters, "from" | "to">): Promise<import("./types").ShopExpenseSummary> { return requestV1(`/expenses/summary?${expenseQuery(filters)}`); }
+export function suggestExpenseNames(q: string, signal?: AbortSignal): Promise<string[]> { return requestV1(`/expenses/names?${expenseQuery({ q })}`, { signal }); }
+export function getExpense(id: string): Promise<import("./types").ShopExpense> { return requestV1(`/expenses/${id}`); }
+export function createExpense(input: { name: string; amount: string; paidOn: string; paymentChannel: import("./types").PaymentChannel; note?: string; idempotencyKey: string }): Promise<import("./types").ShopExpense> {
+  return requestV1("/expenses", { method: "POST", body: JSON.stringify(input) });
+}
+export function updateExpense(id: string, input: { name: string; amount: string; paidOn: string; paymentChannel: import("./types").PaymentChannel; note?: string; reason: string }): Promise<import("./types").ShopExpense> {
+  return requestV1(`/expenses/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+export function voidExpense(id: string, reason: string): Promise<import("./types").ShopExpense> {
+  return requestV1(`/expenses/${id}/void`, { method: "POST", body: JSON.stringify({ reason }) });
+}

@@ -10,6 +10,7 @@ import {
   ClipboardList,
   HandCoins,
   RefreshCw,
+  ReceiptText,
   ShoppingBag,
   TrendingUp,
   Truck,
@@ -347,7 +348,7 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
     { label: 'পণ্য আয়', detail: 'ডিসকাউন্ট বাদ দিয়ে পণ্য বিক্রি থেকে মোট আয়।', metric: data.summary.productRevenue, icon: ShoppingBag },
     { label: 'বাকি ছাড়া বিক্রি', detail: 'সঙ্গে সঙ্গে বা ডেলিভারির সময় টাকা পাওয়া পণ্য বিক্রি। এটি শুধু ক্যাশে পাওয়া টাকা নয়।', metric: data.summary.cashProductRevenue, icon: CircleDollarSign },
     { label: 'বাকিতে বিক্রি', detail: 'এই সময়ে বাকিতে দেওয়া পণ্যের মোট দাম।', metric: data.summary.creditProductRevenue, icon: HandCoins },
-    { label: 'মোট লাভ', detail: 'পণ্য আয় থেকে বিক্রি হওয়া পণ্যের ক্রয়মূল্য বাদ দেওয়ার পর।', metric: data.summary.grossProfit, icon: TrendingUp },
+    { label: 'মোট লাভ', detail: 'পণ্য আয় থেকে ক্রয়মূল্য ও স্টক লসের হিসাব বাদ দেওয়ার পর।', metric: data.summary.grossProfit, icon: TrendingUp },
     { label: 'লাভের মার্জিন', detail: 'প্রতি 100 টাকার পণ্য আয়ে কত টাকা লাভ হয়েছে।', metric: data.summary.grossMargin, formatter: (value: number | null) => value === null ? 'লাভের হিসাব নেই' : `${numberFormatter.format(value)}%`, icon: TrendingUp },
     { label: 'ডেলিভারড অর্ডার', detail: 'দোকানের সম্পন্ন বিক্রি ও গ্রাহকের কাছে পৌঁছানো অর্ডারের সংখ্যা।', metric: data.summary.recognizedOrderCount, formatter: count, icon: ClipboardList },
     { label: 'ডেলিভারি চার্জ', detail: 'ডেলিভারড অর্ডার থেকে নেওয়া মোট ডেলিভারি চার্জ।', metric: data.summary.deliveryCharges, icon: Truck },
@@ -357,6 +358,17 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {primaryMetrics.map((item) => <MetricCard key={item.label} {...item} />)}
     </div>
+    {data.expenseSummary && <section aria-label="দোকানের খরচ ও খরচ বাদে লাভ" className="grid gap-3 sm:grid-cols-2">
+      <Link to={"/admin/expenses?from=" + data.range.current.from + "&to=" + data.range.current.to} className="group rounded-xl border bg-card p-4 shadow-sm transition-all hover:border-secondary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <div className="mb-3 flex items-start justify-between gap-2"><span className="text-sm text-muted-foreground">দোকানের খরচ</span><span className="rounded-lg bg-secondary/10 p-2 text-secondary"><ReceiptText size={18} /></span></div>
+        <div className="text-2xl font-bold">{money(data.expenseSummary.total.value)}</div>
+        <p className="mt-1 text-xs text-muted-foreground">ভাড়া, বিদ্যুৎ, কর্মীর খরচসহ সেভ করা খরচ। স্টক কেনা এখানে নেই।</p>
+        <div className="mt-2"><Change metric={data.expenseSummary.total} /></div>
+        <span className="mt-2 block text-xs font-semibold text-secondary group-hover:underline">খরচ দেখুন</span>
+      </Link>
+      <MetricCard label="খরচ বাদে লাভ" detail={"মোট লাভ থেকে দোকানের খরচ বাদ। স্টক লস " + money(data.expenseSummary.stockLoss.value) + " মোট লাভে আগেই ধরা আছে। ডেলিভারি চার্জ ও সেভ না করা খরচ এতে নেই, তাই এটি আনুমানিক।"} metric={data.expenseSummary.profitAfterExpenses} icon={TrendingUp} />
+    </section>}
+
 
     {showTrend ? <section className="rounded-xl border bg-card p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

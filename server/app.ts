@@ -13,6 +13,7 @@ import { createAnalyticsRouter } from "./routes/analytics.js";
 import { createUploadRouter, type UploadImage } from "./routes/upload.js";
 import { createCatalogRouter } from "./routes/catalog.js";
 import { createInventoryRouter } from "./routes/inventory.js";
+import { createExpenseRouter } from "./routes/expenses.js";
 import { createAccountRouter } from "./routes/accounts.js";
 import type { BackendEnv } from "./env.js";
 import { getPrismaClient } from "./lib/prisma.js";
@@ -42,6 +43,7 @@ import { createInventoryService, type InventoryService } from "./services/invent
 import { createUnifiedOrderService, type UnifiedOrderService } from "./services/orders.js";
 import { createAccountService, type AccountService } from "./services/accounts.js";
 import { createAnalyticsService, type AnalyticsService } from "./services/analytics.js";
+import { createExpenseService, type ExpenseService } from "./services/expenses.js";
 import { createOwnerAuthAdmin } from "./lib/supabaseAdmin.js";
 import { createPushNotificationRouter } from "./routes/pushNotifications.js";
 import {
@@ -61,6 +63,7 @@ export interface AppDependencies {
   checkDatabase?: DatabaseHealthCheck;
   catalogService?: CatalogService;
   inventoryService?: InventoryService;
+  expenseService?: ExpenseService;
   orderService?: UnifiedOrderService;
   accountService?: AccountService;
   analyticsService?: AnalyticsService;
@@ -103,6 +106,7 @@ function getFoundationDependencies(env: BackendEnv) {
       checkDatabase: undefined,
       catalogService: undefined,
       inventoryService: undefined,
+      expenseService: undefined,
       orderService: undefined,
       accountService: undefined,
       analyticsService: undefined,
@@ -125,6 +129,7 @@ function getFoundationDependencies(env: BackendEnv) {
     checkDatabase: createDatabaseHealthCheck(prisma),
     catalogService: createCatalogService(prisma),
     inventoryService: createInventoryService(prisma),
+    expenseService: createExpenseService(prisma),
     orderService: createUnifiedOrderService(prisma),
     accountService: createAccountService(prisma, ownerAuthAdmin),
     analyticsService: createAnalyticsService(prisma),
@@ -157,6 +162,7 @@ export function createApp(dependencies: AppDependencies) {
     dependencies.checkDatabase ?? getDefaults().checkDatabase;
   const catalogService = dependencies.catalogService ?? getDefaults().catalogService;
   const inventoryService = dependencies.inventoryService ?? getDefaults().inventoryService;
+  const expenseService = dependencies.expenseService ?? getDefaults().expenseService;
   const orderService = dependencies.orderService ?? getDefaults().orderService;
   const accountService = dependencies.accountService ?? getDefaults().accountService;
   const analyticsService = dependencies.analyticsService ?? getDefaults().analyticsService;
@@ -531,6 +537,14 @@ export function createApp(dependencies: AppDependencies) {
     });
   }
 
+
+  if (expenseService) {
+    app.use("/api/v1", createExpenseRouter(expenseService, authenticate, requireOwner, protectedRouteLimiter));
+  } else {
+    app.use("/api/v1/expenses", (_req, res) => {
+      res.status(503).json({ success: false, error: { code: "POSTGRES_NOT_CONFIGURED", message: "PostgreSQL is not configured.", details: {} } });
+    });
+  }
   app.use("/api/v1/upload", protectedRouteLimiter, authenticate, requireOwner, createUploadRouter(dependencies.uploadImage));
 
   app.use("/api", (_req, res) => {

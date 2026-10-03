@@ -29,6 +29,10 @@ orders, returns, analytics, and Cloudinary uploads.
 - Shop payment-method tracking for cash, bKash, Nagad, Rocket, and bank.
   Each paid-now sale, বাকি collection, and actual return payout records its
   method; the selected-period dashboard shows received, refunded, and net.
+- OWNER-only `দোকানের খরচ` records paid shop-running costs, with quick repeat,
+  dated payment methods, reason-required corrections and voiding, and an
+  expense-adjusted dashboard profit estimate. Stock purchases, stock loss,
+  returns, and বাকি collections stay in their existing workflows.
 - Separate `PACKAGED`, loose-weight, and loose-volume products. Loose products
   are physical-shop-only, use exact gram/millilitre stock internally, and show
   owner inputs and balances in kg/g or litre/ml.
@@ -83,6 +87,8 @@ Owner pages are directly addressable under `/admin`: `/admin/dashboard`,
 `/admin/products`, `/admin/categories`, `/admin/inventory`,
 `/admin/physical-sales`, `/admin/dues`, and `/admin/orders`. The বাকি page is
 linked from the dashboard and physical-sale screen on desktop and mobile.
+`/admin/expenses` lists paid shop costs, with add and correction drawers at
+`/admin/expenses/new` and `/admin/expenses/:expenseId/edit`.
 Inventory stock additions, losses, reconciliations, and entry corrections use
 route-backed drawers at `/admin/inventory/purchase`, `/admin/inventory/loss`,
 `/admin/inventory/reconciliation`, and `/admin/inventory/correction`; direct
@@ -178,6 +184,14 @@ The shop-sale form can record an earlier sale date, but stock is deducted and
 revenue is reported when that sale is entered. The earlier date remains visible
 beside the recording timestamp. Record any money already received through the
 customer's payment action after entering a forgotten বাকি sale.
+
+From `/admin/expenses`, an OWNER records only shop-running costs that have
+already been paid. The form defaults to today's Dhaka date and cash; another
+date or method can be selected. `আবার অ্যাড করুন` opens an unsaved copy for
+review, not an automatic recurring charge. Corrections and voids need a reason
+and retain their audit history. The dashboard's `খরচ বাদে লাভ` subtracts
+these expenses from the existing gross-profit figure. Stock loss is already
+included there, while delivery charges and unrecorded costs are excluded.
 
 An OWNER may additionally enable browser push per device from `/profile`. New
 website orders notify only after the order commit succeeds. At 9 AM Dhaka, the

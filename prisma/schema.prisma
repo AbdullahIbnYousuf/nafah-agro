@@ -142,6 +142,8 @@ model Profile {
   creditCustomersCreated CreditCustomer[] @relation("CreditCustomersCreated")
   customerCreditPaymentsCreated CreditCustomerPayment[] @relation("CustomerCreditPaymentsCreated")
   customerCreditPaymentsVoided  CreditCustomerPayment[] @relation("CustomerCreditPaymentsVoided")
+  expensesCreated       ShopExpense[] @relation("ShopExpensesCreated")
+  expensesVoided        ShopExpense[] @relation("ShopExpensesVoided")
   pushSubscriptions     PushSubscription[]
 
   @@map("profiles")
@@ -653,6 +655,31 @@ model AuditLog {
 
   @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
+}
+
+
+model ShopExpense {
+  id                 String         @id @default(uuid()) @db.Uuid
+  name               String
+  amount             Decimal        @db.Decimal(14, 2)
+  paidOn             DateTime       @map("paid_on") @db.Date
+  paymentChannel     PaymentChannel @default(CASH) @map("payment_channel")
+  note               String?
+  idempotencyKey     String         @unique @map("idempotency_key") @db.Uuid
+  requestFingerprint String         @map("request_fingerprint")
+  createdByProfileId String         @map("created_by_profile_id") @db.Uuid
+  createdBy          Profile        @relation("ShopExpensesCreated", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  voidedAt           DateTime?      @map("voided_at")
+  voidReason         String?        @map("void_reason")
+  voidedByProfileId  String?        @map("voided_by_profile_id") @db.Uuid
+  voidedBy           Profile?       @relation("ShopExpensesVoided", fields: [voidedByProfileId], references: [id], onDelete: Restrict)
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  @@index([paidOn, createdAt])
+  @@index([paymentChannel, paidOn])
+  @@index([voidedAt, paidOn])
+  @@map("shop_expenses")
 }
 
 model FoundationRecord {

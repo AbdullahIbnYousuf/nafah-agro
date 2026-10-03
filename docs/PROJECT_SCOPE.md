@@ -291,7 +291,8 @@ V1 is complete when:
 - Returns that cannot be linked to an original sale
 - FEFO, weighted-average costing, or expiry tracking
 - A general-purpose inventory-movement system beyond these focused operations
-- Supplier, warehouse, expense, or business-settings systems
+- Supplier, warehouse, or business-settings systems
+- Unpaid bills, recurring expenses, receipt uploads, and full bookkeeping
 - Net-profit accounting
 - Printable receipts
 - Category-performance analytics

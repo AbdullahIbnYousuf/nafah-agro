@@ -1,8 +1,15 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-09-24
+Last updated: 2026-10-01
 
 ## Summary
+
+The OWNER-only paid shop-expense workflow is implemented in local code, with
+dated method totals, manual repeat, audited corrections and voiding, and a
+dashboard expense-adjusted profit estimate. The checked-in
+`202610010003_shop_expenses` migration has not been deployed to an external
+database. Unpaid bills, recurrence, receipt uploads, and actual account
+balances remain deferred.
 
 Milestones 1–6 are complete in local code. The V1 includes Supabase Auth with
 OWNER/CUSTOMER profiles and shared email password recovery, PostgreSQL/Prisma

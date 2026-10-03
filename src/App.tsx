@@ -28,6 +28,7 @@ const AdminCategories = lazy(() => import("./pages/Admin").then((module) => ({ d
 const AdminInventory = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminInventory })));
 const AdminPhysicalSales = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminPhysicalSales })));
 const AdminDues = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminDues })));
+const AdminExpenses = lazy(() => import("./components/ExpenseManager"));
 const AdminOrders = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminOrders })));
 const AdminNotFound = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminNotFound })));
 const Login = lazy(() => import("./pages/Login"));
@@ -121,6 +122,9 @@ const App = () => (
                 <Route path="inventory/correction" element={<AdminInventory />} />
                 <Route path="physical-sales" element={<AdminPhysicalSales />} />
                 <Route path="dues" element={<AdminDues />} />
+                <Route path="expenses" element={<AdminExpenses />} />
+                <Route path="expenses/new" element={<AdminExpenses />} />
+                <Route path="expenses/:expenseId/edit" element={<AdminExpenses />} />
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="*" element={<AdminNotFound />} />
               </Route>

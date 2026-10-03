@@ -25,6 +25,9 @@ export function titleForPath(pathname: string) {
   if (pathname === '/admin/inventory') return `ক্রয় ও ইনভেন্টরি | ${SITE_NAME}`;
   if (pathname === '/admin/physical-sales') return `দোকানের বিক্রি | ${SITE_NAME}`;
   if (pathname === '/admin/dues') return `বাকি হিসাব | ${SITE_NAME}`;
+  if (pathname === '/admin/expenses/new') return `খরচ অ্যাড করুন | ${SITE_NAME}`;
+  if (pathname.startsWith('/admin/expenses/') && pathname.endsWith('/edit')) return `খরচ আপডেট করুন | ${SITE_NAME}`;
+  if (pathname === '/admin/expenses') return `দোকানের খরচ | ${SITE_NAME}`;
   if (pathname === '/admin/orders') return `অর্ডার | ${SITE_NAME}`;
   if (pathname.startsWith('/admin/')) return `অ্যাডমিন পেজ পাওয়া যায়নি | ${SITE_NAME}`;
   return `পেজ পাওয়া যায়নি | ${SITE_NAME}`;

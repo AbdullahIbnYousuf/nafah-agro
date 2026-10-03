@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, EyeOff, HandCoins, ImageIcon, Loader2, Package, Plus, Search, Settings2, Store, Tag, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, EyeOff, HandCoins, ImageIcon, Loader2, Package, Plus, ReceiptText, Search, Settings2, Store, Tag, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,6 +102,9 @@ export default function Admin() {
               <Icon size={18} />{label}
             </NavLink>
           ))}
+          <NavLink to="/admin/expenses" className={({ isActive }) => `flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-3 text-sm ${isActive ? 'bg-secondary text-secondary-foreground' : 'hover:bg-secondary/20'}`}>
+            <ReceiptText size={18} />দোকানের খরচ
+          </NavLink>
         </nav>
         <Button asChild variant="ghost" className="mt-8 text-primary-foreground/80">
           <Link to="/"><ArrowLeft size={16} className="mr-2" />সাইটে ফিরুন</Link>

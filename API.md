@@ -37,6 +37,30 @@ out of the invitation path. Promotion/demotion preserve customer orders and Auth
 credentials. Demotion is blocked for self, the final active owner, inactive
 targets, ordinary owners, stale roles, and promoted owners with management work.
 
+## Shop expenses
+
+All expense endpoints require an active OWNER profile. Expenses represent money
+already paid for running the shop; purchases, stock loss, refunds, and বাকি
+collections use their own workflows.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/expenses` | Paginated records; optional `from`, `to`, `q`, `paymentChannel`, `status`, `page`, `limit` |
+| `GET` | `/api/v1/expenses/summary` | Active paid expense totals by payment channel for optional `from` and `to` |
+| `GET` | `/api/v1/expenses/names` | Up to ten previous name suggestions for optional `q` |
+| `GET` | `/api/v1/expenses/:id` | Record and immutable audit history |
+| `POST` | `/api/v1/expenses` | Create a paid expense with a UUID `idempotencyKey` |
+| `PATCH` | `/api/v1/expenses/:id` | Correct a record with a required reason |
+| `POST` | `/api/v1/expenses/:id/void` | Void a record with a required reason |
+
+Create and correction inputs use `name`, positive decimal-string `amount`
+(two places maximum), date-only `paidOn` (today or earlier in Dhaka),
+`paymentChannel` (`CASH`, `BKASH`, `NAGAD`, `ROCKET`, `BANK`), and optional
+`note`. Create defaults the payment channel to `CASH`. Corrections cannot
+change voided records. Voided expenses remain in history but are excluded from
+totals. The dashboard groups expenses by paid date and subtracts them from its
+existing stock-loss-adjusted gross profit only once.
+
 ## Catalog and inventory
 
 | Method | Endpoint | Access | Purpose |

@@ -840,11 +840,12 @@ export function createAnalyticsService(prisma: PrismaClient) {
             type: true,
             effectiveDate: true,
             recognizedCostImpact: true,
+            stockLossAmount: true,
             productVariant: { select: { id: true, name: true, sku: true, unitLabel: true, product: { select: { id: true, name: true, kind: true } } } },
           },
         })
         : Promise.resolve([]);
-      const [orders, physicalSaleReturns, openCodOrders, stockBatches, variants, inventoryOperations, paidShopSales, customerPayments, legacyPayments, payouts] = await Promise.all([
+      const [orders, physicalSaleReturns, openCodOrders, stockBatches, variants, inventoryOperations, paidShopSales, customerPayments, legacyPayments, payouts, currentExpenses, previousExpenses] = await Promise.all([
         prisma.salesOrder.findMany({
           where: {
             OR: [
@@ -966,11 +967,13 @@ export function createAnalyticsService(prisma: PrismaClient) {
           where: { createdAt: { gte: range.current.startUtc, lt: range.current.endUtc }, cashRefundAmount: { gt: 0 } },
           select: { cashRefundAmount: true, refundChannel: true },
         }),
+        prisma.shopExpense?.aggregate({ where: { voidedAt: null, paidOn: { gte: dateStart, lt: dateEnd } }, _sum: { amount: true } }) ?? Promise.resolve({ _sum: { amount: null } }),
+        prisma.shopExpense?.aggregate({ where: { voidedAt: null, paidOn: { gte: new Date(`${range.previous.from}T00:00:00.000Z`), lt: new Date(`${addDays(range.previous.to, 1)}T00:00:00.000Z`) } }, _sum: { amount: true } }) ?? Promise.resolve({ _sum: { amount: null } }),
       ]);
 
       const paymentChannels = summarizePaymentChannels({ paidShopSales, customerPayments, legacyPayments, payouts });
 
-      return { ...buildAnalyticsDashboard({
+      const base = buildAnalyticsDashboard({
         query,
         now,
         orders: orders as AnalyticsOrderRecord[],
@@ -979,7 +982,23 @@ export function createAnalyticsService(prisma: PrismaClient) {
         openCodOrders: openCodOrders as Array<{ status: "PENDING" | "CONFIRMED" | "PROCESSING" }>,
         stockBatches,
         variants,
-      }), paymentChannels };
+      });
+      const expenseCurrent = decimal(currentExpenses._sum.amount);
+      const expensePrevious = decimal(previousExpenses._sum.amount);
+      const stockLossFor = (from: string, to: string) => inventoryOperations.reduce((sum, operation) => {
+        const date = operation.effectiveDate.toISOString().slice(0, 10);
+        return (operation.type === "STOCK_LOSS" || operation.type === "STOCK_RECONCILIATION") && date >= from && date <= to
+          ? sum.plus(decimal(operation.stockLossAmount))
+          : sum;
+      }, new Prisma.Decimal(0));
+      return {
+        ...base, paymentChannels,
+        expenseSummary: {
+          total: compared(expenseCurrent, expensePrevious),
+          stockLoss: compared(stockLossFor(range.current.from, range.current.to), stockLossFor(range.previous.from, range.previous.to)),
+          profitAfterExpenses: compared(decimal(base.summary.grossProfit.value).minus(expenseCurrent), decimal(base.summary.grossProfit.previousValue).minus(expensePrevious)),
+        },
+      };
     },
   };
 }
