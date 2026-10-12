@@ -1,6 +1,8 @@
 // @vitest-environment node
 
 import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 interface VercelConfiguration {
@@ -17,6 +19,32 @@ const config = JSON.parse(
 ) as VercelConfiguration;
 
 describe("single-project Vercel configuration", () => {
+  it("preserves required schema fields in the deployment compiler configuration", () => {
+    const rootPath = fileURLToPath(new URL("../", import.meta.url));
+    const readConfig = (filename: string) => {
+      const path = fileURLToPath(new URL(`../${filename}`, import.meta.url));
+      const result = ts.readConfigFile(path, ts.sys.readFile);
+      expect(result.error).toBeUndefined();
+      return ts.parseJsonConfigFileContent(result.config, ts.sys, rootPath);
+    };
+    const deployment = readConfig("tsconfig.vercel.json");
+    expect(deployment.errors).toEqual([]);
+    expect(deployment.options.strictNullChecks).toBe(true);
+    expect(deployment.options.module).toBe(ts.ModuleKind.NodeNext);
+    expect(deployment.options.moduleResolution).toBe(ts.ModuleResolutionKind.NodeNext);
+    expect(deployment.options.noEmit).toBe(true);
+    expect(deployment.fileNames).toEqual([
+      fileURLToPath(new URL("../api/index.ts", import.meta.url)),
+    ]);
+
+    // Frontend checks stay separate; the Function must not inherit their
+    // intentionally relaxed settings when Vercel compiles api/index.ts.
+    expect(readConfig("tsconfig.app.json").options.strict).toBe(false);
+    const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    expect(packageJson.scripts.typecheck).toContain("npm run typecheck:vercel");
+    expect(packageJson.scripts["typecheck:vercel"]).toBe("tsc -p tsconfig.vercel.json");
+  });
+
   it("uses standard file detection for one shared Express Function", () => {
     expect(config).not.toHaveProperty("builds");
     expect(config).not.toHaveProperty("routes");

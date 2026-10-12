@@ -833,7 +833,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
       const latest = range.current.endUtc;
       const dateStart = new Date(`${range.current.from}T00:00:00.000Z`);
       const dateEnd = new Date(`${addDays(range.current.to, 1)}T00:00:00.000Z`);
-      const inventoryOperationsPromise = prisma.inventoryOperation?.findMany
+      const inventoryOperationsPromise: Promise<AnalyticsInventoryOperationRecord[]> = prisma.inventoryOperation?.findMany
         ? prisma.inventoryOperation.findMany({
           where: { effectiveDate: { gte: earliest, lt: latest } },
           select: {
@@ -978,7 +978,7 @@ export function createAnalyticsService(prisma: PrismaClient) {
         now,
         orders: orders as AnalyticsOrderRecord[],
         physicalSaleReturns: physicalSaleReturns as AnalyticsPhysicalSaleReturnRecord[],
-        inventoryOperations: inventoryOperations as AnalyticsInventoryOperationRecord[],
+        inventoryOperations,
         openCodOrders: openCodOrders as Array<{ status: "PENDING" | "CONFIRMED" | "PROCESSING" }>,
         stockBatches,
         variants,

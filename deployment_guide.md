@@ -5,6 +5,13 @@ target is one Vercel project: Vite serves frontend routes, `api/index.ts`
 default-exports the shared Express app, and `/api/v1/*` reaches that function.
 The function never calls `app.listen()`.
 
+Vercel compiles the Function using the root `tsconfig.json`, not the separate
+local server configuration. Keep root `strictNullChecks` enabled so Zod's
+required request fields retain their types. `npm run typecheck` also runs
+`typecheck:vercel`, which checks `api/index.ts` and its imports using the root
+settings plus Vercel's NodeNext compiler defaults. This check emits no files,
+does not start the API, and does not connect to the database.
+
 ## Vercel dashboard settings
 
 | Setting | Value |
