@@ -9,6 +9,8 @@ import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import { createOrderRouter } from "./routes/orders.js";
+import { createCartRouter } from "./routes/carts.js";
+import { createCartService, type CartService } from "./services/carts.js";
 import { createAnalyticsRouter } from "./routes/analytics.js";
 import { createUploadRouter, type UploadImage } from "./routes/upload.js";
 import { createCatalogRouter } from "./routes/catalog.js";
@@ -65,6 +67,7 @@ export interface AppDependencies {
   inventoryService?: InventoryService;
   expenseService?: ExpenseService;
   orderService?: UnifiedOrderService;
+  cartService?: CartService;
   accountService?: AccountService;
   analyticsService?: AnalyticsService;
   writeCustomerProfile?: CustomerProfileWriter;
@@ -108,6 +111,7 @@ function getFoundationDependencies(env: BackendEnv) {
       inventoryService: undefined,
       expenseService: undefined,
       orderService: undefined,
+      cartService: undefined,
       accountService: undefined,
       analyticsService: undefined,
       writeCustomerProfile: undefined,
@@ -131,6 +135,7 @@ function getFoundationDependencies(env: BackendEnv) {
     inventoryService: createInventoryService(prisma),
     expenseService: createExpenseService(prisma),
     orderService: createUnifiedOrderService(prisma),
+    cartService: createCartService(prisma),
     accountService: createAccountService(prisma, ownerAuthAdmin),
     analyticsService: createAnalyticsService(prisma),
     writeCustomerProfile: createCustomerProfileWriter(prisma),
@@ -164,6 +169,7 @@ export function createApp(dependencies: AppDependencies) {
   const inventoryService = dependencies.inventoryService ?? getDefaults().inventoryService;
   const expenseService = dependencies.expenseService ?? getDefaults().expenseService;
   const orderService = dependencies.orderService ?? getDefaults().orderService;
+  const cartService = dependencies.cartService ?? getDefaults().cartService;
   const accountService = dependencies.accountService ?? getDefaults().accountService;
   const analyticsService = dependencies.analyticsService ?? getDefaults().analyticsService;
   const writeCustomerProfile = dependencies.writeCustomerProfile ?? getDefaults().writeCustomerProfile;
@@ -241,6 +247,7 @@ export function createApp(dependencies: AppDependencies) {
     next();
   });
   app.use(helmet());
+  app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   if (dependencies.env.NODE_ENV !== "production") {
     app.use(
       cors({
@@ -370,6 +377,8 @@ export function createApp(dependencies: AppDependencies) {
           name: principal.profile.fullName,
           email: principal.authUser.email ?? null,
           phoneNumber: principal.profile.phoneNumber,
+          deliveryAddress: principal.profile.deliveryAddress ?? null,
+          preferredDeliveryRateId: principal.profile.preferredDeliveryRateId ?? null,
           role: principal.profile.role,
           isActive: principal.profile.isActive,
         },
@@ -434,6 +443,11 @@ export function createApp(dependencies: AppDependencies) {
       ),
     );
   }
+
+  if (cartService) app.use("/api/v1", createCartRouter(cartService, authenticate, protectedRouteLimiter));
+  else app.use(["/api/v1/cart", "/api/v1/storefront/cart-preview"], (_req, res) => {
+    res.status(503).json({ success: false, error: { code: "POSTGRES_NOT_CONFIGURED", message: "কার্ট লোড করা যাচ্ছে না। একটু পরে রিট্রাই করুন।", details: {} } });
+  });
 
   if (catalogService) {
     app.use(

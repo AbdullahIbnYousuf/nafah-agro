@@ -1,6 +1,25 @@
 # Nafah Agro Project Status
 
-Last updated: 2026-10-01
+Last updated: 2026-10-12
+
+## Account ordering update
+
+- Added account-scoped database carts, idempotent guest merging, revision-checked
+  updates, current catalog/egg pricing, and unavailable-item guidance.
+- Added one saved profile delivery address/area, explicit checkout address saving,
+  durable thank-you receipts, and paginated personal orders for OWNER and CUSTOMER.
+- Personal order responses exclude owner costs, profit, allocations and notes;
+  checkout replay is bound to the original identity and account cart clearing is atomic.
+- Both new cart/address migrations were applied to the verified **test** Supabase
+  project only. The production database was not migrated or modified by this task.
+  Apply the migrations before deploying the new application.
+- Test-database integration uses an intentionally rolled-back transaction;
+  original profile, cart and order count are verified unchanged afterward.
+- Verification: 524 tests across 66 files, TypeScript, lint, frontend/backend
+  builds and Prisma validation pass. Mocked desktop/mobile Chrome checkout and
+  personal-order checks pass; test inventory consistency reports no mismatches.
+- Guest live tracking, multiple addresses and realtime cart synchronization remain
+  out of scope. Implementation is uncommitted for review; `docs/notes.md` is untouched.
 
 ## Summary
 

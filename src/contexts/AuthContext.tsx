@@ -17,7 +17,7 @@ export type ProfileLoader = (accessToken: string) => Promise<User>;
 export type ProfileCompleter = (
   accessToken: string,
 ) => Promise<User>;
-export type ProfileUpdater = (input: { fullName: string; phoneNumber: string }) => Promise<User>;
+export type ProfileUpdater = (input: { fullName: string; phoneNumber: string | null; deliveryAddress?: string | null; preferredDeliveryRateId?: string | null }) => Promise<User>;
 export type PushLogoutCleanup = () => Promise<unknown>;
 
 interface AuthContextValue {
@@ -29,7 +29,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<User>;
   register: (name: string, phoneNumber: string, email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  updateProfile: (fullName: string, phoneNumber: string) => Promise<void>;
+  updateProfile: (fullName: string, phoneNumber: string | null, delivery?: { deliveryAddress: string | null; preferredDeliveryRateId: string | null }) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   setInitialPassword: (newPassword: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
@@ -269,8 +269,8 @@ export function AuthProvider({
     setUser(null);
   }, [cleanupPushOnLogout, client, user?.role]);
 
-  const updateProfile = useCallback(async (fullName: string, phoneNumber: string) => {
-    const updated = await saveProfile({ fullName, phoneNumber });
+  const updateProfile = useCallback(async (fullName: string, phoneNumber: string | null, delivery?: { deliveryAddress: string | null; preferredDeliveryRateId: string | null }) => {
+    const updated = await saveProfile({ fullName, phoneNumber, ...delivery });
     setUser(updated);
   }, [saveProfile]);
 

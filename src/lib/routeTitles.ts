@@ -5,6 +5,9 @@ export function titleForPath(pathname: string) {
   if (pathname === '/shop') return `দোকান | ${SITE_NAME}`;
   if (pathname.startsWith('/products/')) return `পণ্য | ${SITE_NAME}`;
   if (pathname === '/cart') return `কার্ট | ${SITE_NAME}`;
+  if (pathname === '/order-confirmation') return `অর্ডার পেয়েছি | ${SITE_NAME}`;
+  if (pathname === '/orders') return `আমার অর্ডার | ${SITE_NAME}`;
+  if (pathname.startsWith('/orders/')) return `অর্ডারের বিস্তারিত | ${SITE_NAME}`;
   if (pathname === '/login') return `লগইন | ${SITE_NAME}`;
   if (pathname === '/register') return `রেজিস্ট্রেশন | ${SITE_NAME}`;
   if (pathname === '/reset-password') return `পাসওয়ার্ড পরিবর্তন | ${SITE_NAME}`;

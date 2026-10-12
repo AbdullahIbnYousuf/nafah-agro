@@ -4,7 +4,9 @@ import type { AccountService } from "../services/accounts.js";
 
 const profileUpdateSchema = z.object({
   fullName: z.string().trim().min(1).max(120),
-  phoneNumber: z.string().trim().min(7).max(30),
+  phoneNumber: z.string().trim().min(7).max(30).nullable(),
+  deliveryAddress: z.string().trim().min(5).max(1000).nullable().optional(),
+  preferredDeliveryRateId: z.string().uuid().nullable().optional(),
 }).strict();
 
 const ownerInviteSchema = z.object({
@@ -67,6 +69,8 @@ export function createAccountRouter(
           name: profile.fullName,
           email: req.authenticatedUser!.authUser.email ?? null,
           phoneNumber: profile.phoneNumber,
+          deliveryAddress: profile.deliveryAddress ?? null,
+          preferredDeliveryRateId: profile.preferredDeliveryRateId ?? null,
           role: profile.role,
           isActive: profile.isActive,
         },

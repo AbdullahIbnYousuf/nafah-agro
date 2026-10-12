@@ -35,6 +35,8 @@ const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const CustomerProfile = lazy(() => import("./pages/CustomerProfile"));
+const PersonalOrders = lazy(() => import("./pages/PersonalOrders"));
+const OrderConfirmation = lazy(() => import("./pages/OrderConfirmation"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function PageLoading() {
@@ -87,6 +89,9 @@ const App = () => (
               <Route path="/shop" element={<Shop />} />
               <Route path="/products/:slug" element={<ProductDetails />} />
               <Route path="/cart" element={<Cart />} />
+              <Route path="/order-confirmation" element={<OrderConfirmation />} />
+              <Route path="/orders" element={<ProtectedRoute roles={['OWNER', 'CUSTOMER']}><PersonalOrders /></ProtectedRoute>} />
+              <Route path="/orders/:orderId" element={<ProtectedRoute roles={['OWNER', 'CUSTOMER']}><PersonalOrders /></ProtectedRoute>} />
               <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
               <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />

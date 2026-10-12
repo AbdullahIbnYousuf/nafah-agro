@@ -34,7 +34,7 @@ function createMemoryPrisma() {
       { id: "40000000-0000-4000-8000-000000000001", productVariantId: VARIANT, source: "PURCHASE", purchasedQuantity: 2, availableQuantity: 2, reservedQuantity: 0, unitBuyingCost: "200.00", purchaseDate: new Date("2026-01-01"), createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01") },
       { id: "40000000-0000-4000-8000-000000000002", productVariantId: VARIANT, source: "PURCHASE", purchasedQuantity: 3, availableQuantity: 3, reservedQuantity: 0, unitBuyingCost: "250.00", purchaseDate: new Date("2026-02-01"), createdAt: new Date("2026-02-01"), updatedAt: new Date("2026-02-01") },
     ],
-    orders: [], items: [], allocations: [], audits: [],
+    orders: [], items: [], allocations: [], audits: [], carts: {}, profiles: { [CUSTOMER]: { id: CUSTOMER, fullName: "Customer", phoneNumber: "01700000000", deliveryAddress: "Old address" } },
   };
   const creator = { fullName: "Owner", role: "OWNER" };
 
@@ -99,6 +99,12 @@ function createMemoryPrisma() {
         return variant;
       },
     },
+    accountCart: {
+      findUniqueOrThrow: async ({ where }: any) => state.carts[where.profileId],
+      update: async ({ where, data }: any) => { const cart = state.carts[where.profileId]; Object.assign(cart, { items: data.items, revision: cart.revision + data.revision.increment }); return cart; },
+    },
+    profile: { update: async ({ where, data }: any) => Object.assign(state.profiles[where.id], data) },
+    $executeRaw: async (_query: any, profileId: string) => { state.carts[profileId] ??= { profileId, revision: 0, items: [] }; },
     salesOrder: {
       create: async ({ data }: any) => {
         const now = new Date();
@@ -123,6 +129,10 @@ function createMemoryPrisma() {
         const row = state.orders.find((order: any) => where.id ? order.id === where.id : order.idempotencyKey === where.idempotencyKey);
         return row ? hydrateOrder(row) : null;
       },
+      findFirst: async ({ where }: any) => {
+        const row = state.orders.find((order: any) => order.id === where.id && order.customerProfileId === where.customerProfileId && order.source === where.source);
+        return row ? hydrateOrder(row) : null;
+      },
       update: async ({ where, data }: any) => {
         const row = state.orders.find((order: any) => order.id === where.id);
         Object.assign(row, data, {
@@ -141,7 +151,7 @@ function createMemoryPrisma() {
         if (where.customerPhone?.contains && !order.customerPhone?.includes(where.customerPhone.contains)) return false;
         return true;
       }).slice(skip, skip + take).map(hydrateOrder),
-      count: async ({ where = {} }: any) => state.orders.filter((order: any) => (!where.source || order.source === where.source) && (!where.status || order.status === where.status)).length,
+      count: async ({ where = {} }: any) => state.orders.filter((order: any) => (!where.source || order.source === where.source) && (!where.status || order.status === where.status) && (!where.customerProfileId || order.customerProfileId === where.customerProfileId)).length,
     },
     salesOrderItem: {
       create: async ({ data }: any) => {
@@ -213,6 +223,82 @@ describe("unified PostgreSQL orders", () => {
     expect(() => websiteCheckoutSchema.parse({
       ...websiteInput(), subtotal: "1.00", totalBuyingCost: "0.01", grandTotal: "1.00",
     })).toThrow();
+  });
+
+  it("atomically saves address and consumes the matching account cart without reserving stock", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    state.carts[CUSTOMER] = { profileId: CUSTOMER, revision: 2, items: [{ productVariantId: VARIANT, quantity: 3 }] };
+    const service = createUnifiedOrderService(prisma);
+    const input = websiteInput({ cartRevision: 2, saveDeliveryAddress: true });
+    const result = await service.createWebsiteOrder(input, CUSTOMER);
+    expect(state.carts[CUSTOMER]).toMatchObject({ revision: 3, items: [] });
+    expect(state.profiles[CUSTOMER]).toMatchObject({ deliveryAddress: input.customer.address, preferredDeliveryRateId: RATE, fullName: "Customer", phoneNumber: "01700000000" });
+    expect(state.variants[0].availableStock).toBe(5);
+    expect(result.order).not.toHaveProperty("grossProfit");
+    expect(result.order.items[0]).not.toHaveProperty("allocations");
+    state.carts[CUSTOMER].items = [{ productVariantId: VARIANT, quantity: 1 }];
+    state.carts[CUSTOMER].revision = 4;
+    expect((await service.createWebsiteOrder(input, CUSTOMER)).replayed).toBe(true);
+    expect(state.carts[CUSTOMER]).toMatchObject({ revision: 4, items: [{ quantity: 1 }] });
+  });
+
+  it("rolls back cart clearing and address saving when checkout fails", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    state.carts[CUSTOMER] = { profileId: CUSTOMER, revision: 2, items: [{ productVariantId: VARIANT, quantity: 3 }] };
+    state.variants[0].product.isVisibleInShop = false;
+    await expect(createUnifiedOrderService(prisma).createWebsiteOrder(websiteInput({ cartRevision: 2, saveDeliveryAddress: true }), CUSTOMER)).rejects.toMatchObject({ code: "SELLABLE_VARIANT_NOT_FOUND" });
+    expect(state.carts[CUSTOMER]).toMatchObject({ revision: 2, items: [{ quantity: 3 }] });
+    expect(state.profiles[CUSTOMER].deliveryAddress).toBe("Old address");
+    expect(state.orders).toHaveLength(0);
+  });
+
+  it("rejects stale and mismatched cart revisions before creating an order", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    state.carts[CUSTOMER] = { profileId: CUSTOMER, revision: 2, items: [{ productVariantId: VARIANT, quantity: 1 }] };
+    const service = createUnifiedOrderService(prisma);
+    await expect(service.createWebsiteOrder(websiteInput({ cartRevision: 1 }), CUSTOMER)).rejects.toMatchObject({ code: "CART_CONFLICT" });
+    await expect(service.createWebsiteOrder(websiteInput({ cartRevision: 2 }), CUSTOMER)).rejects.toMatchObject({ code: "CART_CONFLICT" });
+    expect(state.orders).toHaveLength(0);
+  });
+
+  it("replays concurrent identical account checkout without clearing a newer cart", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    state.carts[CUSTOMER] = { profileId: CUSTOMER, revision: 2, items: [{ productVariantId: VARIANT, quantity: 3 }] };
+    const service = createUnifiedOrderService(prisma);
+    const results = await Promise.all([1, 2].map(() => service.createWebsiteOrder(websiteInput({ cartRevision: 2 }), CUSTOMER)));
+    expect(state.orders).toHaveLength(1);
+    expect(results.filter(result => result.replayed)).toHaveLength(1);
+  });
+
+  it("rejects a changed product/delivery total without clearing the cart or saving an address", async () => {
+    const { prisma, state } = createMemoryPrisma();
+    state.carts[CUSTOMER] = { profileId: CUSTOMER, revision: 2, items: [{ productVariantId: VARIANT, quantity: 3 }] };
+    await expect(createUnifiedOrderService(prisma).createWebsiteOrder(websiteInput({ cartRevision: 2, expectedGrandTotal: '1500.00', saveDeliveryAddress: true }), CUSTOMER)).rejects.toMatchObject({ code: 'CHECKOUT_TOTAL_CHANGED' });
+    expect(state.orders).toHaveLength(0); expect(state.carts[CUSTOMER].revision).toBe(2);
+    expect(state.profiles[CUSTOMER].deliveryAddress).toBe('Old address');
+  });
+
+  it("rejects another account reusing an order key, including guest/account transitions", async () => {
+    const { prisma } = createMemoryPrisma();
+    const service = createUnifiedOrderService(prisma);
+    await service.createWebsiteOrder(websiteInput(), CUSTOMER);
+    await expect(service.createWebsiteOrder(websiteInput(), OWNER)).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    await expect(service.createWebsiteOrder(websiteInput())).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    await expect(service.createWebsiteOrder(websiteInput({ idempotencyKey: "address-guest", saveDeliveryAddress: true }))).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
+  });
+
+  it("paginates only personal website orders and hides all owner financial/internal data", async () => {
+    const { prisma, state } = createMemoryPrisma(); const service = createUnifiedOrderService(prisma);
+    const created = await service.createWebsiteOrder(websiteInput(), CUSTOMER);
+    await service.createWebsiteOrder(websiteInput({ idempotencyKey: "owner-key" }), OWNER);
+    await service.createWebsiteOrder(websiteInput({ idempotencyKey: "guest-key" }));
+    state.orders[0].statusReason = "Private owner note";
+    const page = await service.listPersonalOrders(CUSTOMER, 1, 1);
+    expect(page).toMatchObject({ total: 1, totalPages: 1, data: [{ id: created.order.id }] });
+    const detail = await service.readPersonalOrder(CUSTOMER, created.order.id);
+    for (const field of ["totalBuyingCost", "grossProfit", "grossProfitMargin", "statusReason", "createdBy"]) expect(detail).not.toHaveProperty(field);
+    for (const field of ["totalBuyingCost", "grossProfit", "allocations", "sku"]) expect(detail.items[0]).not.toHaveProperty(field);
+    await expect(service.readPersonalOrder(OWNER, created.order.id)).rejects.toMatchObject({ status: 404 });
   });
 
   it("creates guest COD as pending with server prices and no stock reservation", async () => {

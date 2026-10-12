@@ -124,6 +124,9 @@ model Profile {
   role                  Role
   fullName              String                @map("full_name")
   phoneNumber           String?               @map("phone_number")
+  deliveryAddress       String?               @map("delivery_address")
+  preferredDeliveryRateId String?             @map("preferred_delivery_rate_id") @db.Uuid
+  cart                  AccountCart?
   isActive              Boolean               @default(true) @map("is_active")
   createdAt             DateTime              @default(now()) @map("created_at")
   updatedAt             DateTime              @updatedAt @map("updated_at")
@@ -147,6 +150,29 @@ model Profile {
   pushSubscriptions     PushSubscription[]
 
   @@map("profiles")
+}
+
+// Draft cart lines deliberately have no catalog foreign keys: deleting an
+// unused product must not delete a customer's draft or block catalog cleanup.
+model AccountCart {
+  profileId String @id @map("profile_id") @db.Uuid
+  revision Int @default(0)
+  items Json @default("[]")
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  merges CartMergeReceipt[]
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("account_carts")
+}
+
+model CartMergeReceipt {
+  profileId String @map("profile_id") @db.Uuid
+  mergeKey String @map("merge_key") @db.Uuid
+  cart AccountCart @relation(fields: [profileId], references: [profileId], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([profileId, mergeKey])
+  @@map("cart_merge_receipts")
 }
 
 model Category {

@@ -74,8 +74,18 @@ export function createOrderRouter(
 
   router.get("/orders/my", protectedLimiter, authenticate, async (req, res, next) => {
     try {
-      res.json({ success: true, data: await service.listCustomerWebsiteOrders(req.authenticatedUser!.profile.id) });
+      if (req.query.page === undefined && req.query.limit === undefined) {
+        res.json({ success: true, data: await service.listCustomerWebsiteOrders(req.authenticatedUser!.profile.id) });
+      } else {
+        const input = validate(z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(50).default(15) }).strict(), req.query);
+        res.json({ success: true, data: await service.listPersonalOrders(req.authenticatedUser!.profile.id, input.page, input.limit) });
+      }
     } catch (error) { next(error); }
+  });
+
+  router.get("/orders/my/:id", protectedLimiter, authenticate, async (req, res, next) => {
+    try { res.json({ success: true, data: await service.readPersonalOrder(req.authenticatedUser!.profile.id, validate(z.string().uuid(), req.params.id)) }); }
+    catch (error) { next(error); }
   });
 
   router.post("/orders/manual", ...management, async (req, res, next) => {

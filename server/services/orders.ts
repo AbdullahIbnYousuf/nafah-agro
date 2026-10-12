@@ -12,6 +12,7 @@ import { isTransactionTimeout, SERIALIZABLE_TRANSACTION_OPTIONS } from "../lib/t
 import { sellingPriceForQuantity } from "../lib/pricing.js";
 import { allocateSaleAmount } from "../lib/saleAdjustment.js";
 import { unitLabelForKind } from "../lib/quantity.js";
+import { lockAccountCart, requireCartRevision, storedCartLines, cartError } from "./carts.js";
 
 const orderInclude = {
   createdBy: { select: { fullName: true, role: true } },
@@ -113,11 +114,33 @@ function orderDto(order: OrderRecord) {
   };
 }
 
+function personalOrderDto(order: ReturnType<typeof orderDto>) {
+  return {
+    id: order.id, orderNumber: order.orderNumber, source: order.source, status: order.status,
+    paymentMethod: order.paymentMethod, paymentStatus: order.paymentStatus,
+    customerName: order.customerName, customerPhone: order.customerPhone,
+    customerEmail: order.customerEmail, customerAddress: order.customerAddress,
+    deliveryArea: order.deliveryRate?.name ?? null,
+    subtotal: order.subtotal, discountTotal: order.discountTotal, priceIncreaseTotal: order.priceIncreaseTotal,
+    deliveryCharge: order.deliveryCharge, grandTotal: order.grandTotal,
+    placedAt: order.placedAt, confirmedAt: order.confirmedAt, deliveredAt: order.deliveredAt,
+    cancelledAt: order.cancelledAt, returnedAt: order.returnedAt,
+    items: order.items.map(item => ({
+      id: item.id, productName: item.productName, variantName: item.variantName,
+      quantity: item.quantity, quantityUnit: item.quantityUnit, unitLabel: item.unitLabel,
+      unitSellingPrice: item.unitSellingPrice, sellingPriceTier: item.sellingPriceTier,
+      netLineRevenue: item.netLineRevenue,
+    })),
+  };
+}
+
 function fingerprint(input: WebsiteCheckout) {
   const canonical = {
     items: [...input.items].sort((a, b) => a.productVariantId.localeCompare(b.productVariantId)),
     customer: input.customer,
     deliveryRateId: input.deliveryRateId,
+    ...(input.saveDeliveryAddress ? { saveDeliveryAddress: true } : {}),
+    ...(input.expectedGrandTotal !== undefined ? { expectedGrandTotal: input.expectedGrandTotal } : {}),
   };
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
@@ -168,6 +191,7 @@ async function createOrderBase(
     deliveryRateId: string;
     discountTotal: string;
     finalProductTotal?: string;
+    expectedGrandTotal?: string;
     confirmPriceIncrease?: boolean;
     customerProfileId?: string;
     createdByProfileId?: string;
@@ -227,6 +251,9 @@ async function createOrderBase(
   const discounts = allocateSaleAmount(lineTotals, subtotal, discount);
   const priceIncreases = allocateSaleAmount(lineTotals, subtotal, priceIncrease);
   const rate = await loadDeliveryRate(transaction, input.deliveryRateId);
+  if (input.expectedGrandTotal !== undefined && !finalProductTotal.plus(rate.charge).equals(input.expectedGrandTotal)) {
+    throw orderError(409, "CHECKOUT_TOTAL_CHANGED", "পণ্যের দাম বা ডেলিভারি চার্জ আপডেট হয়েছে। নতুন মোট দাম দেখে আবার অর্ডার প্লেস করুন।");
+  }
   const placedAt = new Date();
   const order = await transaction.salesOrder.create({ data: {
     orderNumber: orderNumber(input.source === "WEBSITE" ? "WEB" : "MAN"),
@@ -380,34 +407,52 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
     },
 
     async createWebsiteOrder(input: WebsiteCheckout, customerProfileId?: string) {
+      if (!customerProfileId && (input.saveDeliveryAddress || input.cartRevision !== undefined)) {
+        throw orderError(401, "AUTHENTICATION_REQUIRED", "ঠিকানা সেভ করতে আগে লগইন করুন।");
+      }
       const requestFingerprint = fingerprint(input);
       const existing = await prisma.salesOrder.findUnique({ where: { idempotencyKey: input.idempotencyKey }, include: orderInclude });
       if (existing) {
-        if (existing.requestFingerprint !== requestFingerprint) {
+        if (existing.requestFingerprint !== requestFingerprint || existing.customerProfileId !== (customerProfileId ?? null)) {
           throw orderError(409, "IDEMPOTENCY_KEY_REUSED", "This idempotency key was already used for a different order.");
         }
-        return { order: orderDto(existing), replayed: true };
+        return { order: personalOrderDto(orderDto(existing)), replayed: true };
       }
 
       try {
         const id = await prisma.$transaction(async (transaction) => {
+          if (customerProfileId && input.cartRevision !== undefined) {
+            const cart = await lockAccountCart(transaction, customerProfileId);
+            requireCartRevision(cart.revision, input.cartRevision);
+            const lines = storedCartLines(cart.items);
+            if (lines.length !== input.items.length || lines.some(line => !input.items.some(item => item.productVariantId === line.productVariantId && item.quantity === line.quantity))) {
+              throw cartError(409, "CART_CONFLICT", "কার্টের পণ্য আপডেট হয়েছে। নতুন কার্ট দেখে অর্ডার করুন।");
+            }
+            await transaction.accountCart.update({ where: { profileId: customerProfileId }, data: { items: [], revision: { increment: 1 } } });
+          }
           const orderId = await createOrderBase(transaction, {
             source: "WEBSITE", items: input.items, customer: input.customer,
             deliveryRateId: input.deliveryRateId, discountTotal: "0", customerProfileId,
             idempotencyKey: input.idempotencyKey, requestFingerprint,
+            expectedGrandTotal: input.expectedGrandTotal,
           });
+          if (customerProfileId && input.saveDeliveryAddress) {
+            await transaction.profile.update({ where: { id: customerProfileId }, data: {
+              deliveryAddress: input.customer.address, preferredDeliveryRateId: input.deliveryRateId,
+            } });
+          }
           await writeAudit(transaction, {
             actorProfileId: customerProfileId, action: "WEBSITE_ORDER_CREATED", entityId: orderId,
             newData: { source: "WEBSITE", status: "PENDING" },
           });
           return orderId;
         }, SERIALIZABLE_TRANSACTION_OPTIONS);
-        return { order: await readOrder(id), replayed: false };
+        return { order: personalOrderDto(await readOrder(id)), replayed: false };
       } catch (error) {
-        if (error && typeof error === "object" && (error as { code?: unknown }).code === "P2002") {
+        if (error && typeof error === "object" && ["P2002", "P2034", "CART_CONFLICT"].includes(String((error as { code?: unknown }).code))) {
           const raced = await prisma.salesOrder.findUnique({ where: { idempotencyKey: input.idempotencyKey }, include: orderInclude });
-          if (raced?.requestFingerprint === requestFingerprint) return { order: orderDto(raced), replayed: true };
-          throw orderError(409, "IDEMPOTENCY_KEY_REUSED", "This idempotency key was already used for a different order.");
+          if (raced?.requestFingerprint === requestFingerprint && raced.customerProfileId === (customerProfileId ?? null)) return { order: personalOrderDto(orderDto(raced)), replayed: true };
+          if (raced || (error as { code?: unknown }).code === "P2002") throw orderError(409, "IDEMPOTENCY_KEY_REUSED", "This idempotency key was already used for a different order.");
         }
         transactionError(error);
       }
@@ -462,7 +507,22 @@ export function createUnifiedOrderService(prisma: PrismaClient) {
       const orders = await prisma.salesOrder.findMany({
         where: { customerProfileId: profileId, source: "WEBSITE" }, include: orderInclude, orderBy: { placedAt: "desc" },
       });
-      return orders.map(orderDto);
+      return orders.map(order => personalOrderDto(orderDto(order)));
+    },
+
+    async listPersonalOrders(profileId: string, page: number, limit: number) {
+      const where = { customerProfileId: profileId, source: "WEBSITE" as const };
+      const [orders, total] = await Promise.all([
+        prisma.salesOrder.findMany({ where, include: orderInclude, orderBy: [{ placedAt: "desc" }, { id: "desc" }], skip: (page - 1) * limit, take: limit }),
+        prisma.salesOrder.count({ where }),
+      ]);
+      return { data: orders.map(order => personalOrderDto(orderDto(order))), total, page, limit, totalPages: Math.ceil(total / limit) };
+    },
+
+    async readPersonalOrder(profileId: string, id: string) {
+      const order = await prisma.salesOrder.findFirst({ where: { id, customerProfileId: profileId, source: "WEBSITE" }, include: orderInclude });
+      if (!order) throw orderError(404, "ORDER_NOT_FOUND", "অর্ডারটি পাওয়া যায়নি।");
+      return personalOrderDto(orderDto(order));
     },
 
     async transitionOrder(id: string, input: OrderLifecycle, actorId: string) {

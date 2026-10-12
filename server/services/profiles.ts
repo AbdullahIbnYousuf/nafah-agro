@@ -6,6 +6,8 @@ export interface ApplicationProfile {
   role: Role;
   fullName: string;
   phoneNumber: string | null;
+  deliveryAddress?: string | null;
+  preferredDeliveryRateId?: string | null;
   isActive: boolean;
 }
 
@@ -28,6 +30,8 @@ export function createProfileReader(prisma: PrismaClient): ProfileReader {
         role: true,
         fullName: true,
         phoneNumber: true,
+        deliveryAddress: true,
+        preferredDeliveryRateId: true,
         isActive: true,
       },
     });

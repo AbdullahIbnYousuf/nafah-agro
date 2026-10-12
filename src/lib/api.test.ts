@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { apiErrorMessage, ApiError, getProducts } from './api';
+import { apiErrorMessage, ApiError, getProducts, previewCart, createWebsiteOrder, getAccountCart } from './api';
 import { supabase } from './supabase';
 
 describe('API error presentation', () => {
@@ -19,6 +19,18 @@ describe('API error presentation', () => {
 });
 
 describe('API request reliability', () => {
+  it('uses explicit account tokens for carts but does not restore a session for guest quotes or checkout', async () => {
+    const getSession = vi.spyOn(supabase.auth, 'getSession');
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true, data: [] }) });
+    vi.stubGlobal('fetch', fetch);
+    await previewCart([]);
+    await createWebsiteOrder({ items: [], customer: { name: 'Guest', phone: '01700000000', address: 'Bogura' }, deliveryRateId: 'rate', idempotencyKey: 'guest-key' });
+    await getAccountCart('captured-account-token');
+    expect(getSession).not.toHaveBeenCalled();
+    expect(fetch.mock.calls[0][1].headers).not.toHaveProperty('Authorization');
+    expect(fetch.mock.calls[1][1].headers).not.toHaveProperty('Authorization');
+    expect(fetch.mock.calls[2][1].headers.Authorization).toBe('Bearer captured-account-token');
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();

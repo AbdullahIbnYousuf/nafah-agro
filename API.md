@@ -14,7 +14,7 @@ verifies the Supabase token, loads the active PostgreSQL profile, and enforces
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/health` | Public | API/PostgreSQL readiness |
 | `GET` | `/api/v1/auth/me` | Active profile | Resolve token to profile |
-| `PATCH` | `/api/v1/auth/me` | Active profile | Update own name and required phone |
+| `PATCH` | `/api/v1/auth/me` | Active profile | Update own name, nullable phone, optional saved delivery address/area |
 | `POST` | `/api/v1/auth/complete-customer-profile` | Supabase user | Recover only the token subject's CUSTOMER profile |
 | `GET` | `/api/v1/foundation` | Active profile | PostgreSQL proof endpoint |
 | `GET` | `/api/v1/foundation/owner` | OWNER | Owner-only proof |
@@ -240,8 +240,9 @@ All order sources use `sales_orders`, `sales_order_items`, and
 | `GET` | `/api/v1/delivery-rates` | Public | Active delivery zones and approved charges only |
 | `GET` | `/api/v1/admin/delivery-rates` | OWNER | All delivery zones, including inactive/unpriced rows |
 | `PATCH` | `/api/v1/delivery-rates/:id` | OWNER | Edit name, nullable charge, or active state |
-| `POST` | `/api/v1/orders/website` | Guest or customer | Idempotent website COD checkout |
-| `GET` | `/api/v1/orders/my` | CUSTOMER/active profile | Own profile-linked WEBSITE orders only |
+| `POST` | `/api/v1/orders/website` | Guest, CUSTOMER, OWNER | Idempotent website COD checkout |
+| `GET` | `/api/v1/orders/my` | CUSTOMER/OWNER | Own profile-linked WEBSITE orders only; `page`/`limit` return a paginated response |
+| `GET` | `/api/v1/orders/my/:id` | CUSTOMER/OWNER | Own website order details; other accounts receive 404 |
 | `POST` | `/api/v1/orders/manual` | OWNER | Facebook/phone/WhatsApp/other delivery order |
 | `GET` | `/api/v1/orders` | OWNER | Unified paginated/filterable order list |
 | `PATCH` | `/api/v1/orders/:id/status` | OWNER | Confirm/process/deliver/cancel/fail/return |
@@ -264,10 +265,52 @@ delivery-rate ID, and an idempotency key:
 }
 ```
 
-The strict schema rejects prices, costs, profit, totals, coupon values, and
+The strict schema rejects client-controlled prices, costs, profit, coupon values, and
 payment choices. Express reloads active variants and the delivery rate. A
 matching repeated key replays the original order; reuse with changed content
 returns `IDEMPOTENCY_KEY_REUSED`.
+
+Replay also requires the original account identity (or guest mode); a different
+account cannot retrieve an order by reusing its key. New signed-in clients send
+`cartRevision` and optional `saveDeliveryAddress` (default false). The service
+locks and verifies the entire submitted cart, creates the pending order, clears
+the matching cart, and optionally saves only its address and delivery-rate ID in
+one transaction. An idempotent replay never clears newer cart items. Older
+clients without `cartRevision` remain supported and do not clear stored carts.
+New clients also send `expectedGrandTotal` as a decimal string. This is only a
+comparison guard, never a price override: a changed server-calculated total
+returns `CHECKOUT_TOTAL_CHANGED` with no order/cart/address changes, so the
+customer can review the new total before submitting again.
+Personal-order and checkout responses expose recipient details, snapshots,
+status timestamps and charged totals only, never FIFO costs/profit, SKU,
+allocations, or internal status reasons. Omitting pagination from `/orders/my`
+retains its legacy array shape, but with the same safe fields.
+
+## Draft carts and saved addresses
+
+| Method | Endpoint | Access | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/cart` | CUSTOMER/OWNER | Own hydrated items and revision |
+| `POST` | `/api/v1/cart/mutations` | CUSTOMER/OWNER | `revision`, `action` (`ADD`, `SET`, `REMOVE`, `CLEAR`), and `line` except for CLEAR |
+| `POST` | `/api/v1/cart/merge` | CUSTOMER/OWNER | Merge `{mergeKey: uuid, items}` once per account/key |
+| `POST` | `/api/v1/storefront/cart-preview` | Public | Read-only `{items}` price/availability hydration |
+
+Lines contain `productVariantId`, integer `quantity` (1–1,000,000), and optional
+fallback `productName`/`variantName`; maximum 100 unique lines. ADD increments,
+SET replaces quantity, REMOVE removes the variant, CLEAR empties the cart.
+Use quantity 1 in REMOVE's line payload. Persisted writes require the returned
+revision and reject stale writes with `CART_CONFLICT`. Guest merges are additive,
+idempotent, enforce the same limits, and retain unavailable lines for removal.
+Prices, units, thumbnails and current eligibility come from PostgreSQL; stored
+name snapshots are only fallbacks for deleted catalog records. Drafts never
+reserve stock, and pending website checkout retains its existing stock rules.
+Inactive, hidden and loose products cannot be newly added to online carts.
+
+`GET /auth/me` includes nullable `deliveryAddress` and
+`preferredDeliveryRateId`. PATCH accepts those fields, including null to clear
+them, with ordinary name/phone fields. New addresses are 5–1,000 characters;
+preferred areas must exist and be active. API responses are `no-store`; new
+cart tables have RLS enabled with no direct client policies.
 
 Website and manual delivery-order APIs reject loose products. Loose products
 can be sold only through `/api/v1/physical-sales`.

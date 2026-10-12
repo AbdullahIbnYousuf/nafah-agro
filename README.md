@@ -9,6 +9,12 @@ orders, returns, analytics, and Cloudinary uploads.
 
 - Public catalog with categories, products, sellable pack/size options, search/filtering,
   a local cart, and guest cash-on-delivery checkout.
+- Signed-in OWNER and CUSTOMER carts are stored per account and work across
+  devices. Guest carts remain local and merge once on login. Profiles can save
+  one delivery address and area; checkout only updates them when explicitly selected.
+- `/orders` and `/orders/:orderId` show only the signed-in account's website
+  orders, without owner-only costs or notes. `/order-confirmation` thanks the
+  customer and retains a minimal browser-session receipt across refresh.
 - Independent Active and Show controls for categories and packaged products.
   Category controls gate all children without erasing individual product choices;
   Hide affects the online shop while active hidden products remain usable in-store.
@@ -82,6 +88,17 @@ separate frontend API-origin setting.
 Public pages use `/`, `/shop`, `/products/:slug`, `/cart`, `/login`,
 `/register`, and `/profile`. Shop filters are shareable query parameters:
 `q`, `category`, `tag`, `featured`, `sort`, and `page`.
+
+`/order-confirmation` is a browser-session receipt, not guest online tracking.
+Both account roles have `আমার অর্ডার` at `/orders` and ownership-protected
+detail pages at `/orders/:orderId`. Existing guest orders are never attached to
+an account by matching email or phone. Signed-in account carts are refreshed on
+login, cart entry, and window focus; no realtime synchronization is claimed.
+Unavailable cart items remain visible for removal. Cart revisions prevent stale
+cross-device edits, and checkout atomically clears only the matching account cart.
+Apply both `202610120001_account_carts_and_addresses` and
+`202610120002_cart_storage_security` before deploying this frontend/backend.
+The new cart tables have RLS enabled and are accessed through Express only.
 
 Owner pages are directly addressable under `/admin`: `/admin/dashboard`,
 `/admin/products`, `/admin/categories`, `/admin/inventory`,

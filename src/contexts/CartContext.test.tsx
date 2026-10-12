@@ -1,7 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CartItem } from '@/lib/types';
 import { CartProvider, useCart } from './CartContext';
+
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: null, loading: false }) }));
+vi.mock('@/lib/api', () => ({ previewCart: vi.fn(async items => items), ApiError: class extends Error {} }));
 
 const oldCartItem: CartItem = {
   productId: 'product-1',

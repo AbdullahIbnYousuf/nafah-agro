@@ -348,6 +348,8 @@ describe("GET /api/v1/foundation", () => {
       name: "Initial Owner",
       email: "owner@example.com",
       phoneNumber: null,
+      deliveryAddress: null,
+      preferredDeliveryRateId: null,
       role: "OWNER",
       isActive: true,
     });

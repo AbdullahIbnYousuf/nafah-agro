@@ -29,6 +29,7 @@ import type {
   InventorySummary,
   User,
   UnifiedOrder,
+  CartItem, AccountCartState, PersonalOrder, PersonalOrdersPage,
 } from './types';
 import { supabase } from './supabase';
 
@@ -158,7 +159,9 @@ export function completeCustomerProfile(
 
 export function updateMyProfile(input: {
   fullName: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
+  deliveryAddress?: string | null;
+  preferredDeliveryRateId?: string | null;
 }): Promise<User> {
   return requestV1<User>('/auth/me', {
     method: 'PATCH',
@@ -811,8 +814,11 @@ export function createWebsiteOrder(input: {
   customer: { name: string; phone: string; email?: string; address: string };
   deliveryRateId: string;
   idempotencyKey: string;
-}): Promise<{ order: UnifiedOrder; replayed: boolean }> {
-  return requestV1('/orders/website', { method: 'POST', body: JSON.stringify(input) });
+  saveDeliveryAddress?: boolean;
+  cartRevision?: number;
+  expectedGrandTotal?: string;
+}, token?: string): Promise<{ order: PersonalOrder; replayed: boolean }> {
+  return requestV1('/orders/website', { method: 'POST', body: JSON.stringify(input), auth: Boolean(token) }, token);
 }
 
 export function createManualOrder(input: {
@@ -849,8 +855,25 @@ export function getOrders(filters?: {
   return requestV1<OrdersPage>(`/orders${query.size ? `?${query}` : ''}`);
 }
 
-export function getMyOrders(): Promise<UnifiedOrder[]> {
-  return requestV1<UnifiedOrder[]>('/orders/my');
+export function getMyOrders(page = 1, signal?: AbortSignal): Promise<PersonalOrdersPage> {
+  return requestV1(`/orders/my?page=${page}&limit=15`, { signal });
+}
+
+export function getMyOrder(id: string, signal?: AbortSignal): Promise<PersonalOrder> {
+  return requestV1(`/orders/my/${encodeURIComponent(id)}`, { signal });
+}
+const cartLines = (items: CartItem[]) => items.map(({ productVariantId, quantity, productName, variantName }) => ({ productVariantId, quantity, productName, variantName }));
+export function previewCart(items: CartItem[], signal?: AbortSignal): Promise<CartItem[]> {
+  return requestV1('/storefront/cart-preview', { method: 'POST', body: JSON.stringify({ items: cartLines(items) }), auth: false, signal });
+}
+export function getAccountCart(token: string, signal?: AbortSignal): Promise<AccountCartState> {
+  return requestV1('/cart', { signal }, token);
+}
+export function mergeGuestCart(token: string, mergeKey: string, items: CartItem[], signal?: AbortSignal): Promise<AccountCartState> {
+  return requestV1('/cart/merge', { method: 'POST', body: JSON.stringify({ mergeKey, items: cartLines(items) }), signal }, token);
+}
+export function mutateAccountCart(token: string, revision: number, action: 'ADD' | 'SET' | 'REMOVE' | 'CLEAR', line?: CartItem): Promise<AccountCartState> {
+  return requestV1('/cart/mutations', { method: 'POST', body: JSON.stringify({ revision, action, ...(line ? { line: cartLines([line])[0] } : {}) }) }, token);
 }
 
 export function transitionOrder(

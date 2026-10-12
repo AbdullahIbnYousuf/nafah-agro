@@ -29,6 +29,9 @@ export const websiteCheckoutSchema = z.object({
   customer: deliveryCustomer,
   deliveryRateId: uuid,
   idempotencyKey: z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/),
+  saveDeliveryAddress: z.boolean().optional(),
+  cartRevision: z.number().int().nonnegative().optional(),
+  expectedGrandTotal: money.optional(),
 }).strict().superRefine((value, context) => uniqueItems(value.items, context));
 
 export const manualDeliveryOrderSchema = z.object({

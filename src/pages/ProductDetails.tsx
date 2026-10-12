@@ -15,7 +15,7 @@ const ProductDetails = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addItem, items, updateQuantity, removeItem } = useCart();
+  const { addItem, items, updateQuantity, removeItem, saving: cartSaving, loading: cartLoading } = useCart();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
@@ -94,62 +94,68 @@ const ProductDetails = () => {
     quantity: Math.max(quantityInCart, 1),
   });
 
-  const handleAddToCart = () => {
-    if (!selectedVariant) return toast.error('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
-    if (quantityInCart > 0) {
-      // Already in cart; increase quantity
-      updateQuantity(selectedVariant.id, quantityInCart + 1);
-      toast.success('কার্টে পরিমাণ বাড়ানো হয়েছে!');
-    } else {
-      addItem({
-        productId: product.id,
-        productVariantId: selectedVariant.id,
-        productName: product.name,
-        variantName: selectedVariant.name,
-        unitLabel: selectedVariant.unitLabel,
-        quantity: 1,
-        unitPrice: regularPrice,
-        ...(product.kind === 'EGG' ? {
-          productKind: product.kind,
-          bulkSellingPrice,
-          bulkMinimumQuantity: product.bulkMinimumQuantity,
-        } : {}),
-        imageUrl: product.images[0],
-      });
-      toast.success('কার্টে অ্যাড হয়েছে!');
-    }
+  const handleAddToCart = async () => {
+    try {
+      if (!selectedVariant) return toast.error('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
+      if (quantityInCart > 0) {
+        // Already in cart; increase quantity
+        await updateQuantity(selectedVariant.id, quantityInCart + 1);
+        toast.success('কার্টে পরিমাণ বাড়ানো হয়েছে!');
+      } else {
+        await addItem({
+          productId: product.id,
+          productVariantId: selectedVariant.id,
+          productName: product.name,
+          variantName: selectedVariant.name,
+          unitLabel: selectedVariant.unitLabel,
+          quantity: 1,
+          unitPrice: regularPrice,
+          ...(product.kind === 'EGG' ? {
+            productKind: product.kind,
+            bulkSellingPrice,
+            bulkMinimumQuantity: product.bulkMinimumQuantity,
+          } : {}),
+          imageUrl: product.images[0],
+        });
+        toast.success('কার্টে অ্যাড হয়েছে!');
+      }
+    } catch { /* Cart context displays the failure. */ }
   };
 
-  const handleDecreaseQuantity = () => {
-    if (!selectedVariant) return;
-    if (quantityInCart <= 1) {
-      removeItem(selectedVariant.id);
-      toast.success('কার্ট থেকে রিমুভ করা হয়েছে');
-    } else {
-      updateQuantity(selectedVariant.id, quantityInCart - 1);
-      toast.success('কার্টে পরিমাণ কমানো হয়েছে');
-    }
+  const handleDecreaseQuantity = async () => {
+    try {
+      if (!selectedVariant) return;
+      if (quantityInCart <= 1) {
+        await removeItem(selectedVariant.id);
+        toast.success('কার্ট থেকে রিমুভ করা হয়েছে');
+      } else {
+        await updateQuantity(selectedVariant.id, quantityInCart - 1);
+        toast.success('কার্টে পরিমাণ কমানো হয়েছে');
+      }
+    } catch { /* Cart context displays the failure. */ }
   };
 
-  const handleBuyNow = () => {
-    if (!selectedVariant) return toast.error('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
-    if (quantityInCart === 0) {
-      addItem({
-        productId: product.id,
-        productVariantId: selectedVariant.id,
-        productName: product.name,
-        variantName: selectedVariant.name, unitLabel: selectedVariant.unitLabel,
-        quantity: 1,
-        unitPrice: regularPrice,
-        ...(product.kind === 'EGG' ? {
-          productKind: product.kind,
-          bulkSellingPrice,
-          bulkMinimumQuantity: product.bulkMinimumQuantity,
-        } : {}),
-        imageUrl: product.images[0],
-      });
-    }
-    navigate('/cart');
+  const handleBuyNow = async () => {
+    try {
+      if (!selectedVariant) return toast.error('এই পণ্যের কোনো অ্যাকটিভ প্যাক/সাইজ নেই');
+      if (quantityInCart === 0) {
+        await addItem({
+          productId: product.id,
+          productVariantId: selectedVariant.id,
+          productName: product.name,
+          variantName: selectedVariant.name, unitLabel: selectedVariant.unitLabel,
+          quantity: 1,
+          unitPrice: regularPrice,
+          ...(product.kind === 'EGG' ? {
+            productKind: product.kind,
+            bulkSellingPrice,
+            bulkMinimumQuantity: product.bulkMinimumQuantity,
+          } : {}),
+          imageUrl: product.images[0],
+        });
+      }
+      navigate('/cart');
+    } catch { /* Do not navigate when the cart was not saved. */ }
   };
 
   const youtubeEmbedUrl = (url: string) => {
@@ -265,6 +271,7 @@ const ProductDetails = () => {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleDecreaseQuantity}
+                    disabled={cartSaving || cartLoading}
                     className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-secondary transition-colors hover:bg-secondary/10"
                   >
                     <Minus size={18} className="text-secondary" />
@@ -272,6 +279,7 @@ const ProductDetails = () => {
                   <span className="text-xl font-bold w-12 text-center">{quantityInCart}</span>
                   <button
                     onClick={handleAddToCart}
+                    disabled={cartSaving || cartLoading}
                     className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-secondary transition-colors hover:bg-secondary/10"
                   >
                     <Plus size={18} className="text-secondary" />
@@ -283,6 +291,7 @@ const ProductDetails = () => {
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 onClick={handleAddToCart}
+                disabled={cartSaving || cartLoading}
                 size="lg"
                 className={`min-h-12 flex-1 md:min-h-11 ${selectedVariant ? 'bg-secondary text-secondary-foreground hover:bg-secondary/90' : 'border border-amber-600 bg-amber-50 text-amber-950 hover:bg-amber-100'}`}
                 aria-disabled={!selectedVariant}
@@ -292,6 +301,7 @@ const ProductDetails = () => {
               </Button>
               <Button
                 onClick={handleBuyNow}
+                disabled={cartSaving || cartLoading}
                 size="lg"
                 className={`min-h-12 flex-1 md:min-h-11 ${selectedVariant ? '' : 'border border-amber-600 bg-amber-50 text-amber-950 hover:bg-amber-100'}`}
                 aria-disabled={!selectedVariant}

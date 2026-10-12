@@ -381,6 +381,9 @@ export interface ProductsPage {
 }
 
 export interface CartItem {
+  available?: boolean;
+  unavailableReason?: string | null;
+  availableStock?: number;
   unitLabel?: string;
   productId: string;
   productVariantId: string;
@@ -404,6 +407,11 @@ export interface DeliveryRate {
   charge: number | null;
   isActive: boolean;
 }
+
+export interface AccountCartState { revision: number; items: CartItem[] }
+export type PersonalOrderItem = Pick<UnifiedOrderItem, 'id' | 'productName' | 'variantName' | 'quantity' | 'quantityUnit' | 'unitLabel' | 'unitSellingPrice' | 'sellingPriceTier' | 'netLineRevenue'>;
+export type PersonalOrder = Pick<UnifiedOrder, 'id' | 'orderNumber' | 'status' | 'paymentMethod' | 'paymentStatus' | 'customerName' | 'customerPhone' | 'customerEmail' | 'customerAddress' | 'subtotal' | 'discountTotal' | 'priceIncreaseTotal' | 'deliveryCharge' | 'grandTotal' | 'placedAt' | 'confirmedAt' | 'deliveredAt' | 'cancelledAt' | 'returnedAt'> & { deliveryArea: string | null; items: PersonalOrderItem[] };
+export interface PersonalOrdersPage { data: PersonalOrder[]; total: number; page: number; limit: number; totalPages: number }
 
 export interface UnifiedOrderItem {
   id: string;
@@ -477,6 +485,8 @@ export interface OrdersPage {
 }
 
 export interface User {
+  deliveryAddress?: string | null;
+  preferredDeliveryRateId?: string | null;
   id: string;
   name: string;
   email: string | null;

@@ -15,6 +15,8 @@ export interface AccountProfile {
   role: "OWNER" | "CUSTOMER";
   fullName: string;
   phoneNumber: string | null;
+  deliveryAddress?: string | null;
+  preferredDeliveryRateId?: string | null;
   isActive: boolean;
 }
 
@@ -39,7 +41,7 @@ export interface AccountService {
   ownerInvitationsConfigured: boolean;
   updateOwnProfile(
     profileId: string,
-    input: { fullName: string; phoneNumber: string },
+    input: { fullName: string; phoneNumber: string | null; deliveryAddress?: string | null; preferredDeliveryRateId?: string | null },
   ): Promise<AccountProfile>;
   listOwners(actorId: string): Promise<OwnerAccount[]>;
   inviteOwner(
@@ -201,6 +203,9 @@ export function createAccountService(
     ownerInvitationsConfigured: Boolean(ownerAuthAdmin),
     async updateOwnProfile(profileId, input) {
       return prisma.$transaction(async (transaction) => {
+        if (input.preferredDeliveryRateId && !await transaction.deliveryRate.findFirst({ where: { id: input.preferredDeliveryRateId, isActive: true } })) {
+          throw accountError(400, "DELIVERY_AREA_UNAVAILABLE", "ডেলিভারি এলাকা পাওয়া যাচ্ছে না। অন্য এলাকা সিলেক্ট করুন।");
+        }
         const previous = await transaction.profile.findUnique({
           where: { id: profileId },
           select: { id: true, role: true, fullName: true, phoneNumber: true, isActive: true },
@@ -208,8 +213,8 @@ export function createAccountService(
         if (!previous) throw accountError(404, "PROFILE_NOT_FOUND", "The profile was not found.");
         const updated = await transaction.profile.update({
           where: { id: profileId },
-          data: { fullName: input.fullName, phoneNumber: input.phoneNumber },
-          select: { id: true, role: true, fullName: true, phoneNumber: true, isActive: true },
+          data: { fullName: input.fullName, phoneNumber: input.phoneNumber, deliveryAddress: input.deliveryAddress, preferredDeliveryRateId: input.preferredDeliveryRateId },
+          select: { id: true, role: true, fullName: true, phoneNumber: true, isActive: true, deliveryAddress: true, preferredDeliveryRateId: true },
         });
         await transaction.auditLog.create({ data: {
           actorProfileId: profileId,

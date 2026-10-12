@@ -390,13 +390,13 @@ describe('role-aware profile page', () => {
     expect(mocks.deleteUnusedOwner).not.toHaveBeenCalled();
   });
 
-  it('shows order history and hides owner controls for a CUSTOMER', async () => {
+  it('links personal orders and hides owner controls for a CUSTOMER', async () => {
     mocks.auth.user = { ...mocks.auth.user, role: 'CUSTOMER' as const, name: 'Nafah Customer' };
     mocks.auth.isOwner = false;
     render(<MemoryRouter><CustomerProfile /></MemoryRouter>);
-    expect(await screen.findByText('আমার ওয়েবসাইট অর্ডার')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /আমার অর্ডার দেখুন/ })).toHaveAttribute('href', '/orders');
     expect(screen.getByRole('heading', { name: 'অ্যাপ ইনস্টল' })).toBeInTheDocument();
-    await waitFor(() => expect(mocks.getMyOrders).toHaveBeenCalledOnce());
+    expect(mocks.getMyOrders).not.toHaveBeenCalled();
     expect(screen.queryByText('নতুন ওনার আমন্ত্রণ')).not.toBeInTheDocument();
     expect(mocks.getOwners).not.toHaveBeenCalled();
   });
