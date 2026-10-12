@@ -393,7 +393,6 @@ function DashboardContent({ data, chartMetric, onChartMetricChange }: {
       </div>
     </section>
     <section aria-label="আরও হিসাব" className="rounded-xl border bg-card p-3 sm:p-4">
-      <h2 className="mb-3 font-bold">আরও হিসাব</h2>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">{secondaryMetrics.map(item => <MetricCard key={item.label} {...item} compact />)}</div>
     </section>
 

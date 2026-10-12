@@ -336,6 +336,7 @@ describe('analytics dashboard date controls', () => {
     expect(expenseChange).not.toHaveClass('text-secondary', 'text-destructive');
     expect(expenseChange).toHaveTextContent('+25%');
     const secondary = screen.getByRole('region', { name: 'আরও হিসাব' });
+    expect(screen.queryByRole('heading', { name: 'আরও হিসাব' })).not.toBeInTheDocument();
     expect(secondary.querySelector('.grid')!.children).toHaveLength(5);
     for (const label of ['বাকি ছাড়া বিক্রি', 'বাকিতে বিক্রি', 'লাভের মার্জিন', 'ডেলিভারড অর্ডার', 'ডেলিভারি চার্জ']) expect(within(secondary).getByText(label)).toBeInTheDocument();
     expect(main.nextElementSibling).toBe(secondary);
