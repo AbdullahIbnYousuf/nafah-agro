@@ -88,6 +88,7 @@ function renderInventory(path = '/admin/inventory') {
         <Route path="/admin/inventory" element={<InventoryManager />} />
         <Route path="/admin/inventory/purchase" element={<InventoryManager />} />
         <Route path="/admin/inventory/adjustment" element={<InventoryManager />} />
+        <Route path="/admin/inventory/correction" element={<InventoryManager />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -157,6 +158,45 @@ describe('streamlined inventory workspace', () => {
     await waitFor(() => expect(mocks.getInventoryItemBatches).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole('button', { name: 'আগের স্টক দেখুন' }));
     await waitFor(() => expect(mocks.getInventoryItemBatches).toHaveBeenLastCalledWith(rice.productVariantId, { includeDepleted: true, page: 1, limit: 25 }));
+  });
+
+  it.each(['record', 'direct'] as const)('preselects the stock entry and original values from %s navigation', async (navigation) => {
+    mocks.getInventoryRecords.mockResolvedValue({
+      data: [{
+        id: liveBatch.purchaseGroupId,
+        type: 'PURCHASE',
+        occurredAt: liveBatch.createdAt,
+        effectiveDate: liveBatch.purchaseDate,
+        note: liveBatch.note,
+        createdBy: liveBatch.createdBy,
+        items: [{
+          productVariantId: rice.productVariantId,
+          productName: rice.productName,
+          variantName: rice.variantName,
+          productKind: rice.productKind,
+          quantityUnit: rice.quantityUnit,
+          direction: 'INCREASE',
+          quantity: liveBatch.purchasedQuantity,
+          unitBuyingCost: liveBatch.unitBuyingCost,
+          batchId: liveBatch.id,
+          canCorrect: true,
+        }],
+      }],
+      total: 1, page: 1, limit: 25, totalPages: 1,
+    });
+    renderInventory(navigation === 'direct'
+      ? `/admin/inventory/correction?variant=${rice.productVariantId}&batch=${liveBatch.id}`
+      : '/admin/inventory');
+    if (navigation === 'record') {
+      fireEvent.click(await screen.findByRole('tab', { name: 'আগের রেকর্ড' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'ঠিক করুন' }));
+    }
+    const dialog = await screen.findByRole('dialog', { name: 'ভুল এন্ট্রি ঠিক করুন' });
+    await waitFor(() => expect(within(dialog).getByRole('combobox', { name: 'আগের স্টক অ্যাড' })).toHaveValue(liveBatch.id));
+    expect(within(dialog).getByRole('combobox', { name: 'সংশোধনের পণ্য / প্যাক/সাইজ' })).toHaveTextContent('মিনিকেট চাল · ৫ কেজি');
+    const values = within(dialog).getAllByRole('spinbutton');
+    await waitFor(() => expect(values[0]).toHaveValue(liveBatch.purchasedQuantity));
+    expect(values[1]).toHaveValue(liveBatch.unitBuyingCost);
   });
 
   it('shows adjustment reasons in previous records', async () => {
