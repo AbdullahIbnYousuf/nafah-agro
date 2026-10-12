@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalyticsDashboardData } from '@/lib/types';
@@ -162,7 +162,7 @@ describe('analytics dashboard date controls', () => {
 
     await waitFor(() => expect(screen.getByLabelText('তারিখ থেকে')).toHaveValue('2026-08-01'));
     const currentStatusHeading = screen.getByRole('heading', { name: 'এখনকার স্ট্যাটাস' });
-    expect(screen.getByText('এগুলো সব সময় বর্তমান স্ট্যাটাস দেখায়।')).toBeInTheDocument();
+    expect(screen.getByText('তারিখের ফিল্টার এই কার্ডগুলোতে কাজ করে না।')).toBeInTheDocument();
     expect(currentStatusHeading.compareDocumentPosition(screen.getByLabelText('তারিখ থেকে')) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(screen.getByLabelText('তারিখ পর্যন্ত')).toHaveValue('2026-08-07');
     expect(screen.queryByRole('button', { name: 'নিজস্ব সময়সীমা' })).not.toBeInTheDocument();
@@ -182,7 +182,19 @@ describe('analytics dashboard date controls', () => {
     expect(screen.queryByText('মোট সম্পন্ন বিক্রি')).not.toBeInTheDocument();
     expect(screen.getByText('বাকি ছাড়া বিক্রি')).toBeInTheDocument();
     expect(screen.getByText('বাকিতে বিক্রি')).toBeInTheDocument();
-    expect(screen.getByText('টাকা এসেছে কোন মাধ্যমে')).toBeInTheDocument();
+    expect(screen.getByText('কোন মাধ্যমে টাকা এসেছে')).toBeInTheDocument();
+    const sourceSection = screen.getByRole('heading', { name: 'উৎস অনুযায়ী বিক্রয়' }).closest('section');
+    const paymentSection = screen.getByRole('heading', { name: 'কোন মাধ্যমে টাকা এসেছে' }).closest('section')!;
+    expect(sourceSection?.nextElementSibling).toBe(paymentSection);
+    expect(within(paymentSection).getAllByText('নেট')).toHaveLength(2);
+    expect(within(paymentSection).getByText('নেট = মোট পাওয়া টাকা থেকে রিফান্ডের টাকা বাদ দেওয়ার পর যে পরিমাণ থাকে। এটি বর্তমান ব্যালেন্স নয়।')).toBeVisible();
+    const breakdown = paymentSection.querySelector('details')!;
+    expect(breakdown).not.toHaveAttribute('open');
+    expect(within(paymentSection).queryByText('জমা হয়েছে')).not.toBeInTheDocument();
+    fireEvent.click(within(paymentSection).getByText('বিস্তারিত দেখুন'));
+    expect(breakdown).toHaveAttribute('open');
+    expect(within(paymentSection).getByRole('columnheader', { name: 'পেয়েছেন' })).toBeVisible();
+    expect(within(paymentSection).getByRole('columnheader', { name: 'রিফান্ড' })).toBeVisible();
     expect(screen.getByText('পুরোনো পেমেন্ট ও টাকা ফেরতের মাধ্যম রেকর্ড না থাকলে ক্যাশ ধরা হয়েছে।')).toBeInTheDocument();
     expect(screen.getByText('ডিসকাউন্ট বাদ দিয়ে পণ্য বিক্রি থেকে মোট আয়।')).toBeInTheDocument();
     const deliveredCard = screen.getByText('ডেলিভারড অর্ডার').closest('div.rounded-xl');
@@ -294,7 +306,64 @@ describe('analytics dashboard date controls', () => {
     const link = (await screen.findByText('খরচ দেখুন')).closest('a');
     expect(link).toHaveAttribute('href', '/admin/expenses?from=2026-08-01&to=2026-08-07');
     expect(screen.getByText('খরচ বাদে লাভ')).toBeInTheDocument();
-    expect(screen.getByText(/স্টক লস.*মোট লাভে আগেই ধরা আছে/)).toBeInTheDocument();
+    expect(screen.getByText('পণ্যের লাভ')).toBeInTheDocument();
+    expect(screen.queryByText('মোট লাভ')).not.toBeInTheDocument();
+    expect(screen.getByText('আনুমানিক লাভ')).toBeVisible();
+    const explanation = screen.getByText(/স্টক লস.*পণ্যের লাভে আগেই ধরা আছে/).closest('details')!;
+    expect(explanation).not.toHaveAttribute('open');
+    fireEvent.click(within(explanation).getByText('হিসাবের বিস্তারিত'));
+    expect(explanation).toHaveAttribute('open');
+    expect(screen.getByText(/ডেলিভারি চার্জ ও সেভ না করা খরচ এতে নেই/)).toBeVisible();
+  });
+
+  it('prioritizes four financial cards, keeps server values, and groups the five secondary metrics', async () => {
+    mocks.getAnalyticsDashboard.mockResolvedValue({ ...dashboard,
+      summary: { ...dashboard.summary, productRevenue: { ...metric, value: 1000 } },
+      expenseSummary: { total: { ...metric, value: 50, previousValue: 40, absoluteChange: 10, percentChange: 25 }, stockLoss: { ...metric, value: 10 }, profitAfterExpenses: { ...metric, value: 200 } },
+    });
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'রিফ্রেশ' }));
+    await within(screen.getByRole('region', { name: 'সিলেক্ট করা সময়ের মূল হিসাব' })).findByText('৳1,000');
+    const main = screen.getByRole('region', { name: 'সিলেক্ট করা সময়ের মূল হিসাব' });
+    const cards = Array.from(main.querySelector('.grid')!.children);
+    const names = ['পণ্য আয়', 'পণ্যের লাভ', 'দোকানের খরচ', 'খরচ বাদে লাভ'];
+    const values = ['৳1,000', '৳250', '৳50', '৳200'];
+    expect(cards).toHaveLength(4);
+    cards.forEach((card, index) => { expect(within(card as HTMLElement).getByText(names[index])).toBeInTheDocument(); expect(within(card as HTMLElement).getByText(values[index])).toBeInTheDocument(); });
+    expect(main.querySelector('.grid')).toHaveClass('grid-cols-2', 'xl:grid-cols-4');
+    const expenseChange = within(cards[2] as HTMLElement).getByText(/আগের সময়ের তুলনায়/);
+    expect(expenseChange).toHaveClass('text-muted-foreground');
+    expect(expenseChange).not.toHaveClass('text-secondary', 'text-destructive');
+    expect(expenseChange).toHaveTextContent('+25%');
+    const secondary = screen.getByRole('region', { name: 'আরও হিসাব' });
+    expect(secondary.querySelector('.grid')!.children).toHaveLength(5);
+    for (const label of ['বাকি ছাড়া বিক্রি', 'বাকিতে বিক্রি', 'লাভের মার্জিন', 'ডেলিভারড অর্ডার', 'ডেলিভারি চার্জ']) expect(within(secondary).getByText(label)).toBeInTheDocument();
+    expect(main.nextElementSibling).toBe(secondary);
+  });
+
+  it('shows unavailable expense information rather than fabricated zeros', async () => {
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'রিফ্রেশ' }));
+    await screen.findByRole('heading', { name: 'এই মাসের হিসাব' });
+    const main = screen.getByRole('region', { name: 'সিলেক্ট করা সময়ের মূল হিসাব' });
+    expect(await within(main).findAllByText('তথ্য পাওয়া যায়নি')).toHaveLength(2);
+    const expense = within(main).getByText('দোকানের খরচ').closest('a')!;
+    expect(expense).toHaveAttribute('href', '/admin/expenses?from=2026-08-01&to=2026-08-07');
+    expect(within(expense).queryByText('৳0')).not.toBeInTheDocument();
+    expect(within(expense).queryByText(/আগের সময়ের তুলনায়/)).not.toBeInTheDocument();
+  });
+
+  it('uses the applied response dates in the period heading, not draft date edits', async () => {
+    render(<MemoryRouter><AnalyticsDashboard /></MemoryRouter>);
+    await screen.findByRole('heading', { name: 'এই মাসের হিসাব' });
+    const main = screen.getByRole('region', { name: 'সিলেক্ট করা সময়ের মূল হিসাব' });
+    expect(within(main).getByText('01/08/2026 থেকে 07/08/2026')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('তারিখ থেকে'), { target: { value: '2026-03-01' } });
+    fireEvent.change(screen.getByLabelText('তারিখ পর্যন্ত'), { target: { value: '2026-03-09' } });
+    expect(within(main).getByText('01/08/2026 থেকে 07/08/2026')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'অ্যাপ্লাই' }));
+    await screen.findByRole('heading', { name: 'সিলেক্ট করা সময়ের হিসাব' });
+    expect(within(screen.getByRole('region', { name: 'সিলেক্ট করা সময়ের মূল হিসাব' })).getByText('01/03/2026 থেকে 09/03/2026')).toBeInTheDocument();
   });
 
 });
