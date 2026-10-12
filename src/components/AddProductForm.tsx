@@ -274,8 +274,7 @@ const AddProductForm = ({ categories, onClose, onCreated, editProduct }: Props) 
                 {kind === 'PACKAGED' && (!isEdit || kind !== editProduct?.kind) && <div>
                   <Label htmlFor="unit-label">বিক্রির ইউনিট *</Label>
                   <Input id="unit-label" value={unitLabel} maxLength={30} onChange={(event) => setUnitLabel(event.target.value)} placeholder="যেমন: বস্তা, ক্যান, ট্রে" className="mt-1 bg-card" />
-                  <p className="mt-1 text-xs text-muted-foreground">পুরো ইউনিট একসাথে বিক্রি হবে।</p>
-                  {unitLabel.trim() && <p className="mt-1 text-sm font-medium">স্টক: ৮ {unitLabel.trim()} · দাম: ৳{price || '৫০০'} প্রতি {unitLabel.trim()}</p>}
+                  <p className="mt-1 text-xs text-muted-foreground">পুরো {unitLabel.trim() || 'ইউনিট'} একসাথে বিক্রি হবে।</p>
                 </div>}
 
                 {kind === 'EGG' && <div>
