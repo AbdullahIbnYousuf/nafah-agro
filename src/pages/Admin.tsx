@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, EyeOff, HandCoins, ImageIcon, Loader2, Package, Plus, ReceiptText, Search, Settings2, Store, Tag, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Boxes, ClipboardList, Edit, ExternalLink, EyeOff, HandCoins, ImageIcon, Loader2, Package, Pencil, Plus, ReceiptText, Search, Settings2, Store, Tag, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import {
 } from '@/lib/api';
 import type { Category, Product } from '@/lib/types';
 import { productKindLabel, rateLabel } from '@/lib/quantity';
+import { visiblePackSize } from '@/lib/productOptions';
 
 const AnalyticsDashboard = lazy(() => import('@/components/AnalyticsDashboard'));
 const AddProductForm = lazy(() => import('@/components/AddProductForm'));
@@ -320,12 +321,29 @@ export function AdminProducts() {
         const changingVisible = statusSaving && statusTarget?.product.id === product.id && statusTarget.setting === 'VISIBLE';
         const shopVisibility = getProductShopVisibility(product, categories);
         const isPackaged = (product.kind ?? 'PACKAGED') === 'PACKAGED';
+        const namedPackSizes = isPackaged
+          ? (product.variants ?? []).map((variant) => visiblePackSize(variant.name)).filter((name): name is string => name !== null)
+          : [];
         const isOnlineProduct = isPackaged || product.kind === 'EGG';
         const inactiveContentClass = effectiveActive ? '' : 'opacity-60';
         return <tr key={product.id} className="border-t">
           <td className={`p-3 ${inactiveContentClass}`}><div className="flex min-w-52 items-center gap-3"><ProductThumbnail key={product.images[0] ?? 'no-image'} product={product} /><div className="min-w-0"><div className="break-words font-medium">{product.name}</div><span className="mt-1 inline-block rounded bg-muted px-2 py-0.5 text-xs">{productKindLabel(product.kind)}</span>{isOnlineProduct && (shopVisibility.visible ? <Link to={`/products/${encodeURIComponent(product.slug)}`} target="_blank" rel="noopener noreferrer" className="ml-2 mt-1 inline-flex min-h-8 items-center gap-1 text-xs text-secondary hover:underline">গ্রাহক পেজ <ExternalLink size={13} aria-hidden="true" /></Link> : <Tooltip><TooltipTrigger asChild><button type="button" className="ml-2 mt-1 inline-flex min-h-8 cursor-help items-center gap-1 rounded text-xs font-medium text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><EyeOff size={13} aria-hidden="true" />গ্রাহক পেজ লুকানো</button></TooltipTrigger><TooltipPortal><TooltipContent className="max-w-[min(22rem,calc(100vw-2rem))] p-3 leading-relaxed">{shopVisibility.guidance}</TooltipContent></TooltipPortal></Tooltip>)}</div></div></td>
-          <td className={`p-3 text-right ${inactiveContentClass}`}>৳{product.price}<div className="text-xs text-muted-foreground">{rateLabel(product.kind, product.unitLabel)}</div>{product.kind === 'EGG' && product.bulkSellingPrice != null && <div className="text-xs text-secondary">15টি+ ৳{product.bulkSellingPrice}</div>}</td>
-          <td className={`p-3 text-center ${inactiveContentClass}`}>{isPackaged ? product.variants?.length ?? 0 : 'প্যাক/সাইজ নেই'}</td>
+          <td className={`p-3 text-right ${inactiveContentClass}`}>
+            <Link
+              to={`/admin/products/${product.id}/variants`}
+              aria-label={`বিক্রির দাম আপডেট করুন: ${product.name}`}
+              title="বিক্রির দাম আপডেট করুন"
+              className="group inline-flex min-h-11 items-center justify-end gap-2 rounded-md px-2 py-1 text-right hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span>
+                <span className="font-medium group-hover:underline">৳{product.price}</span>
+                <span className="block text-xs text-muted-foreground">{rateLabel(product.kind, product.unitLabel)}</span>
+                {product.kind === 'EGG' && product.bulkSellingPrice != null && <span className="block text-xs text-secondary">15টি+ ৳{product.bulkSellingPrice}</span>}
+              </span>
+              <Pencil size={14} className="shrink-0 text-secondary" aria-hidden="true" />
+            </Link>
+          </td>
+          <td className={`p-3 text-center ${inactiveContentClass}`}>{namedPackSizes.length > 1 ? namedPackSizes.length : namedPackSizes[0] ?? 'প্যাক/সাইজ নেই'}</td>
           <td className="p-3"><div className="flex min-w-36 items-center justify-center gap-2"><Switch className="data-[state=unchecked]:border-amber-700 data-[state=unchecked]:bg-amber-700 disabled:opacity-100" checked={effectiveActive} disabled={changingActive} onCheckedChange={(checked) => openStatusChange(product, 'ACTIVE', checked, category)} aria-label={`${product.name} অ্যাকটিভ`} /><span className={`text-sm font-medium ${effectiveActive ? 'text-green-800' : 'text-amber-900'}`}>{effectiveActive ? 'অ্যাকটিভ' : 'ইনঅ্যাকটিভ'}</span>{changingActive && <Loader2 size={15} className="animate-spin" aria-label="পরিবর্তন হচ্ছে" />}</div></td>
           <td className="p-3">{isOnlineProduct ? <div className="flex min-w-28 items-center justify-center gap-2"><Switch className="data-[state=unchecked]:border-amber-700 data-[state=unchecked]:bg-amber-700 disabled:opacity-100" checked={effectiveVisible} disabled={changingVisible} onCheckedChange={(checked) => openStatusChange(product, 'VISIBLE', checked, category)} aria-label={`${product.name} অনলাইন শপ`} /><span className={`text-sm font-medium ${effectiveVisible ? 'text-green-800' : 'text-amber-900'}`}>{effectiveVisible ? 'শো' : 'হাইড'}</span>{changingVisible && <Loader2 size={15} className="animate-spin" aria-label="পরিবর্তন হচ্ছে" />}</div> : <span className="block text-center text-muted-foreground">এই পণ্যের জন্য নেই</span>}</td>
           <td className={`whitespace-nowrap p-3 text-right ${inactiveContentClass}`}><button type="button" aria-label={isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'} title={isPackaged ? 'প্যাক/সাইজ ও দাম' : 'দাম ও কম স্টকের লিমিট'} onClick={() => navigate(`/admin/products/${product.id}/variants`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Settings2 size={16} /></button><button type="button" aria-label="পণ্য সম্পাদনা" onClick={() => navigate(`/admin/products/${product.id}/edit`)} className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-muted"><Edit size={16} /></button><Button type="button" size="sm" variant={product.canDelete ? 'destructive' : 'outline'} aria-disabled={!product.canDelete} className="ml-2" onClick={() => { if (!product.canDelete) { toast.error('এই পণ্যের স্টক, দাম আপডেট, বিক্রি, অর্ডার বা স্টক আপডেটের রেকর্ড আছে। তাই এটি ডিলিট করতে পারবেন না। প্রয়োজনে পণ্যটি ইনঅ্যাকটিভ করুন।'); return; } setDeleteError(''); setDeleteTarget(product); }}><Trash2 size={15} className="mr-1" />ডিলিট</Button></td>

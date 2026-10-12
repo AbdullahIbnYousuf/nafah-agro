@@ -100,6 +100,23 @@ describe('safe catalog deletion controls', () => {
     );
   }
 
+  it.each([
+    { names: ['Default'], expected: 'প্যাক/সাইজ নেই' },
+    { names: ['50 kg'], expected: '50 kg' },
+    { names: ['50 kg', '25 kg'], expected: '2' },
+  ])('shows meaningful pack/size information for $names', async ({ names, expected }) => {
+    const variants = names.map((name, index) => ({
+      id: `variant-${index}`, name, sku: `INTERNAL-${index}`, sellingPrice: 100,
+      availableStock: 0, reservedStock: 0, lowStockThreshold: 5,
+      isDefault: index === 0, isActive: true,
+    }));
+    mocks.getAdminProducts.mockResolvedValue({ data: [{ ...product, variants }], total: 1, page: 1, limit: 100, totalPages: 1 });
+    renderAdmin('/admin/products');
+    const row = (await screen.findByText(product.name)).closest('tr')!;
+    expect(within(row).getByRole('cell', { name: expected })).toBeInTheDocument();
+    expect(within(row).queryByRole('cell', { name: '1' })).not.toBeInTheDocument();
+  });
+
   it('closes product deletion without action and submits only after confirmation', async () => {
     renderAdmin('/admin/products');
 
